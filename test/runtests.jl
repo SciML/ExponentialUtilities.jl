@@ -1,5 +1,5 @@
-using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilites
-using ExponentialUtilites: getH, getV
+using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
+using ExponentialUtilities: getH, getV
 
 @testset "Phi" begin
   # Scalar phi
@@ -51,7 +51,7 @@ end
   @test w ≈ wperm
 end
 
-@testset "Adaptive Krylov"
+@testset "Adaptive Krylov" begin
   # Internal time-stepping for Krylov (with adaptation)
   n = 100
   K = 4
