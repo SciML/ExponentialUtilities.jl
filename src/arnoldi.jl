@@ -54,7 +54,7 @@ end
 #######################################
 # Arnoldi/Lanczos with custom IOP
 """
-    arnoldi(A,b[;m,tol,opnorm,cache]) -> Ks
+    arnoldi(A,b[;m,tol,opnorm,iop,cache]) -> Ks
 
 Performs `m` anoldi iterations to obtain the Krylov subspace K_m(A,b).
 
@@ -85,7 +85,7 @@ function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opn
   arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, cache=cache, iop=iop)
 end
 """
-    arnoldi!(Ks,A,b[;tol,m,opnorm,cache]) -> Ks
+    arnoldi!(Ks,A,b[;tol,m,opnorm,iop,cache]) -> Ks
 
 Non-allocating version of `arnoldi`.
 """

@@ -8,7 +8,7 @@ Evaluates the matrix exponentiation-vector product using time stepping
 u = \\exp(tA)b
 ```
 
-`ts`` is an array of time snapshots for u, with `U[:,j] ≈ u(ts[j])`. `ts` can
+`ts` is an array of time snapshots for u, with `U[:,j] ≈ u(ts[j])`. `ts` can
 also be just one value, in which case only the end result is returned and `U`
 is a vector.
 
@@ -62,7 +62,7 @@ Evaluates the linear combination of phi-vector products using time stepping
 u = \\varphi_0(tA)b_0 + t\\varphi_1(tA)b_1 + \\cdots + t^p\\varphi_p(tA)b_p
 ```
 
-`ts`` is an array of time snapshots for u, with `U[:,j] ≈ u(ts[j])`. `ts` can
+`ts` is an array of time snapshots for u, with `U[:,j] ≈ u(ts[j])`. `ts` can
 also be just one value, in which case only the end result is returned and `U`
 is a vector.
 
