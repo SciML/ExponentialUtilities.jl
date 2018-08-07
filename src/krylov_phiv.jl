@@ -102,7 +102,7 @@ Compute the matrix-phi-vector products using Krylov. `k` >= 1.
 The phi functions are defined as
 
 ```math
-\\varphi_0(z) = \\exp(z),\\quad \\varphi_k(z+1) = \\frac{\\varphi_k(z) - 1}{z}
+\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - 1}{z}
 ```
 
 A Krylov subspace is constructed using `arnoldi` and `phiv_dense` is called
