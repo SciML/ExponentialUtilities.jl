@@ -56,13 +56,13 @@ function expv!(w::AbstractVector{T}, t::Number, Ks::KrylovSubspace{B, T, U};
     else
         throw(ArgumentError("Cache must be an ExpvCache"))
     end
-    lmul!(t, copyto!(cache, @view(H[1:m, :])))
+    copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
         F = eigen!(SymTridiagonal(cache))
-        expHe = F.vectors * (exp.(F.values) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(t*F.values) .* @view(F.vectors[1, :]))
     else
-        expH = exp!(cache)
+        expH = exp!(t*cache)
         expHe = @view(expH[:, 1])
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
