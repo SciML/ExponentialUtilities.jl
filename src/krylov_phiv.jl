@@ -35,7 +35,7 @@ function expv(t, A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opn
     w = similar(b)
     expv!(w, t, Ks; cache=cache)
 end
-function expv(t, Ks::KrylovSubspace{B, T}; cache=nothing) where {B, T}
+function expv(t, Ks::KrylovSubspace{B, T, U}; cache=nothing) where {B, T, U}
     n = size(getV(Ks), 1)
     w = Vector{T}(undef, n)
     expv!(w, t, Ks; cache=cache)
@@ -45,12 +45,12 @@ end
 
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
-function expv!(w::AbstractVector{T}, t::Number, Ks::KrylovSubspace{B, T};
-               cache=nothing) where {B, T <: Number}
+function expv!(w::AbstractVector{T}, t::Number, Ks::KrylovSubspace{B, T, U};
+               cache=nothing) where {B, T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
-        cache = Matrix{T}(undef, m, m)
+        cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
         cache = get_cache(cache, m)
     else
@@ -125,8 +125,8 @@ function phiv(t, A, b, k; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.
     w = Matrix{eltype(b)}(undef, length(b), k+1)
     phiv!(w, t, Ks, k; cache=cache, correct=correct, errest=errest)
 end
-function phiv(t, Ks::KrylovSubspace{B, T}, k; cache=nothing, correct=false,
-              errest=false) where {B, T}
+function phiv(t, Ks::KrylovSubspace{B, T, U}, k; cache=nothing, correct=false,
+              errest=false) where {B, T, U}
     n = size(getV(Ks), 1)
     w = Matrix{T}(undef, n, k+1)
     phiv!(w, t, Ks, k; cache=cache, correct=correct, errest=errest)
@@ -136,8 +136,8 @@ end
 
 Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
 """
-function phiv!(w::AbstractMatrix{T}, t::Number, Ks::KrylovSubspace{B, T}, k::Integer;
-               cache=nothing, correct=false, errest=false) where {B, T <: Number}
+function phiv!(w::AbstractMatrix{T}, t::Number, Ks::KrylovSubspace{B, T, U}, k::Integer;
+               cache=nothing, correct=false, errest=false) where {B, T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1) == size(V, 1) "Dimension mismatch"
     @assert size(w, 2) == k + 1 "Dimension mismatch"

@@ -80,3 +80,28 @@ end
   u = expv_timestep(t, A, B[:, 1]; adaptive=true, tol=tol)
   @test norm(u - u_exact) / norm(u_exact) < tol
 end
+
+@testset "Krylov for Hermitian matrices" begin
+  # Hermitian matrices have real spectra. Ensure that the subspace
+  # matrix is representable as a real matrix.
+
+  n = 100
+  m = 15
+  tol = 1e-14
+
+  e = ones(n)
+  p = -im*Tridiagonal(-e[2:end], 0e, e[2:end])
+
+  KsA = KrylovSubspace{ComplexF64}(n, m)
+  KsL = KrylovSubspace{ComplexF64, Float64}(n, m)
+
+  v = rand(ComplexF64, n)
+
+  arnoldi!(KsA, p, v)
+  lanczos!(KsL, p, v)
+
+  AH = view(KsA.H,1:KsA.m,1:KsA.m)
+  LH = view(KsL.H,1:KsL.m,1:KsL.m)
+
+  @test norm(AH-LH)/norm(AH) < tol
+end
