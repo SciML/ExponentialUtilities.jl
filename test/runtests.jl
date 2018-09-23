@@ -11,13 +11,22 @@ using ExponentialUtilities: getH, getV
   end
   @test phi(z, K) ≈ P
 
-  # Matrix phi
+  # Matrix phi (dense)
   A = [0.1 0.2; 0.3 0.4]
   P = Vector{Matrix{Float64}}(undef, K+1); P[1] = exp(A)
   for i = 1:K
     P[i+1] = (P[i] - 1/factorial(i-1)*I) / A
   end
   @test phi(A, K) ≈ P
+
+  # Matrix phi (Diagonal)
+  A = Diagonal([0.1, 0.2, 0.3, 0.4])
+  Afull = Matrix(A)
+  P = phi(A, K)
+  Pfull = phi(Afull, K)
+  for i = 1:K+1
+    @test Matrix(P[i]) ≈ Pfull[i]
+  end
 end
 
 @testset "Arnoldi & Krylov" begin

@@ -96,17 +96,23 @@ The phi functions are defined as
 \\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - 1}{z}
 ```
 
-Calls `phiv_dense` on each of the basis vectors to obtain the answer.
+Calls `phiv_dense` on each of the basis vectors to obtain the answer. If A
+is `Diagonal`, instead calls the scalar `phi` on each diagonal element and the
+return values are also `Diagonal`s
 """
 function phi(A::AbstractMatrix{T}, k; caches=nothing) where {T <: Number}
   m = size(A, 1)
-  out = [Matrix{T}(undef, m, m) for i = 1:k+1]
+  if A isa Diagonal
+    out = [similar(A) for i = 1:k+1]
+  else
+    out = [Matrix{T}(undef, m, m) for i = 1:k+1]
+  end
   phi!(out, A, k; caches=caches)
 end
 """
     phi!(out,A,k[;caches]) -> out
 
-Non-allocating version of `phi` for matrix inputs.
+Non-allocating version of `phi` for non-diagonal matrix inputs.
 """
 function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=nothing) where {T <: Number}
   m = size(A, 1)
@@ -126,6 +132,16 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=n
       @inbounds for s = 1:m
         out[j][s, i] = W[s, j]
       end
+    end
+  end
+  return out
+end
+function phi!(out::Vector{Diagonal{T,V}}, A::Diagonal{T,V}, k::Integer;
+  caches=nothing) where {T <: Number, V <: AbstractVector{T}}
+  for i = 1:size(A, 1)
+    phiz = phi(A[i, i], k; cache=caches)
+    for j = 1:k+1
+      out[j][i, i] = phiz[j]
     end
   end
   return out
