@@ -21,7 +21,7 @@ arrays and has the correct dimensions as indicated by `Ks.m`.
 
 Resize `Ks` to a different `maxiter`, destroying its contents.
 
-This is an expensive operation and should be used scarsely.
+This is an expensive operation and should be used scarcely.
 """
 mutable struct KrylovSubspace{B, T}
     m::Int        # subspace dimension
@@ -46,9 +46,9 @@ function Base.show(io::IO, Ks::KrylovSubspace)
     println(io, "$(Ks.m)-dimensional Krylov subspace with fields")
     println(io, "beta: $(Ks.beta)")
     print(io, "V: ")
-    println(IOContext(io, limit=true), getV(Ks))
+    println(IOContext(io, :limit => true), getV(Ks))
     print(io, "H: ")
-    println(IOContext(io, limit=true), getH(Ks))
+    println(IOContext(io, :limit => true), getH(Ks))
 end
 
 #######################################
@@ -58,7 +58,7 @@ end
 
 Performs `m` anoldi iterations to obtain the Krylov subspace K_m(A,b).
 
-The n x (m + 1) basis vectors `getV(Ks)` and the (m + 1) x m upper Heisenberg
+The n x (m + 1) basis vectors `getV(Ks)` and the (m + 1) x m upper Hessenberg
 matrix `getH(Ks)` are related by the recurrence formula
 
 ```
