@@ -46,9 +46,9 @@ function Base.show(io::IO, Ks::KrylovSubspace)
     println(io, "$(Ks.m)-dimensional Krylov subspace with fields")
     println(io, "beta: $(Ks.beta)")
     print(io, "V: ")
-    println(IOContext(io, limit=true), getV(Ks))
+    println(IOContext(io, :limit => true), getV(Ks))
     print(io, "H: ")
-    println(IOContext(io, limit=true), getH(Ks))
+    println(IOContext(io, :limit => true), getH(Ks))
 end
 
 #######################################
