@@ -23,7 +23,7 @@ end
 Compute the matrix-exponential-vector product using Krylov.
 
 A Krylov subspace is constructed using `arnoldi` and `exp!` is called
-on the Heisenberg matrix. Consult `arnoldi` for the values of the keyword
+on the Hessenberg matrix. Consult `arnoldi` for the values of the keyword
 arguments.
 
     expv(t,Ks; cache) -> exp(tA)b
@@ -106,7 +106,7 @@ The phi functions are defined as
 ```
 
 A Krylov subspace is constructed using `arnoldi` and `phiv_dense` is called
-on the Heisenberg matrix. If `correct=true`, then phi_0 through phi_k-1 are
+on the Hessenberg matrix. If `correct=true`, then phi_0 through phi_k-1 are
 updated using the last Arnoldi vector v_m+1 [^1]. If `errest=true` then an
 additional error estimate for the second-to-last phi is also returned. For
 the additional keyword arguments, consult `arnoldi`.
