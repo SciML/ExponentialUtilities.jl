@@ -23,21 +23,22 @@ Resize `Ks` to a different `maxiter`, destroying its contents.
 
 This is an expensive operation and should be used scarcely.
 """
-mutable struct KrylovSubspace{B, T}
+mutable struct KrylovSubspace{B, T, U}
     m::Int        # subspace dimension
     maxiter::Int  # maximum allowed subspace size
     beta::B       # norm(b,2)
     V::Matrix{T}  # orthonormal bases
-    H::Matrix{T}  # Gram-Schmidt coefficients
-    KrylovSubspace{T}(n::Integer, maxiter::Integer=30) where {T} = new{real(T), T}(
+    H::Matrix{U}  # Gram-Schmidt coefficients (real for Hermitian matrices)
+    KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30) where {T,U} = new{real(T), T, U}(
         maxiter, maxiter, zero(real(T)), Matrix{T}(undef, n, maxiter + 1),
-        fill(zero(T), maxiter + 1, maxiter))
+        fill(zero(U), maxiter + 1, maxiter))
+    KrylovSubspace{T}(n::Integer, maxiter::Integer=30) where {T} = KrylovSubspace{T,T}(n, maxiter)
 end
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m])
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
-function Base.resize!(Ks::KrylovSubspace{B,T}, maxiter::Integer) where {B,T}
+function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
     V = Matrix{T}(undef, size(Ks.V, 1), maxiter + 1)
-    H = fill(zero(T), maxiter + 1, maxiter)
+    H = fill(zero(U), maxiter + 1, maxiter)
     Ks.V = V; Ks.H = H
     Ks.m = Ks.maxiter = maxiter
     return Ks
@@ -50,6 +51,12 @@ function Base.show(io::IO, Ks::KrylovSubspace)
     print(io, "H: ")
     println(IOContext(io, :limit => true), getH(Ks))
 end
+
+# Helper functions that returns the real part if that is what is
+# required (for Hermitian matrices), otherwise returns the value
+# as-is.
+coeff(::Type{T},α::T) where {T} = α
+coeff(::Type{U},α::T) where {U<:Real,T<:Complex} = real(α)
 
 #######################################
 # Arnoldi/Lanczos with custom IOP
@@ -89,8 +96,10 @@ end
 
 Non-allocating version of `arnoldi`.
 """
-function arnoldi!(Ks::KrylovSubspace{B, T}, A, b::AbstractVector{T}; tol::Real=1e-7,
-                  m::Int=min(Ks.maxiter, size(A, 1)), opnorm=LinearAlgebra.opnorm, iop::Int=0, cache=nothing) where {B, T <: Number}
+function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
+                  tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
+                  opnorm=LinearAlgebra.opnorm,
+                  iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
     if ishermitian(A)
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm, cache=cache)
     end
@@ -113,13 +122,13 @@ function arnoldi!(Ks::KrylovSubspace{B, T}, A, b::AbstractVector{T}; tol::Real=1
         @assert size(cache) == (n,) "Dimension mismatch"
     end
     # Arnoldi iterations (with IOP)
-    fill!(H, zero(T))
+    fill!(H, zero(U))
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     @inbounds for j = 1:m
         mul!(cache, A, @view(V[:, j]))
         @inbounds for i = max(1, j - iop + 1):j
-            alpha = dot(@view(V[:, i]), cache)
+            alpha = coeff(U, dot(@view(V[:, i]), cache))
             H[i, j] = alpha
             axpy!(-alpha, @view(V[:, i]), cache)
         end
@@ -138,10 +147,13 @@ end
 """
     lanczos!(Ks,A,b[;tol,m,opnorm,cache]) -> Ks
 
-A variation of `arnoldi!` that uses the Lanczos algorithm for Hermitian matrices.
+A variation of `arnoldi!` that uses the Lanczos algorithm for
+Hermitian matrices.
 """
-function lanczos!(Ks::KrylovSubspace{B, T}, A, b::AbstractVector{T}; tol=1e-7,
-                  m=min(Ks.maxiter, size(A, 1)), opnorm=LinearAlgebra.opnorm, cache=nothing) where {B, T <: Number}
+function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
+                  tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
+                  opnorm=LinearAlgebra.opnorm,
+                  cache=nothing) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -164,7 +176,7 @@ function lanczos!(Ks::KrylovSubspace{B, T}, A, b::AbstractVector{T}; tol=1e-7,
     @inbounds for j = 1:m
         vj = @view(V[:, j])
         mul!(cache, A, vj)
-        alpha = dot(vj, cache)
+        alpha = coeff(U, dot(vj, cache))
         H[j, j] = alpha
         axpy!(-alpha, vj, cache)
         if j > 1
