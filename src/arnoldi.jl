@@ -91,6 +91,28 @@ function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opn
     Ks = KrylovSubspace{eltype(b)}(length(b), m)
     arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, cache=cache, iop=iop)
 end
+
+"""
+    arnoldi_step!(j, A, V, H, cache)
+
+Take the `j`:th step of the Lanczos iteration.
+"""
+function arnoldi_step!(j::Integer, iop::Integer, n::Integer, A,
+                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
+                       cache) where {T,U}
+    mul!(cache, A, @view(V[:, j]))
+    @inbounds for i = max(1, j - iop + 1):j
+        alpha = coeff(U, dot(@view(V[:, i]), cache))
+        H[i, j] = alpha
+        axpy!(-alpha, @view(V[:, i]), cache)
+    end
+    beta = norm(cache)
+    H[j+1, j] = beta
+    @inbounds for i = 1:n
+        V[i, j+1] = cache[i] / beta
+    end
+    beta
+end
 """
     arnoldi!(Ks,A,b[;tol,m,opnorm,iop,cache]) -> Ks
 
@@ -126,17 +148,7 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     @inbounds for j = 1:m
-        mul!(cache, A, @view(V[:, j]))
-        @inbounds for i = max(1, j - iop + 1):j
-            alpha = coeff(U, dot(@view(V[:, i]), cache))
-            H[i, j] = alpha
-            axpy!(-alpha, @view(V[:, i]), cache)
-        end
-        beta = norm(cache)
-        H[j+1, j] = beta
-        @inbounds for i = 1:n
-            V[i, j+1] = cache[i] / beta
-        end
+        beta = arnoldi_step!(j, iop, n, A, V, H, cache)
         if beta < vtol # happy-breakdown
             Ks.m = j
             break
@@ -144,6 +156,34 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     end
     return Ks
 end
+
+"""
+    lanczos_step!(j, A, V, H, cache)
+
+Take the `j`:th step of the Lanczos iteration.
+"""
+function lanczos_step!(j::Integer, m::Integer, n::Integer, A,
+                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
+                       cache) where {T,U}
+    vj = @view(V[:, j])
+    mul!(cache, A, vj)
+    alpha = coeff(U, dot(vj, cache))
+    H[j, j] = alpha
+    axpy!(-alpha, vj, cache)
+    if j > 1
+        axpy!(-H[j-1, j], @view(V[:, j-1]), cache)
+    end
+    beta = norm(cache)
+    H[j+1, j] = beta
+    if j < m
+        H[j, j+1] = beta
+    end
+    @inbounds for i = 1:n
+        V[i, j+1] = cache[i] / beta
+    end
+    beta
+end
+
 """
     lanczos!(Ks,A,b[;tol,m,opnorm,cache]) -> Ks
 
@@ -174,22 +214,7 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     @inbounds for j = 1:m
-        vj = @view(V[:, j])
-        mul!(cache, A, vj)
-        alpha = coeff(U, dot(vj, cache))
-        H[j, j] = alpha
-        axpy!(-alpha, vj, cache)
-        if j > 1
-            axpy!(-H[j-1, j], @view(V[:, j-1]), cache)
-        end
-        beta = norm(cache)
-        H[j+1, j] = beta
-        if j < m
-            H[j, j+1] = beta
-        end
-        @inbounds for i = 1:n
-            V[i, j+1] = cache[i] / beta
-        end
+        beta = lanczos_step!(j, m, n, A, V, H, cache)
         if beta < vtol # happy-breakdown
             Ks.m = j
             break
