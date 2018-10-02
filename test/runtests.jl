@@ -105,3 +105,35 @@ end
 
   @test norm(AH-LH)/norm(AH) < tol
 end
+
+@testset "Alternative Lanczos expv! interface" begin
+  n = 300
+  m = 30
+  A = Hermitian(rand(n,n))
+  Ks = KrylovSubspace{ComplexF64,Float64}(n,m)
+  sc = StegrCache(ComplexF64, n)
+
+  b = rand(ComplexF64, n)
+  w = similar(b)
+  w′ = similar(b)
+
+  dt = 0.1
+
+  atol=1e-10
+  rtol=1e-10
+  expv!(w, -im, dt*A, b, Ks, sc, atol=atol, rtol=rtol)
+
+  @test Ks.m < m
+
+  function fullexp!(w, A, v)
+      eA = exp(A)
+      mul!(w, eA, v)
+      w
+  end
+
+  fullexp!(w′, -im*dt*A, b)
+
+  δw = norm(w-w′)
+  @test δw < atol
+  @test δw/abs(1e-16+norm(w)) < rtol
+end
