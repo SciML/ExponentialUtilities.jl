@@ -163,26 +163,33 @@ end
 Take the `j`:th step of the Lanczos iteration.
 """
 function lanczos_step!(j::Integer, m::Integer, n::Integer, A,
-                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
-                       cache) where {T,U}
+                       V::AbstractMatrix{T},
+                       α::AbstractVector{U},
+                       β::AbstractVector{B},
+                       cache) where {B,T,U}
     vj = @view(V[:, j])
     mul!(cache, A, vj)
-    alpha = coeff(U, dot(vj, cache))
-    H[j, j] = alpha
-    axpy!(-alpha, vj, cache)
-    if j > 1
-        axpy!(-H[j-1, j], @view(V[:, j-1]), cache)
-    end
-    beta = norm(cache)
-    H[j+1, j] = beta
-    if j < m
-        H[j, j+1] = beta
-    end
+    α[j] = coeff(U, dot(vj, cache))
+    axpy!(-α[j], vj, cache)
+    j > 1 && axpy!(-β[j-1], @view(V[:, j-1]), cache)
+    β[j] = norm(cache)
     @inbounds for i = 1:n
-        V[i, j+1] = cache[i] / beta
+        V[i, j+1] = cache[i] / β[j]
     end
-    beta
+    β[j]
 end
+
+macro diagview(A,d::Integer=0)
+    s = d<=0 ? 1+abs(d) : :(m+$d)
+    quote
+        m = size($(esc(A)),1)
+        @view($(esc(A))[($s):m+1:end])
+    end
+end
+
+realview(::Type{R}, V::AbstractVector{C}) where {R,C<:Complex} =
+    @view(reinterpret(R, V)[1:2:end])
+realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 
 """
     lanczos!(Ks,A,b[;tol,m,opnorm,cache]) -> Ks
@@ -213,12 +220,15 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     fill!(H, zero(T))
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
+    α = @diagview(H)
+    β = realview(B, @diagview(H,-1))
     @inbounds for j = 1:m
-        beta = lanczos_step!(j, m, n, A, V, H, cache)
-        if beta < vtol # happy-breakdown
+        if vtol > lanczos_step!(j, m, n, A, V, α, β, cache)
+            # happy-breakdown
             Ks.m = j
             break
         end
     end
+    copyto!(@diagview(H,1), β[1:end-1])
     return Ks
 end
