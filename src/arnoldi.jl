@@ -98,19 +98,17 @@ end
 Take the `j`:th step of the Lanczos iteration.
 """
 function arnoldi_step!(j::Integer, iop::Integer, n::Integer, A,
-                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
-                       cache) where {T,U}
-    mul!(cache, A, @view(V[:, j]))
+                       V::AbstractMatrix{T}, H::AbstractMatrix{U}) where {T,U}
+    x,y = @view(V[:, j]),@view(V[:, j+1])
+    mul!(y, A, x)
     @inbounds for i = max(1, j - iop + 1):j
-        alpha = coeff(U, dot(@view(V[:, i]), cache))
+        alpha = coeff(U, dot(@view(V[:, i]), y))
         H[i, j] = alpha
-        axpy!(-alpha, @view(V[:, i]), cache)
+        axpy!(-alpha, @view(V[:, i]), y)
     end
-    beta = norm(cache)
+    beta = norm(y)
     H[j+1, j] = beta
-    @inbounds for i = 1:n
-        V[i, j+1] = cache[i] / beta
-    end
+    @. y /= beta
     beta
 end
 """
@@ -138,17 +136,12 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
-    if cache == nothing
-        cache = similar(b)
-    else
-        @assert size(cache) == (n,) "Dimension mismatch"
-    end
     # Arnoldi iterations (with IOP)
     fill!(H, zero(U))
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     @inbounds for j = 1:m
-        beta = arnoldi_step!(j, iop, n, A, V, H, cache)
+        beta = arnoldi_step!(j, iop, n, A, V, H)
         if beta < vtol # happy-breakdown
             Ks.m = j
             break
@@ -165,17 +158,14 @@ Take the `j`:th step of the Lanczos iteration.
 function lanczos_step!(j::Integer, m::Integer, n::Integer, A,
                        V::AbstractMatrix{T},
                        α::AbstractVector{U},
-                       β::AbstractVector{B},
-                       cache) where {B,T,U}
-    vj = @view(V[:, j])
-    mul!(cache, A, vj)
-    α[j] = coeff(U, dot(vj, cache))
-    axpy!(-α[j], vj, cache)
-    j > 1 && axpy!(-β[j-1], @view(V[:, j-1]), cache)
-    β[j] = norm(cache)
-    @inbounds for i = 1:n
-        V[i, j+1] = cache[i] / β[j]
-    end
+                       β::AbstractVector{B}) where {B,T,U}
+    x,y = @view(V[:, j]),@view(V[:, j+1])
+    mul!(y, A, x)
+    α[j] = coeff(U, dot(x, y))
+    axpy!(-α[j], x, y)
+    j > 1 && axpy!(-β[j-1], @view(V[:, j-1]), y)
+    β[j] = norm(y)
+    @. y /= β[j]
     β[j]
 end
 
@@ -211,11 +201,6 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
-    if cache == nothing
-        cache = similar(b)
-    else
-        @assert size(cache) == (n,) "Dimension mismatch"
-    end
     # Lanczos iterations
     fill!(H, zero(T))
     Ks.beta = norm(b)
@@ -223,7 +208,7 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     α = @diagview(H)
     β = realview(B, @diagview(H,-1))
     @inbounds for j = 1:m
-        if vtol > lanczos_step!(j, m, n, A, V, α, β, cache)
+        if vtol > lanczos_step!(j, m, n, A, V, α, β)
             # happy-breakdown
             Ks.m = j
             break
