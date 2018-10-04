@@ -60,9 +60,9 @@ function expv!(w::AbstractVector{T}, t::Number, Ks::KrylovSubspace{B, T, U};
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
         F = eigen!(SymTridiagonal(cache))
-        expHe = F.vectors * (exp.(t*F.values) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
     else
-        expH = exp!(t*cache)
+        expH = exp!(lmul!(t,cache))
         expHe = @view(expH[:, 1])
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
