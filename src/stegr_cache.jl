@@ -93,7 +93,9 @@ mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
     v::Vector{T} # Subspace-propagated vector
     w::Vector{T}
     sw::StegrWork{R}
-    StegrCache(::Type{T}, n::Integer) where T = new{T,real(T)}(Vector{T}(undef, n), Vector{T}(undef, n), StegrWork(real(T), n))
+    StegrCache(::Type{T}, n::Integer) where T = new{T,real(T)}(
+        Vector{T}(undef, n), Vector{T}(undef, n),
+        StegrWork(real(T), BlasInt(n)))
 end
 
 function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number, cache::StegrCache{T,R}) where {T,R<:Real}
