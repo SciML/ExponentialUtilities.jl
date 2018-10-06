@@ -177,8 +177,18 @@ macro diagview(A,d::Integer=0)
     end
 end
 
+"""
+    realview(R, V)
+
+Returns a view of the real components of the complex vector `V`.
+"""
 realview(::Type{R}, V::AbstractVector{C}) where {R,C<:Complex} =
     @view(reinterpret(R, V)[1:2:end])
+"""
+    realview(R, V)
+
+Returns a view of the real components of the real vector `V`.
+"""
 realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 
 """
@@ -206,6 +216,7 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     α = @diagview(H)
+    # β is always real, even though α may (in general) be complex.
     β = realview(B, @diagview(H,-1))
     @inbounds for j = 1:m
         if vtol > lanczos_step!(j, m, n, A, V, α, β)

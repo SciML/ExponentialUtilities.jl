@@ -5,6 +5,17 @@ abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
 include("stegr_cache.jl")
 
+"""
+    expv!(w, t, A, b, Ks, cache)
+
+Alternative interface for calculating the action of `exp(t*A)` on the
+vector `b`, storing the result in `w`. The Krylov iteration is
+terminated when an error estimate for the matrix exponential in the
+generated subspace is below the requested tolerance. `Ks` is a
+`KrylovSubspace` and `typeof(cache)<:HermitianSubspaceCache`, the
+exact type decides which algorithm is used to compute the subspace
+exponential.
+"""
 function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
                Ks::KrylovSubspace{B, T, B}, cache::HSC;
                atol::B=1.0e-8, rtol::B=1.0e-4,
@@ -13,7 +24,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     if m > Ks.maxiter
         resize!(Ks, m)
     else
-        Ks.m = m # might change if happy-breakdown occurs
+        Ks.m = m # might change if error estimate is below requested tolerance
     end
 
     V, H = getV(Ks), getH(Ks)

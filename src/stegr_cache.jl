@@ -46,15 +46,27 @@ for (stegr,elty) in ((:dstegr_,:Float64),
     end
 end
 
+"""
+    stegr!(α, β, sw)
+
+Diagonalize the real-symmetric tridiagonal matrix with `α` on the
+diagonal and `β` on the super-/subdiagonal, using the workspaces
+allocated in `sw`.
+"""
 function stegr!(α::AbstractVector{T}, β::AbstractVector{T}, sw::StegrWork{T}) where T
     # @assert length(sw.dv) >= length(α)
     # @assert length(sw.ev) >= length(β)
     copyto!(sw.dv, α)
     copyto!(sw.ev, β)
-    n = BlasInt(length(α))
-    stegr!(n, sw)
+    stegr!(BlasInt(length(α)), sw)
 end
 
+"""
+    StegrWork(T, n)
+
+Allocate work arrays for diagonalization of real-symmetric tridiagonal
+matrices of sizes up to `n`×`n`.
+"""
 function StegrWork(::Type{T}, n::BlasInt,
                    jobz::Char = 'V', range::Char = 'A') where T
     dv = Array{T}(undef, n)
@@ -98,7 +110,15 @@ mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
         StegrWork(real(T), BlasInt(n)))
 end
 
-function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number, cache::StegrCache{T,R}) where {T,R<:Real}
+"""
+    expT!(α, β, t, cache)
+
+Calculate the subspace exponential `exp(t*T)` for a tridiagonal
+subspace matrix `T` with `α` on the diagonal and `β` on the
+super-/subdiagonal, diagonalizing via `stegr!`.
+"""
+function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
+               cache::StegrCache{T,R}) where {T,R<:Real}
     stegr!(α, β, cache.sw)
     sel = 1:length(α)
     @inbounds for i = sel
