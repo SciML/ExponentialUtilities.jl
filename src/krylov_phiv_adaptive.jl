@@ -166,7 +166,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
             end
         end
         # Part 2: compute ϕp(tau*A)wp using Krylov, possibly with adaptation
-        arnoldi!(Ks, A, @view(W[:, end]); tol=tol, m=m, opnorm=opnorm, iop=iop, cache=u)
+        arnoldi!(Ks, A, @view(W[:, end]); tol=tol, m=m, opnorm=opnorm, iop=iop)
         _, epsilon = phiv!(P, tau, Ks, p + 1; cache=phiv_cache, correct=correct, errest=true)
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
         if adaptive
@@ -180,7 +180,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
                 m, m_old = m_new, m
                 tau, tau_old = tau_new, tau
                 # Compute ϕp(tau*A)wp using the new parameters
-                arnoldi!(Ks, A, @view(W[:, end]); tol=tol, m=m, opnorm=opnorm, iop=iop, cache=u)
+                arnoldi!(Ks, A, @view(W[:, end]); tol=tol, m=m, opnorm=opnorm, iop=iop)
                 _, epsilon_new = phiv!(P, tau, Ks, p + 1; cache=phiv_cache, correct=correct, errest=true)
                 epsilon, epsilon_old = epsilon_new, epsilon
                 omega = (tend / tau) * (epsilon / abstol)

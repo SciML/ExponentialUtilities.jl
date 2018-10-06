@@ -61,7 +61,7 @@ coeff(::Type{U},α::T) where {U<:Real,T<:Complex} = real(α)
 #######################################
 # Arnoldi/Lanczos with custom IOP
 """
-    arnoldi(A,b[;m,tol,opnorm,iop,cache]) -> Ks
+    arnoldi(A,b[;m,tol,opnorm,iop]) -> Ks
 
 Performs `m` anoldi iterations to obtain the Krylov subspace K_m(A,b).
 
@@ -86,14 +86,13 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm,
-                 iop=0, cache=nothing)
+function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0)
     Ks = KrylovSubspace{eltype(b)}(length(b), m)
-    arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, cache=cache, iop=iop)
+    arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
 end
 
 """
-    arnoldi_step!(j, A, V, H, cache)
+    arnoldi_step!(j, A, V, H)
 
 Take the `j`:th step of the Lanczos iteration.
 """
@@ -112,16 +111,15 @@ function arnoldi_step!(j::Integer, iop::Integer, n::Integer, A,
     beta
 end
 """
-    arnoldi!(Ks,A,b[;tol,m,opnorm,iop,cache]) -> Ks
+    arnoldi!(Ks,A,b[;tol,m,opnorm,iop]) -> Ks
 
 Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm,
-                  iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, iop::Int=0) where {B, T <: Number, U <: Number}
     if ishermitian(A)
-        return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm, cache=cache)
+        return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
     if m > Ks.maxiter
         resize!(Ks, m)
@@ -151,7 +149,7 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
 end
 
 """
-    lanczos_step!(j, A, V, H, cache)
+    lanczos_step!(j, A, V, H)
 
 Take the `j`:th step of the Lanczos iteration.
 """
@@ -192,15 +190,14 @@ Returns a view of the real components of the real vector `V`.
 realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 
 """
-    lanczos!(Ks,A,b[;tol,m,opnorm,cache]) -> Ks
+    lanczos!(Ks,A,b[;tol,m,opnorm]) -> Ks
 
 A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm,
-                  cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
