@@ -5,6 +5,11 @@ abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
 include("stegr_cache.jl")
 
+get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Complex} =
+    error("Subspace exponential caches not yet available for non-Hermitian matrices.")
+get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Real} =
+    StegrCache(Ks)
+
 """
     expv!(w, t, A, b, Ks, cache)
 

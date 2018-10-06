@@ -110,6 +110,9 @@ mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
         StegrWork(real(T), BlasInt(n)))
 end
 
+StegrCache(Ks::KrylovSubspace{B,T,U}) where {B,T,U} =
+    StegrCache(T, Ks.maxiter)
+
 """
     expT!(α, β, t, cache)
 
@@ -126,5 +129,3 @@ function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
     end
     mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel,sel]), @view(cache.w[sel]))
 end
-
-export StegrCache
