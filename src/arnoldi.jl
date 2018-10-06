@@ -61,7 +61,7 @@ coeff(::Type{U},α::T) where {U<:Real,T<:Complex} = real(α)
 #######################################
 # Arnoldi/Lanczos with custom IOP
 """
-    arnoldi(A,b[;m,tol,opnorm,iop,cache]) -> Ks
+    arnoldi(A,b[;m,tol,opnorm,iop]) -> Ks
 
 Performs `m` anoldi iterations to obtain the Krylov subspace K_m(A,b).
 
@@ -86,22 +86,40 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm,
-                 iop=0, cache=nothing)
+function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0)
     Ks = KrylovSubspace{eltype(b)}(length(b), m)
-    arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, cache=cache, iop=iop)
+    arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
+end
+
+"""
+    arnoldi_step!(j, A, V, H)
+
+Take the `j`:th step of the Lanczos iteration.
+"""
+function arnoldi_step!(j::Integer, iop::Integer, n::Integer, A,
+                       V::AbstractMatrix{T}, H::AbstractMatrix{U}) where {T,U}
+    x,y = @view(V[:, j]),@view(V[:, j+1])
+    mul!(y, A, x)
+    @inbounds for i = max(1, j - iop + 1):j
+        alpha = coeff(U, dot(@view(V[:, i]), y))
+        H[i, j] = alpha
+        axpy!(-alpha, @view(V[:, i]), y)
+    end
+    beta = norm(y)
+    H[j+1, j] = beta
+    @. y /= beta
+    beta
 end
 """
-    arnoldi!(Ks,A,b[;tol,m,opnorm,iop,cache]) -> Ks
+    arnoldi!(Ks,A,b[;tol,m,opnorm,iop]) -> Ks
 
 Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm,
-                  iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, iop::Int=0) where {B, T <: Number, U <: Number}
     if ishermitian(A)
-        return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm, cache=cache)
+        return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
     if m > Ks.maxiter
         resize!(Ks, m)
@@ -116,27 +134,12 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
-    if cache == nothing
-        cache = similar(b)
-    else
-        @assert size(cache) == (n,) "Dimension mismatch"
-    end
     # Arnoldi iterations (with IOP)
     fill!(H, zero(U))
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     @inbounds for j = 1:m
-        mul!(cache, A, @view(V[:, j]))
-        @inbounds for i = max(1, j - iop + 1):j
-            alpha = coeff(U, dot(@view(V[:, i]), cache))
-            H[i, j] = alpha
-            axpy!(-alpha, @view(V[:, i]), cache)
-        end
-        beta = norm(cache)
-        H[j+1, j] = beta
-        @inbounds for i = 1:n
-            V[i, j+1] = cache[i] / beta
-        end
+        beta = arnoldi_step!(j, iop, n, A, V, H)
         if beta < vtol # happy-breakdown
             Ks.m = j
             break
@@ -144,16 +147,57 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     end
     return Ks
 end
+
 """
-    lanczos!(Ks,A,b[;tol,m,opnorm,cache]) -> Ks
+    lanczos_step!(j, A, V, H)
+
+Take the `j`:th step of the Lanczos iteration.
+"""
+function lanczos_step!(j::Integer, m::Integer, n::Integer, A,
+                       V::AbstractMatrix{T},
+                       α::AbstractVector{U},
+                       β::AbstractVector{B}) where {B,T,U}
+    x,y = @view(V[:, j]),@view(V[:, j+1])
+    mul!(y, A, x)
+    α[j] = coeff(U, dot(x, y))
+    axpy!(-α[j], x, y)
+    j > 1 && axpy!(-β[j-1], @view(V[:, j-1]), y)
+    β[j] = norm(y)
+    @. y /= β[j]
+    β[j]
+end
+
+macro diagview(A,d::Integer=0)
+    s = d<=0 ? 1+abs(d) : :(m+$d)
+    quote
+        m = size($(esc(A)),1)
+        @view($(esc(A))[($s):m+1:end])
+    end
+end
+
+"""
+    realview(R, V)
+
+Returns a view of the real components of the complex vector `V`.
+"""
+realview(::Type{R}, V::AbstractVector{C}) where {R,C<:Complex} =
+    @view(reinterpret(R, V)[1:2:end])
+"""
+    realview(R, V)
+
+Returns a view of the real components of the real vector `V`.
+"""
+realview(::Type{R}, V::AbstractVector{R}) where {R} = V
+
+"""
+    lanczos!(Ks,A,b[;tol,m,opnorm]) -> Ks
 
 A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm,
-                  cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -164,36 +208,20 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
-    if cache == nothing
-        cache = similar(b)
-    else
-        @assert size(cache) == (n,) "Dimension mismatch"
-    end
     # Lanczos iterations
     fill!(H, zero(T))
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
+    α = @diagview(H)
+    # β is always real, even though α may (in general) be complex.
+    β = realview(B, @diagview(H,-1))
     @inbounds for j = 1:m
-        vj = @view(V[:, j])
-        mul!(cache, A, vj)
-        alpha = coeff(U, dot(vj, cache))
-        H[j, j] = alpha
-        axpy!(-alpha, vj, cache)
-        if j > 1
-            axpy!(-H[j-1, j], @view(V[:, j-1]), cache)
-        end
-        beta = norm(cache)
-        H[j+1, j] = beta
-        if j < m
-            H[j, j+1] = beta
-        end
-        @inbounds for i = 1:n
-            V[i, j+1] = cache[i] / beta
-        end
-        if beta < vtol # happy-breakdown
+        if vtol > lanczos_step!(j, m, n, A, V, α, β)
+            # happy-breakdown
             Ks.m = j
             break
         end
     end
+    copyto!(@diagview(H,1), β[1:end-1])
     return Ks
 end

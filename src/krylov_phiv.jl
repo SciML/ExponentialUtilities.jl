@@ -23,17 +23,36 @@ end
 Compute the matrix-exponential-vector product using Krylov.
 
 A Krylov subspace is constructed using `arnoldi` and `exp!` is called
-on the Hessenberg matrix. Consult `arnoldi` for the values of the keyword
-arguments.
+on the Hessenberg matrix. Consult `arnoldi` for the values of the
+keyword arguments. An alternative algorithm, where an error estimate
+generated on-the-fly is used to terminate the Krylov iteration, can be
+employed by setting the kwarg `mode=:error_estimate`.
 
     expv(t,Ks; cache) -> exp(tA)b
 
 Compute the expv product using a pre-constructed Krylov subspace.
 """
-function expv(t, A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, cache=nothing, iop=0)
-    Ks = arnoldi(A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
+function expv(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
+              opnorm=LinearAlgebra.opnorm, cache=nothing, iop=0,
+              mode=:happy_breakdown)
+    Ks = if mode == :happy_breakdown
+        arnoldi(A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
+    elseif mode == :error_estimate
+        n = size(A,1)
+        T = promote_type(typeof(t), eltype(A), eltype(b))
+        U = ishermitian(A) ? real(T) : T
+        KrylovSubspace{T,U}(n, m)
+    else
+        error("Unknown Krylov iteration termination mode, $(mode)")
+    end
     w = similar(b)
-    expv!(w, t, Ks; cache=cache)
+    if mode == :happy_breakdown
+        expv!(w, t, Ks; cache=cache)
+    elseif mode == :error_estimate
+        expv!(w, t, A, b,
+              Ks, get_subspace_cache(Ks);
+              atol=tol, rtol=rtol)
+    end
 end
 function expv(t, Ks::KrylovSubspace{B, T, U}; cache=nothing) where {B, T, U}
     n = size(getV(Ks), 1)
