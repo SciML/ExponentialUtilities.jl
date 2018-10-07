@@ -86,7 +86,7 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0)
+function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0, cache=nothing )
     Ks = KrylovSubspace{eltype(b)}(length(b), m)
     arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
 end
@@ -117,7 +117,7 @@ Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, iop::Int=0) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
     if ishermitian(A)
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
@@ -197,7 +197,7 @@ Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, cache=nothing) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
