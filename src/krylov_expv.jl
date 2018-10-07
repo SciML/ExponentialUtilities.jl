@@ -44,7 +44,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     n = size(V, 1)
 
     for j ∈ 1:m
-        lanczos_step!(j, m, n, A, V, α, β)
+        lanczos_step!(j, A, V, α, β)
         expT!(@view(α[1:j]), @view(β[1:j]), t, cache)
 
         # This is practical error estimate Er₂ from
