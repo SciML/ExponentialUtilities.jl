@@ -86,17 +86,17 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0)
+function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0, cache=nothing )
     Ks = KrylovSubspace{eltype(b)}(length(b), m)
     arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
 end
 
 """
-    arnoldi_step!(j, A, V, H)
+    arnoldi_step!(j, iop, n, A, V, H)
 
 Take the `j`:th step of the Lanczos iteration.
 """
-function arnoldi_step!(j::Integer, iop::Integer, n::Integer, A,
+function arnoldi_step!(j::Integer, iop::Integer, A,
                        V::AbstractMatrix{T}, H::AbstractMatrix{U}) where {T,U}
     x,y = @view(V[:, j]),@view(V[:, j+1])
     mul!(y, A, x)
@@ -117,7 +117,7 @@ Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, iop::Int=0) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
     if ishermitian(A)
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
@@ -139,7 +139,7 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     @inbounds for j = 1:m
-        beta = arnoldi_step!(j, iop, n, A, V, H)
+        beta = arnoldi_step!(j, iop, A, V, H)
         if beta < vtol # happy-breakdown
             Ks.m = j
             break
@@ -149,11 +149,11 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
 end
 
 """
-    lanczos_step!(j, A, V, H)
+    lanczos_step!(j, m, n, A, V, H)
 
 Take the `j`:th step of the Lanczos iteration.
 """
-function lanczos_step!(j::Integer, m::Integer, n::Integer, A,
+function lanczos_step!(j::Integer, A,
                        V::AbstractMatrix{T},
                        α::AbstractVector{U},
                        β::AbstractVector{B}) where {B,T,U}
@@ -197,7 +197,7 @@ Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, cache=nothing) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -216,7 +216,7 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     # β is always real, even though α may (in general) be complex.
     β = realview(B, @diagview(H,-1))
     @inbounds for j = 1:m
-        if vtol > lanczos_step!(j, m, n, A, V, α, β)
+        if vtol > lanczos_step!(j, A, V, α, β)
             # happy-breakdown
             Ks.m = j
             break
