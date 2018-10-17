@@ -50,13 +50,22 @@ In both cases, `ts` is an array of time snapshots for u, with `U[:,j] ≈ u(ts[j
 
 Apart from keyword arguments that affect the computation of Krylov subspaces (see the Arnoldi iteration section), you can also adjust the timestepping behavior using the arguments. By setting `adaptive=true`, the time step and Krylov subsapce size adaptation scheme of Niesen & Wright is used and the relative tolerance of which can be set using the keyword parameter `tol`. The `delta` and `gamma` parameter of the adaptation scheme can also be adjusted. The `tau` parameter adjusts the size of the timestep (and for `adaptive=true`, the initial timestep). By default, it is calculated using a heuristic formula by Niesen & Wright.
 
+### Support for matrix-free operators
+
+You can use any object as the "matrix" `A` as long as it implements the following linear operator interface:
+
+* `LinearAlgebra.mul!(y, A, x)` (for computing `y = A * x` in place).
+* `Base.size(A, dim)`
+* `LinearAlgebra.opnorm(A, p=Inf)`. If this is not implemented or the default implementation can be slow, you can manually pass in the operator norm (a rough estimate is fine) using the keyword argument `opnorm`.
+* `LinearAlgebra.ishermitian(A)`. If this is not implemented or the default implementation can be slow, you can manually pass in the value using the keyword argument `ishermitian`.
+
 ## Matrix-phi function `phi`
 
 ```julia
 phi(z,k[;cache]) -> [ϕ_0(z),ϕ_1(z),...,ϕ_k(z)]
 ```
 
-Compute ϕ function directly. `z` can both be a scalar or a Matrix. This is used by the caching versions of the ExpRK integrators to precompute the operators.
+Compute ϕ function directly. `z` can both be a scalar or a `AbstractMatrix` (note that unlike the previous functions, you *need* to use a concrete matrix). This is used by the caching versions of the ExpRK integrators to precompute the operators.
 
 Instead of using the recurrence relation, which is numerically unstable, a formula given by Sidje is used [2].
 
