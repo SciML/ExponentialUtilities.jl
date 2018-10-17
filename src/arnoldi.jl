@@ -117,8 +117,9 @@ Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
+                  ishermitian::Bool=LinearAlgebra.ishermitian(A),
                   opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0) where {B, T <: Number, U <: Number}
-    if ishermitian(A)
+    if ishermitian
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
     if m > Ks.maxiter

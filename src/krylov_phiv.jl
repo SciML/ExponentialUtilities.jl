@@ -48,11 +48,12 @@ function _expv_hb(t, A, b; cache=nothing, kwargs_arnoldi...)
     w = similar(b)
     expv!(w, t, Ks; cache=cache)
 end
-function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol))
+function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
+    ishermitian::Bool=LinearAlgebra.ishermitian(A))
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A,1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
-    U = ishermitian(A) ? real(T) : T
+    U = ishermitian ? real(T) : T
     Ks = KrylovSubspace{T,U}(n, m)
     w = similar(b)
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)

@@ -102,6 +102,7 @@ end
 function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T}; tau::Real=0.0,
                         m::Int=min(10, size(A, 1)), tol::Real=1e-7, opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0,
                         correct::Bool=false, caches=nothing, adaptive=false, delta::Real=1.2,
+                        ishermitian::Bool=LinearAlgebra.ishermitian(A),
                         gamma::Real=0.8, NA::Int=0, verbose=false) where {T <: Number, tType <: Real}
     # Choose initial timestep
     abstol = tol * opnorm
@@ -134,7 +135,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
     copyto!(u, @view(B[:, 1])) # u(0) = b0
     coeffs = ones(tType, p);
     if adaptive # initialization step for the adaptive scheme
-        if ishermitian(A)
+        if ishermitian
             iop = 2 # does not have an effect on arnoldi!, just for flops estimation
         end
         if iszero(NA)
