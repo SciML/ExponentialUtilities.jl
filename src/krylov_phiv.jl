@@ -32,27 +32,30 @@ employed by setting the kwarg `mode=:error_estimate`.
 
 Compute the expv product using a pre-constructed Krylov subspace.
 """
-function expv(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
-              opnorm=LinearAlgebra.opnorm, cache=nothing, iop=0,
-              mode=:happy_breakdown)
-    Ks = if mode == :happy_breakdown
-        arnoldi(A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
-    elseif mode == :error_estimate
-        n = size(A,1)
-        T = promote_type(typeof(t), eltype(A), eltype(b))
-        U = ishermitian(A) ? real(T) : T
-        KrylovSubspace{T,U}(n, m)
-    else
-        error("Unknown Krylov iteration termination mode, $(mode)")
-    end
-    w = similar(b)
+function expv(t, A, b; mode=:happy_breakdown, kwargs...)
+    # Master dispatch function
     if mode == :happy_breakdown
-        expv!(w, t, Ks; cache=cache)
+        _expv_hb(t, A, b; kwargs...)
     elseif mode == :error_estimate
-        expv!(w, t, A, b,
-              Ks, get_subspace_cache(Ks);
-              atol=tol, rtol=rtol)
+        _expv_ee(t, A, b; kwargs...)
+    else
+        throw(ArgumentError("Unknown Krylov iteration termination mode, $(mode)"))
     end
+end
+function _expv_hb(t, A, b; cache=nothing, kwargs_arnoldi...)
+    # Happy-breakdown mode: first construct Krylov subspace then expv!
+    Ks = arnoldi(A, b; kwargs_arnoldi...)
+    w = similar(b)
+    expv!(w, t, Ks; cache=cache)
+end
+function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol))
+    # Error-estimate mode: construction of Krylov subspace and expv! at the same time
+    n = size(A,1)
+    T = promote_type(typeof(t), eltype(A), eltype(b))
+    U = ishermitian(A) ? real(T) : T
+    Ks = KrylovSubspace{T,U}(n, m)
+    w = similar(b)
+    expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
 end
 function expv(t, Ks::KrylovSubspace{B, T, U}; kwargs...) where {B, T, U}
     n = size(getV(Ks), 1)
@@ -138,9 +141,8 @@ Compute the matrix-phi-vector products using a pre-constructed Krylov subspace.
 the φ-functions in exponential integrators. arXiv preprint arXiv:0907.4631.
 Formula (10).
 """
-function phiv(t, A, b, k; m=min(30, size(A, 1)), cache=nothing,
-    correct=false, errest=false, kwargs...)
-    Ks = arnoldi(A, b; m=m, kwargs...)
+function phiv(t, A, b, k; cache=nothing, correct=false, errest=false, kwargs_arnoldi...)
+    Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = Matrix{eltype(b)}(undef, length(b), k+1)
     phiv!(w, t, Ks, k; cache=cache, correct=correct, errest=errest)
 end
