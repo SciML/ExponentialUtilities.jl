@@ -54,10 +54,10 @@ function expv(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
               atol=tol, rtol=rtol)
     end
 end
-function expv(t, Ks::KrylovSubspace{B, T, U}; cache=nothing) where {B, T, U}
+function expv(t, Ks::KrylovSubspace{B, T, U}; kwargs...) where {B, T, U}
     n = size(getV(Ks), 1)
     w = Vector{T}(undef, n)
-    expv!(w, t, Ks; cache=cache)
+    expv!(w, t, Ks; kwargs...)
 end
 """
     expv!(w,t,Ks[;cache]) -> w
@@ -138,17 +138,16 @@ Compute the matrix-phi-vector products using a pre-constructed Krylov subspace.
 the φ-functions in exponential integrators. arXiv preprint arXiv:0907.4631.
 Formula (10).
 """
-function phiv(t, A, b, k; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0,
-              cache=nothing, correct=false, errest=false)
-    Ks = arnoldi(A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
+function phiv(t, A, b, k; m=min(30, size(A, 1)), cache=nothing,
+    correct=false, errest=false, kwargs...)
+    Ks = arnoldi(A, b; m=m, kwargs...)
     w = Matrix{eltype(b)}(undef, length(b), k+1)
     phiv!(w, t, Ks, k; cache=cache, correct=correct, errest=errest)
 end
-function phiv(t, Ks::KrylovSubspace{B, T, U}, k; cache=nothing, correct=false,
-              errest=false) where {B, T, U}
+function phiv(t, Ks::KrylovSubspace{B, T, U}, k; kwargs...) where {B, T, U}
     n = size(getV(Ks), 1)
     w = Matrix{T}(undef, n, k+1)
-    phiv!(w, t, Ks, k; cache=cache, correct=correct, errest=errest)
+    phiv!(w, t, Ks, k; kwargs...)
 end
 """
     phiv!(w,t,Ks,k[;cache,correct,errest]) -> w[,errest]

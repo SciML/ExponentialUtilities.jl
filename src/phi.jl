@@ -48,9 +48,9 @@ formula given by Sidje is used (Sidje, R. B. (1998). Expokit: a software
 package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
 """
-function phiv_dense(A, v, k; cache=nothing)
+function phiv_dense(A, v, k; kwargs...)
     w = Matrix{eltype(A)}(undef, length(v), k+1)
-    phiv_dense!(w, A, v, k; cache=cache)
+    phiv_dense!(w, A, v, k; kwargs...)
 end
 """
     phiv_dense!(w,A,v,k[;cache]) -> w
@@ -100,14 +100,14 @@ Calls `phiv_dense` on each of the basis vectors to obtain the answer. If A
 is `Diagonal`, instead calls the scalar `phi` on each diagonal element and the
 return values are also `Diagonal`s
 """
-function phi(A::AbstractMatrix{T}, k; caches=nothing) where {T <: Number}
+function phi(A::AbstractMatrix{T}, k; kwargs...) where {T <: Number}
     m = size(A, 1)
     if A isa Diagonal
         out = [similar(A) for i = 1:k+1]
     else
         out = [Matrix{T}(undef, m, m) for i = 1:k+1]
     end
-    phi!(out, A, k; caches=caches)
+    phi!(out, A, k; kwargs...)
 end
 """
     phi!(out,A,k[;caches]) -> out
