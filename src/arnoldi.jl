@@ -117,7 +117,7 @@ Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm, iop::Int=0) where {B, T <: Number, U <: Number}
     if ishermitian(A)
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
@@ -197,7 +197,7 @@ Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
