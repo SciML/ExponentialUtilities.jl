@@ -100,17 +100,16 @@ function phiv_timestep!(u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};
     return u
 end
 function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T}; tau::Real=0.0,
-                        m::Int=min(10, size(A, 1)), tol::Real=1e-7, opnorm=LinearAlgebra.opnorm, iop::Int=0,
+                        m::Int=min(10, size(A, 1)), tol::Real=1e-7, opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0,
                         correct::Bool=false, caches=nothing, adaptive=false, delta::Real=1.2,
                         gamma::Real=0.8, NA::Int=0, verbose=false) where {T <: Number, tType <: Real}
     # Choose initial timestep
-    abstol = tol * opnorm(A, Inf)
+    abstol = tol * opnorm
     verbose && println("Absolute tolerance: $abstol")
     if iszero(tau)
-        Anorm = opnorm(A, Inf)
         b0norm = norm(@view(B[:, 1]), Inf)
-        tau = 10/Anorm * (abstol * ((m+1)/ℯ)^(m+1) * sqrt(2*pi*(m+1)) /
-                          (4*Anorm*b0norm))^(1/m)
+        tau = 10/opnorm * (abstol * ((m+1)/ℯ)^(m+1) * sqrt(2*pi*(m+1)) /
+                          (4*opnorm*b0norm))^(1/m)
         verbose && println("Initial time step unspecified, chosen to be $tau")
     end
     # Initialization
@@ -176,7 +175,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
             while omega > delta # inner loop of Algorithm 3
                 m_new, tau_new, q, kappa = _phiv_timestep_adapt(
                     m, tau, epsilon, m_old, tau_old, epsilon_old, q, kappa,
-                    gamma, omega, maxtau, n, p, NA, iop, opnorm(getH(Ks), 1), verbose)
+                    gamma, omega, maxtau, n, p, NA, iop, LinearAlgebra.opnorm(getH(Ks), 1), verbose)
                 m, m_old = m_new, m
                 tau, tau_old = tau_new, tau
                 # Compute ϕp(tau*A)wp using the new parameters

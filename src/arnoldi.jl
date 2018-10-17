@@ -78,7 +78,7 @@ The default value of 0 indicates full Arnoldi. For symmetric/Hermitian `A`,
 
 Refer to `KrylovSubspace` for more information regarding the output.
 
-Happy-breakdown occurs whenver `norm(v_j) < tol * opnorm(A, Inf)`, in this case
+Happy-breakdown occurs whenver `norm(v_j) < tol * opnorm`, in this case
 the dimension of `Ks` is smaller than `m`.
 
 [^1]: Koskela, A. (2015). Approximating the matrix exponential of an
@@ -117,7 +117,7 @@ Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, iop::Int=0) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0) where {B, T <: Number, U <: Number}
     if ishermitian(A)
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
@@ -127,7 +127,7 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
         Ks.m = m # might change if happy-breakdown occurs
     end
     V, H = getV(Ks), getH(Ks)
-    vtol = tol * opnorm(A, Inf)
+    vtol = tol * opnorm
     if iop == 0
         iop = m
     end
@@ -197,14 +197,14 @@ Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm(A,Inf)) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
         Ks.m = m # might change if happy-breakdown occurs
     end
     V, H = getV(Ks), getH(Ks)
-    vtol = tol * opnorm(A, Inf)
+    vtol = tol * opnorm
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
