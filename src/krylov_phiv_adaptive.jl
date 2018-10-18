@@ -31,11 +31,11 @@ evaluating the φ-functions in exponential integrators. arXiv preprint
 arXiv:0907.4631.
 """
 function expv_timestep(ts::Vector{tType}, A, b; kwargs...) where {tType <: Real}
-    U = Matrix{eltype(A)}(undef, size(A, 1), length(ts))
+    U = Matrix{eltype(b)}(undef, size(A, 1), length(ts))
     expv_timestep!(U, ts, A, b; kwargs...)
 end
 function expv_timestep(t::tType, A, b; kwargs...) where {tType <: Real}
-    u = Vector{eltype(A)}(undef, size(A, 1))
+    u = Vector{eltype(b)}(undef, size(A, 1))
     expv_timestep!(u, t, A, b; kwargs...)
 end
 """
@@ -82,11 +82,11 @@ evaluating the φ-functions in exponential integrators. arXiv preprint
 arXiv:0907.4631.
 """
 function phiv_timestep(ts::Vector{tType}, A, B; kwargs...) where {tType <: Real}
-    U = Matrix{eltype(A)}(undef, size(A, 1), length(ts))
+    U = Matrix{eltype(b)}(undef, size(A, 1), length(ts))
     phiv_timestep!(U, ts, A, B; kwargs...)
 end
 function phiv_timestep(t::tType, A, B; kwargs...) where {tType <: Real}
-    u = Vector{eltype(A)}(undef, size(A, 1))
+    u = Vector{eltype(b)}(undef, size(A, 1))
     phiv_timestep!(u, t, A, B; kwargs...)
 end
 """
