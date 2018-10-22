@@ -3,6 +3,9 @@ import LinearAlgebra: BlasInt
 import LinearAlgebra.LAPACK: stegr!
 const liblapack = Base.liblapack_name
 
+abstract type SubspaceCache{T} end
+abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
+
 mutable struct StegrWork{T<:Real}
     jobz::Char
     range::Char
