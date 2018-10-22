@@ -1,10 +1,9 @@
-import LinearAlgebra.BLAS: @blasfunc
-import LinearAlgebra: BlasInt
+module Stegr
+using LinearAlgebra
+using LinearAlgebra.BLAS: @blasfunc
+using LinearAlgebra: BlasInt
 import LinearAlgebra.LAPACK: stegr!
 const liblapack = Base.liblapack_name
-
-abstract type SubspaceCache{T} end
-abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
 mutable struct StegrWork{T<:Real}
     jobz::Char
@@ -104,31 +103,5 @@ function StegrWork(::Type{T}, n::BlasInt,
     sw
 end
 
-mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
-    v::Vector{T} # Subspace-propagated vector
-    w::Vector{T}
-    sw::StegrWork{R}
-    StegrCache(::Type{T}, n::Integer) where T = new{T,real(T)}(
-        Vector{T}(undef, n), Vector{T}(undef, n),
-        StegrWork(real(T), BlasInt(n)))
-end
-
-StegrCache(Ks::KrylovSubspace{B,T,U}) where {B,T,U} =
-    StegrCache(T, Ks.maxiter)
-
-"""
-    expT!(α, β, t, cache)
-
-Calculate the subspace exponential `exp(t*T)` for a tridiagonal
-subspace matrix `T` with `α` on the diagonal and `β` on the
-super-/subdiagonal, diagonalizing via `stegr!`.
-"""
-function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
-               cache::StegrCache{T,R}) where {T,R<:Real}
-    stegr!(α, β, cache.sw)
-    sel = 1:length(α)
-    @inbounds for i = sel
-        cache.w[i] = exp(t*cache.sw.w[i])*cache.sw.Z[1,i]
-    end
-    mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel,sel]), @view(cache.w[sel]))
+export StegrWork
 end

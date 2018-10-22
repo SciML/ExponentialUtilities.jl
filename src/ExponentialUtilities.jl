@@ -1,13 +1,14 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
-using LinearAlgebra: exp!
+using LinearAlgebra: exp!, BlasInt
+using LinearAlgebra.LAPACK: stegr!
 
 include("utils.jl")
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
 include("krylov_phiv_adaptive.jl")
-include("stegr_cache.jl")
+include("StegrWork.jl")
 include("krylov_phiv_error_estimate.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
