@@ -56,7 +56,7 @@ function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
     U = ishermitian ? real(T) : T
     Ks = KrylovSubspace{T,U}(n, m)
     w = similar(b)
-    expv_ee!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
+    expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
 end
 function expv(t, Ks::KrylovSubspace{B, T, U}; kwargs...) where {B, T, U}
     n = size(getV(Ks), 1)

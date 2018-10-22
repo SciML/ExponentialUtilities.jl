@@ -41,7 +41,7 @@ get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Real} =
 ########################################
 # Phiv with error estimate as termination condition
 """
-    expv_ee!(w, t, A, b, Ks, cache)
+    expv!(w, t, A, b, Ks, cache)
 
 Alternative interface for calculating the action of `exp(t*A)` on the
 vector `b`, storing the result in `w`. The Krylov iteration is
@@ -51,7 +51,7 @@ generated subspace is below the requested tolerance. `Ks` is a
 exact type decides which algorithm is used to compute the subspace
 exponential.
 """
-function expv_ee!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
+function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
                Ks::KrylovSubspace{B, T, B}, cache::HSC;
                atol::B=1.0e-8, rtol::B=1.0e-4,
                m=min(Ks.maxiter, size(A,1)),
