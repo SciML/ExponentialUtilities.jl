@@ -105,6 +105,9 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
                         ishermitian::Bool=LinearAlgebra.ishermitian(A),
                         gamma::Real=0.8, NA::Int=0, verbose=false) where {T <: Number, tType <: Real}
     # Choose initial timestep
+    if opnorm isa Function
+        opnorm = opnorm(A,Inf) # backward compatibility
+    end
     abstol = tol * opnorm
     verbose && println("Absolute tolerance: $abstol")
     if iszero(tau)

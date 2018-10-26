@@ -125,7 +125,8 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
         Ks.m = m # might change if happy-breakdown occurs
     end
     V, H = getV(Ks), getH(Ks)
-    vtol = tol * opnorm
+    # vtol = tol * opnorm
+    vtol = tol * (opnorm isa Function ? opnorm(A,Inf) : opnorm) # backward compatibility
     if iop == 0
         iop = m
     end
@@ -180,7 +181,8 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
         Ks.m = m # might change if happy-breakdown occurs
     end
     V, H = getV(Ks), getH(Ks)
-    vtol = tol * opnorm
+    # vtol = tol * opnorm
+    vtol = tol * (opnorm isa Function ? opnorm(A,Inf) : opnorm) # backward compatibility
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
