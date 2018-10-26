@@ -52,14 +52,9 @@ function Base.show(io::IO, Ks::KrylovSubspace)
     println(IOContext(io, :limit => true), getH(Ks))
 end
 
-# Helper functions that returns the real part if that is what is
-# required (for Hermitian matrices), otherwise returns the value
-# as-is.
-coeff(::Type{T},α::T) where {T} = α
-coeff(::Type{U},α::T) where {U<:Real,T<:Complex} = real(α)
-
 #######################################
 # Arnoldi/Lanczos with custom IOP
+## High-level interface
 """
     arnoldi(A,b[;m,tol,opnorm,iop]) -> Ks
 
@@ -78,7 +73,7 @@ The default value of 0 indicates full Arnoldi. For symmetric/Hermitian `A`,
 
 Refer to `KrylovSubspace` for more information regarding the output.
 
-Happy-breakdown occurs whenver `norm(v_j) < tol * opnorm(A, Inf)`, in this case
+Happy-breakdown occurs whenver `norm(v_j) < tol * opnorm`, in this case
 the dimension of `Ks` is smaller than `m`.
 
 [^1]: Koskela, A. (2015). Approximating the matrix exponential of an
@@ -86,11 +81,12 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), tol=1e-7, opnorm=LinearAlgebra.opnorm, iop=0, cache=nothing )
+function arnoldi(A, b; m=min(30, size(A, 1)), kwargs...)
     Ks = KrylovSubspace{eltype(b)}(length(b), m)
-    arnoldi!(Ks, A, b; m=m, tol=tol, opnorm=opnorm, iop=iop)
+    arnoldi!(Ks, A, b; m=m, kwargs...)
 end
 
+## Low-level interface
 """
     arnoldi_step!(j, iop, n, A, V, H)
 
@@ -110,6 +106,7 @@ function arnoldi_step!(j::Integer, iop::Integer, A,
     @. y /= beta
     beta
 end
+
 """
     arnoldi!(Ks,A,b[;tol,m,opnorm,iop]) -> Ks
 
@@ -117,8 +114,9 @@ Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, iop::Int=0, cache=nothing) where {B, T <: Number, U <: Number}
-    if ishermitian(A)
+                  ishermitian::Bool=LinearAlgebra.ishermitian(A),
+                  opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0) where {B, T <: Number, U <: Number}
+    if ishermitian
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
     if m > Ks.maxiter
@@ -127,7 +125,8 @@ function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
         Ks.m = m # might change if happy-breakdown occurs
     end
     V, H = getV(Ks), getH(Ks)
-    vtol = tol * opnorm(A, Inf)
+    # vtol = tol * opnorm
+    vtol = tol * (opnorm isa Function ? opnorm(A,Inf) : opnorm) # backward compatibility
     if iop == 0
         iop = m
     end
@@ -167,28 +166,6 @@ function lanczos_step!(j::Integer, A,
     β[j]
 end
 
-macro diagview(A,d::Integer=0)
-    s = d<=0 ? 1+abs(d) : :(m+$d)
-    quote
-        m = size($(esc(A)),1)
-        @view($(esc(A))[($s):m+1:end])
-    end
-end
-
-"""
-    realview(R, V)
-
-Returns a view of the real components of the complex vector `V`.
-"""
-realview(::Type{R}, V::AbstractVector{C}) where {R,C<:Complex} =
-    @view(reinterpret(R, V)[1:2:end])
-"""
-    realview(R, V)
-
-Returns a view of the real components of the real vector `V`.
-"""
-realview(::Type{R}, V::AbstractVector{R}) where {R} = V
-
 """
     lanczos!(Ks,A,b[;tol,m,opnorm]) -> Ks
 
@@ -197,14 +174,15 @@ Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm, cache=nothing) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm(A,Inf)) where {B, T <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
         Ks.m = m # might change if happy-breakdown occurs
     end
     V, H = getV(Ks), getH(Ks)
-    vtol = tol * opnorm(A, Inf)
+    # vtol = tol * opnorm
+    vtol = tol * (opnorm isa Function ? opnorm(A,Inf) : opnorm) # backward compatibility
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"

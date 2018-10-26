@@ -1,15 +1,45 @@
-using Printf
+# Alternative Krylov phiv methods using error estimates of Saad to automatically
+# terminate Arnoldi/Lanczos iterations.
+# Currently only expv for Lanczos is implemented.
 
+########################################
+# Cache types
 abstract type SubspaceCache{T} end
 abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
-include("stegr_cache.jl")
+mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
+    v::Vector{T} # Subspace-propagated vector
+    w::Vector{T}
+    sw::Stegr.StegrWork{R}
+    StegrCache(::Type{T}, n::Integer) where T = new{T,real(T)}(
+        Vector{T}(undef, n), Vector{T}(undef, n),
+        Stegr.StegrWork(real(T), BlasInt(n)))
+end
+
+"""
+    expT!(α, β, t, cache)
+
+Calculate the subspace exponential `exp(t*T)` for a tridiagonal
+subspace matrix `T` with `α` on the diagonal and `β` on the
+super-/subdiagonal, diagonalizing via `stegr!`.
+"""
+function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
+               cache::StegrCache{T,R}) where {T,R<:Real}
+    stegr!(α, β, cache.sw)
+    sel = 1:length(α)
+    @inbounds for i = sel
+        cache.w[i] = exp(t*cache.sw.w[i])*cache.sw.Z[1,i]
+    end
+    mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel,sel]), @view(cache.w[sel]))
+end
 
 get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Complex} =
     error("Subspace exponential caches not yet available for non-Hermitian matrices.")
 get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Real} =
-    StegrCache(Ks)
+    StegrCache(T, Ks.maxiter)
 
+########################################
+# Phiv with error estimate as termination condition
 """
     expv!(w, t, A, b, Ks, cache)
 
