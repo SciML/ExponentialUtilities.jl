@@ -45,7 +45,7 @@ end
 function _expv_hb(t, A, b; cache=nothing, kwargs_arnoldi...)
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
-    w = similar(b)
+    w = similar(b, promote_type(eltype(A), eltype(b)))
     expv!(w, t, Ks; cache=cache)
 end
 function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
@@ -55,7 +55,7 @@ function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
     Ks = KrylovSubspace{T,U}(n, m)
-    w = similar(b)
+    w = similar(b, promote_type(eltype(A), eltype(b)))
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
 end
 function expv(t, Ks::KrylovSubspace{B, T, U}; kwargs...) where {B, T, U}

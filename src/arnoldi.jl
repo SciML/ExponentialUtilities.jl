@@ -82,7 +82,8 @@ Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
 function arnoldi(A, b; m=min(30, size(A, 1)), kwargs...)
-    T = eltype(b)
+    TA, Tb = eltype(A), eltype(b)
+    T = promote_type(TA, Tb)
     Ks = KrylovSubspace{T, ishermitian(A) ? real(T) : T}(length(b), m)
     arnoldi!(Ks, A, b; m=m, kwargs...)
 end
@@ -113,10 +114,10 @@ end
 
 Non-allocating version of `arnoldi`.
 """
-function arnoldi!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
+function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A, b::AbstractVector{T2};
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
                   ishermitian::Bool=LinearAlgebra.ishermitian(A),
-                  opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0) where {B, T1 <: Number, T2 <: Number, U <: Number}
     if ishermitian
         return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     end
@@ -173,9 +174,9 @@ end
 A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
-function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
+function lanczos!(Ks::KrylovSubspace{B, T1, U}, A, b::AbstractVector{T2};
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm(A,Inf)) where {B, T <: Number, U <: Number}
+                  opnorm=LinearAlgebra.opnorm(A,Inf)) where {B, T1 <: Number, T2 <: Number, U <: Number}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -188,7 +189,7 @@ function lanczos!(Ks::KrylovSubspace{B, T, U}, A, b::AbstractVector{T};
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
     # Lanczos iterations
-    fill!(H, zero(T))
+    fill!(H, zero(T2))
     Ks.beta = norm(b)
     @. V[:, 1] = b / Ks.beta
     α = @diagview(H)
