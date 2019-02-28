@@ -82,7 +82,7 @@ Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
 function arnoldi(A, b; m=min(30, size(A, 1)), kwargs...)
-    Ks = KrylovSubspace{eltype(b)}(length(b), m)
+    Ks = KrylovSubspace{eltype(b), real(eltype(b))}(length(b), m)
     arnoldi!(Ks, A, b; m=m, kwargs...)
 end
 
