@@ -62,7 +62,7 @@ end
 @testset "test complex value" begin
     n = 20; m = 10;
     for A in [Hermitian(rand(ComplexF64, n, n)), Hermitian(rand(n, n)), rand(ComplexF64, n, n), rand(n, n)]
-        for b in [rand(ComplexF64, n), rand(n)], t in 1e-2 # [1e-2, 1e-2im, 1e-2 + 1e-2im]
+        for b in [rand(ComplexF64, n), rand(n)], t in [1e-2, 1e-2im, 1e-2 + 1e-2im]
             @test exp(t * A) * b ≈ expv(t, A, b; m=m)
         end
     end
