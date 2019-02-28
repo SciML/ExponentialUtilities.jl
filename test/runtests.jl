@@ -46,6 +46,12 @@ end
     W_approx = phiv(t, Ks, K)
     @test W ≈ W_approx
 
+    # test Hermitian for Krylov
+    A = Hermitian(rand(ComplexF64, n, n))
+    b = rand(ComplexF64, n)
+    m = 30
+    @test exp(t * A) * b ≈ expv(t, A, b; m=m)
+
     # Happy-breakdown in Krylov
     v = normalize(randn(n))
     A = v * v' # A is Idempotent
