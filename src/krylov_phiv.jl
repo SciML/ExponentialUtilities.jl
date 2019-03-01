@@ -42,25 +42,25 @@ function expv(t, A, b; mode=:happy_breakdown, kwargs...)
         throw(ArgumentError("Unknown Krylov iteration termination mode, $(mode)"))
     end
 end
-function _expv_hb(t, A, b; cache=nothing, kwargs_arnoldi...)
+function _expv_hb(t::Tt, A, b; cache=nothing, kwargs_arnoldi...) where Tt
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
-    w = similar(b)
+    w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, Ks; cache=cache)
 end
-function _expv_ee(t, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
-    ishermitian::Bool=LinearAlgebra.ishermitian(A))
+function _expv_ee(t::Tt, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
+    ishermitian::Bool=LinearAlgebra.ishermitian(A)) where Tt
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A,1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
     Ks = KrylovSubspace{T,U}(n, m)
-    w = similar(b)
+    w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
 end
-function expv(t, Ks::KrylovSubspace{B, T, U}; kwargs...) where {B, T, U}
+function expv(t::Tt, Ks::KrylovSubspace{B, T, U}; kwargs...) where {Tt, B, T, U}
     n = size(getV(Ks), 1)
-    w = Vector{T}(undef, n)
+    w = Vector{promote_type(Tt, T)}(undef, n)
     expv!(w, t, Ks; kwargs...)
 end
 """
@@ -68,8 +68,8 @@ end
 
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
-function expv!(w::AbstractVector{T}, t::Number, Ks::KrylovSubspace{B, T, U};
-               cache=nothing) where {B, T <: Number, U <: Number}
+function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{B, T, U};
+               cache=nothing) where {Tw, B, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -90,6 +90,33 @@ function expv!(w::AbstractVector{T}, t::Number, Ks::KrylovSubspace{B, T, U};
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
 end
+
+# NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
+#       or Tw can be Float64, while t is ComplexF32 and T is Float64
+#       thus they can not share the same TypeVar.
+function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{B, T, U};
+                cache=nothing) where {Tw, Tt, B, T, U}
+    m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
+    @assert length(w) == size(V, 1) "Dimension mismatch"
+    if cache == nothing
+        cache = Matrix{U}(undef, m, m)
+    elseif isa(cache, ExpvCache)
+        cache = get_cache(cache, m)
+    else
+        throw(ArgumentError("Cache must be an ExpvCache"))
+    end
+    copyto!(cache, @view(H[1:m, :]))
+    if ishermitian(cache)
+        # Optimize the case for symtridiagonal H
+        F = eigen!(SymTridiagonal(cache))
+        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+    else
+        expH = exp!(t * cache)
+        expHe = @view(expH[:, 1])
+    end
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
+end
+
 
 ############################
 # Cache for phiv

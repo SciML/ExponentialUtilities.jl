@@ -30,9 +30,8 @@ using ExponentialUtilities: getH, getV
 end
 
 @testset "Arnoldi & Krylov" begin
-    # Krylov
-    n = 20; m = 5; K = 4
     Random.seed!(0)
+    n = 20; m = 5; K = 4
     A = randn(n, n)
     t = 1e-2
     b = randn(n)
@@ -58,6 +57,15 @@ end
     w = expv(t, A, b; m=m)
     wperm = expv(t, Aperm, b; m=m)
     @test w ≈ wperm
+end
+
+@testset "test complex value" begin
+    n = 20; m = 10;
+    for A in [Hermitian(rand(ComplexF64, n, n)), Hermitian(rand(n, n)), rand(ComplexF64, n, n), rand(n, n)]
+        for b in [rand(ComplexF64, n), rand(n)], t in [1e-2, 1e-2im, 1e-2 + 1e-2im]
+            @test exp(t * A) * b ≈ expv(t, A, b; m=m)
+        end
+    end
 end
 
 @testset "Adaptive Krylov" begin
