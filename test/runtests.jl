@@ -35,7 +35,9 @@ end
     A = randn(n, n)
     t = 1e-2
     b = randn(n)
-    @test exp(t * A) * b ≈ expv(t, A, b; m=m)
+    direct = exp(t * A) * b
+    @test direct ≈ expv(t, A, b; m=m)
+    @test direct ≈ kiops(t, A, b)[1]
     P = phi(t * A, K)
     W = fill(0., n, K+1)
     for i = 1:K+1
