@@ -59,7 +59,7 @@ end
     @test w ≈ wperm
 end
 
-@testset "test complex value" begin
+@testset "Complex Value" begin
     n = 20; m = 10;
     for A in [Hermitian(rand(ComplexF64, n, n)), Hermitian(rand(n, n)), rand(ComplexF64, n, n), rand(n, n)]
         for b in [rand(ComplexF64, n), rand(n)], t in [1e-2, 1e-2im, 1e-2 + 1e-2im]
@@ -114,7 +114,7 @@ end
     @test norm(AH-LH)/norm(AH) < tol
 end
 
-@testset "Alternative Lanczos expv interface" begin
+@testset "Alternative Lanczos expv Interface" begin
     n = 300
     m = 30
 
@@ -138,4 +138,28 @@ end
     δw = norm(w-w′)
     @test δw < atol
     @test δw/abs(1e-16+norm(w)) < rtol
+end
+
+struct MatrixFreeOperator{T} <: AbstractMatrix{T}
+    A::Matrix{T}
+end
+Base.eltype(A::MatrixFreeOperator{T}) where T = T
+LinearAlgebra.mul!(y::AbstractVector, A::MatrixFreeOperator, x::AbstractVector) = mul!(y, A.A, x)
+Base.size(A::MatrixFreeOperator, dim) = size(A.A, dim)
+struct OpnormFunctor end
+(::OpnormFunctor)(A::MatrixFreeOperator, p::Real) = opnorm(A.A, p)
+@testset "Matrix-free Operator" begin
+    Random.seed!(123)
+    n = 20
+    for ishermitian in (false, true)
+        A = rand(ComplexF64, n, n)
+        M = ishermitian ? A'A : A
+        Op = MatrixFreeOperator(M)
+        b = rand(ComplexF64, n)
+        Ks = arnoldi(Op, b; ishermitian=ishermitian, opnorm=OpnormFunctor(), tol=1e-12)
+        pv = phiv(0.01, Ks, 2)
+        pv′ = hcat(map(A->A*b, phi(0.01Op.A, 2))...)
+
+        @test pv ≈ pv′ atol=1e-12
+    end
 end

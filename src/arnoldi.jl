@@ -81,11 +81,11 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), kwargs...)
+function arnoldi(A, b; m=min(30, size(A, 1)), ishermitian=LinearAlgebra.ishermitian(A), kwargs...)
     TA, Tb = eltype(A), eltype(b)
     T = promote_type(TA, Tb)
-    Ks = KrylovSubspace{T, ishermitian(A) ? real(T) : T}(length(b), m)
-    arnoldi!(Ks, A, b; m=m, kwargs...)
+    Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(length(b), m)
+    arnoldi!(Ks, A, b; m=m, ishermitian=ishermitian, kwargs...)
 end
 
 ## Low-level interface
@@ -128,7 +128,7 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A, b::AbstractVector{T2};
     end
     V, H = getV(Ks), getH(Ks)
     # vtol = tol * opnorm
-    vtol = tol * (opnorm isa Function ? opnorm(A,Inf) : opnorm) # backward compatibility
+    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
     if iop == 0
         iop = m
     end
@@ -184,7 +184,7 @@ function lanczos!(Ks::KrylovSubspace{B, T1, U}, A, b::AbstractVector{T2};
     end
     V, H = getV(Ks), getH(Ks)
     # vtol = tol * opnorm
-    vtol = tol * (opnorm isa Function ? opnorm(A,Inf) : opnorm) # backward compatibility
+    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
     # Safe checks
     n = size(V, 1)
     @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
