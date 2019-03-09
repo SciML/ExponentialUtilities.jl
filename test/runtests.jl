@@ -45,7 +45,9 @@ end
     end
     Ks = arnoldi(A, b; m=m)
     W_approx = phiv(t, Ks, K)
+    W_approx_kiops = kiops(t, A, repeat(b, inner=(1, K)))
     @test W ≈ W_approx
+    @test sum(W[:, p+1]*t^p for p in 0:K-1) ≈ W_approx_kiops[1]
 
     # Happy-breakdown in Krylov
     v = normalize(randn(n))
