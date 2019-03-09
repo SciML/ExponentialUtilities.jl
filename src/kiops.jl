@@ -308,16 +308,17 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
         if length(tau_out)==1
             w[:,l] = w[:,l]*(1/tau_out[l])^p
         else
-            phiHan = find(max(abs(u)))
+            tmp = maximum(abs, u, dims=2)
+            phiHan = map(x->x[1], findall(!iszero, tmp))
 
             if isempty(phiHan)
                 phiHan = length(u)
             else
-                phiHan = phiHan-1
+                phiHan = phiHan .- 1
             end
 
             for l = 1:numSteps
-                w[:,l] = w[:,l]*(1/tau_out[l].^phiHan)
+                @. w[:,l] = w[:,l]*(1/tau_out[l]^phiHan)
             end
         end
     end
