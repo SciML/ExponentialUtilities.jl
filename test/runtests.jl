@@ -152,14 +152,14 @@ struct OpnormFunctor end
     Random.seed!(123)
     n = 20
     for ishermitian in (false, true)
-      A = rand(ComplexF64, n, n)
-      M = ishermitian ? A'A : A
-      Op = MatrixFreeOperator(M)
-      b = rand(ComplexF64, n)
-      Ks = arnoldi(Op, b; ishermitian=ishermitian, opnorm=OpnormFunctor(), tol=1e-12)
-      pv = phiv(0.01, Ks, 2)
-      pv′ = hcat(map(A->A*b, phi(0.01Op.A, 2))...)
+        A = rand(ComplexF64, n, n)
+        M = ishermitian ? A'A : A
+        Op = MatrixFreeOperator(M)
+        b = rand(ComplexF64, n)
+        Ks = arnoldi(Op, b; ishermitian=ishermitian, opnorm=OpnormFunctor(), tol=1e-12)
+        pv = phiv(0.01, Ks, 2)
+        pv′ = hcat(map(A->A*b, phi(0.01Op.A, 2))...)
 
-      @test pv ≈ pv′ atol=1e-12
+        @test pv ≈ pv′ atol=1e-12
     end
 end
