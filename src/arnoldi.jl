@@ -44,13 +44,15 @@ function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
     Ks.m = Ks.maxiter = maxiter
     return Ks
 end
-function Base.show(io::IO, Ks::KrylovSubspace)
+function Base.show(io::IO, ::MIME"text/plain", Ks::KrylovSubspace)
+    io′ = IOContext(io, :limit => true, :displaysize => 3 .* displaysize(io) .÷ 7)
     println(io, "$(Ks.m)-dimensional Krylov subspace with fields")
     println(io, "beta: $(Ks.beta)")
-    print(io, "V: ")
-    println(IOContext(io, :limit => true), getV(Ks))
-    print(io, "H: ")
-    println(IOContext(io, :limit => true), getH(Ks))
+    println(io, "V:")
+    show(io′, "text/plain", getV(Ks))
+    println(io)
+    println(io, "H:")
+    show(io′, "text/plain", getH(Ks))
 end
 
 #######################################
