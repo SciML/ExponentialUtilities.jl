@@ -106,6 +106,20 @@ end
     return
 end
 
+function checkdims(A, b, V)
+    isaugmented = b isa Tuple # isaugmented
+    if isaugmented
+        b′, b_aug = b
+        n, p = length(b′), length(b_aug)
+        _A = first(A)
+    else
+        n, p = size(V, 1), 0
+        _A, b′, b_aug = A, b, nothing
+    end
+    length(b′) == size(_A,1) == size(_A,2) == size(V, 1)-p || throw(DimensionMismatch("length(b′) [$(length(b′))] == size(_A,1) [$(size(_A,1))] == size(_A,2) [$(size(_A,2))] == size(V, 1)-p [$(size(V, 1)-p)] doesn't hold"))
+    return b′, b_aug, n, p
+end
+
 """
     arnoldi_step!(j, iop, n, A, V, H)
 
@@ -138,19 +152,9 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
     ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm, init=init, t=t, mu=mu, l=l)
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
-    isaugmented = AT <: Tuple
-    local np, n, p, b′, b_aug
-    # Safe checks
-    if isaugmented
-        b′, b_aug = b
-        n, p = length(b′), length(b_aug)
-        _A = first(A)
-    else
-        n, p = size(V, 1), 0
-        _A, b′ = A, b
-    end
-    @assert length(b′) == size(_A,1) == size(_A,2) == size(V, 1)-p "Dimension mismatch"
+    b′, b_aug, n, p = checkdims(A, b, V)
     if iszero(init)
+        isaugmented = AT <: Tuple
         isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
@@ -216,17 +220,17 @@ Take the `j`:th step of the Lanczos iteration.
 """
 function lanczos_step!(j::Integer, A,
                        V::AbstractMatrix{T},
-                       α::AbstractVector{U},
-                       β::AbstractVector{B},
+                       u::AbstractVector{U},
+                       v::AbstractVector{B},
                        n::Int=-1, p::Int=-1) where {B,T,U}
-    x,y = @view(V[:, j]),@view(V[:, j+1])
+    x, y = @view(V[:, j]),@view(V[:, j+1])
     applyA!(y, A, x, V, j, n, p)
-    α′ = α[j] = coeff(U, dot(x, y))
-    axpy!(-α′, x, y)
-    j > 1 && axpy!(-β[j-1], @view(V[:, j-1]), y)
-    β′ = β[j] = norm(y)
-    @. y /= β′
-    return β′
+    α = u[j] = coeff(U, dot(x, y))
+    axpy!(-α, x, y)
+    j > 1 && axpy!(-v[j-1], @view(V[:, j-1]), y)
+    β = v[j] = norm(y)
+    @. y /= β
+    return β
 end
 
 """
@@ -241,36 +245,26 @@ function lanczos!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
                   init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
-    isaugmented = AT <: Tuple
-    local np, n, p, b′, b_aug
-    # Safe checks
-    if isaugmented
-        b′, b_aug = b
-        n, p = length(b′), length(b_aug)
-        _A = first(A)
-    else
-        n, p = size(V, 1), 0
-        _A, b′ = A, b
-    end
-    @assert length(b′) == size(_A,1) == size(_A,2) == size(V, 1)-p "Dimension mismatch"
+    b′, b_aug, n, p = checkdims(A, b, V)
     if iszero(init)
+        isaugmented = AT <: Tuple
         isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
     @inbounds begin
-        α = @diagview(H)
-        # β is always real, even though α may (in general) be complex.
-        β = realview(B, @diagview(H,-1))
+        u = @diagview(H)
+        # `v` is always real, even though `u` may (in general) be complex.
+        v = realview(B, @diagview(H,-1))
     end
     # vtol = tol * opnorm
     vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
     for j = 1:m
-        if vtol > lanczos_step!(j, A, V, α, β, n, p)
+        if vtol > lanczos_step!(j, A, V, u, v, n, p)
             # happy-breakdown
             Ks.m = j
             break
         end
     end
-    @inbounds copyto!(@diagview(H,1), β[1:end-1])
+    @inbounds copyto!(@diagview(H,1), v[1:end-1])
     return Ks
 end
