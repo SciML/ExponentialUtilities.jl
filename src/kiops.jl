@@ -41,7 +41,6 @@ References:
 * Niesen, J. and Wright, W.M., 2012. Algorithm 919: A Krylov subspace algorithm for evaluating the ``φ``-functions appearing in exponential integrators. ACM Transactions on Mathematical Software (TOMS), 38(3), p.22
 """
 function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_init::Int = mmin, task1::Bool = false)
-
     n, ppo = size(u, 1), size(u, 2)
     p = ppo - 1
 
@@ -69,29 +68,29 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
     sgn     = sign(tau_out[end])
     tau_now = 0
     tau_end = abs(tau_out[end])
-    happy   = false
     j       = 0
 
     numSteps = size(tau_out, 2)
 
     # Initial condition
     w     = zeros(n, numSteps)
-    w_aug = zeros(p, 1)
-    @views copyto!(w[:, 1], u[:, 1])
+    w_aug = zeros(p)
+    copyto!(@view(w[:, 1]), @view(u[:, 1]))
 
     # Normalization factors
-    normU = norm(u[:, 2:end], 1)
+    normU = norm(@view(u[:, 2:end]), 1)
     if ppo > 1 && normU > 0
         ex = ceil(log2(normU))
-        nu = 2^(-ex)
-        mu = 2^(ex)
+        nu = exp2(-ex)
+        mu = exp2(ex)
     else
         nu = 1
         mu = 1
     end
 
     # Flip the rest of the u matrix
-    u_flip = nu*reverse(u[:, 2:end], dims = 2)
+    u_flip = reverse(@view(u[:, 2:end]), dims = 2)
+    rmul!(u_flip, nu)
 
     # Compute and initial starting approximation for the step size
     tau = tau_end
@@ -114,10 +113,8 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
 
     local beta, kest
     while tau_now < tau_end
-
         # Compute necessary starting information
         if j == 0
-
             # Update the last part of w
             for k=1:p-1
                 i = p - k
@@ -129,41 +126,16 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
             fill!(H, 0)
 
             # Normalize initial vector (this norm is nonzero)
-            beta = sqrt( w[:,l]'w[:,l] .+ dot(w_aug, w_aug) )
+            wl = @view w[:, l]
+            beta = sqrt(wl'wl .+ w_aug'w_aug)
 
             # The first Krylov basis vector
-            V[1:n, 1]     = (1/beta) * w[:,l]
-            V[n+1:n+p, 1] = (1/beta) * w_aug
+            @. V[1:n, 1]     = (1/beta) * wl
+            @. V[n+1:n+p, 1] = (1/beta) * w_aug
         end
 
         # Incomplete orthogonalization process
-        while j < m
-            j += 1
-
-            # Augmented matrix - vector product
-            V[1:n      , j + 1] = A * V[1:n, j] + u_flip * V[n+1:n+p, j]
-            V[n+1:n+p-1, j + 1] = V[n+2:n+p, j]
-            V[end      , j + 1] = 0
-
-            # Modified Gram-Schmidt
-            for i = max(1,j-orth_len+1):j
-                H[i, j] = V[:, i]' * V[:, j + 1]
-                V[:, j + 1] = V[:, j + 1] - H[i, j] * V[:, i]
-            end
-
-            nrm = norm(V[:, j + 1])
-
-            # Happy breakdown
-            if nrm < tol
-                happy = true
-                break
-            end
-
-            H[j + 1, j] = nrm
-            V[:, j + 1] = (1/nrm) * V[:, j + 1]
-
-            krystep = krystep + 1
-        end
+        j, happy, krystep = arnoldi_iop!(A, u_flip, V, H, j, m, n, p, orth_len, tol, krystep)
 
         # To obtain the phi_1 function which is needed for error estimate
         H[1, j + 1] = 1
@@ -180,15 +152,12 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
         H[j + 1, j] = nrm
 
         if happy
-
             # Happy breakdown wrap up
             omega   = 0
-            happy   = false
-            m_new   = m
             tau_new = min(tau_end - (tau_now + tau), tau)
-
+            m_new   = m
+            happy   = false
         else
-
             # Local truncation error estimation
             err = abs(beta * nrm * F[j, j + 1])
 
@@ -230,7 +199,7 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
             tau_opt  = min(remaining_time, max(tau/5, min(5*tau, tau_opt)))
 
             m_opt = ceil(j + log(omega / gamma) / log(kest))
-            m_opt = max(mmin, min(mmax, max(floor(3/4*m), min(m_opt, ceil(4/3*m)))))
+            m_opt = max(mmin, min(mmax, max(3÷4*m, min(m_opt, cld(4, 3)*m))))
 
             if j == mmax
                 if omega > delta
@@ -245,50 +214,12 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
                 m_new = m_opt
                 tau_new = same_tau
             end
-
         end
 
         # Check error against target
         if omega <= delta
-
-            # Yep, got the required tolerance update
-            reject = reject + ireject
-            step = step + 1
-
-            # Udate for tau_out in the interval (tau_now, tau_now + tau)
-            blownTs = 0
-            nextT = tau_now + tau
-            for k = l:numSteps
-                if abs(tau_out[k]) < abs(nextT)
-                    blownTs = blownTs + 1
-                end
-            end
-
-            if blownTs != 0
-                # Copy current w to w we continue with.
-                w[:,l + blownTs] = w[:,l]
-
-                for k = 0:blownTs - 1
-                    tauPhantom = tau_out[l+k] - tau_now
-                    F2 = exp(sgn * tauPhantom * H[1:j, 1:j])
-                    w[:, l+k] = beta * V[1:n, 1:j] * F2[1:j, 1]
-                end
-
-                # Advance l.
-                l = l + blownTs
-            end
-
-            # Using the standard scheme
-            w[:, l] = beta * V[1:n, 1:j] * F[1:j, 1]
-
-            # Update tau_out
-            tau_now = tau_now + tau
-
-            j = 0
-            ireject = 0
-
+            tau_now, l, j, reject, ireject, step = kiops_update_solution!(tau_now, tau, tau_out, w, l, V, F, H, beta, j, n, step, numSteps, reject, ireject)
         else
-
             # Nope, try again
             ireject = ireject + 1
 
@@ -301,15 +232,16 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
 
         oldm = m
         m    = m_new
-
     end
 
+    # FIXME: phiHan doesn't seem right
     if tau_out[1]!=1 && task1
+        wl = @view w[:, l]
         if length(tau_out)==1
-            w[:,l] = w[:,l]*(1/tau_out[l])^p
+            @. wl = wl*(1/tau_out[l])^p
         else
             tmp = maximum(abs, u, dims=2)
-            phiHan = map(x->x[1], findall(!iszero, tmp))
+            phiHan = map(first, findall(!iszero, tmp))
 
             if isempty(phiHan)
                 phiHan = length(u)
@@ -318,14 +250,87 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
             end
 
             for l = 1:numSteps
-                @. w[:,l] = w[:,l]*(1/tau_out[l]^phiHan)
+                @. wl = wl*(1/tau_out[l]^phiHan)
             end
         end
     end
 
     m_ret=m
 
-    stats = [step, reject, krystep, exps]
+    stats = (step, reject, krystep, exps)
 
     return w, m_ret, stats
+end
+
+Base.@propagate_inbounds function arnoldi_iop!(A, B, V, H, j, m, n, p, orth_len, tol, krystep)
+    happy = false
+    while j < m
+        j += 1
+
+        # Augmented matrix - vector product
+        V[1:n, j + 1] = A * @view(V[1:n, j]) + B * @view(V[n+1:n+p, j])
+        copyto!(@view(V[n+1:n+p-1, j + 1]), @view(V[n+2:n+p, j]))
+        V[end, j + 1] = 0
+
+        # Modified Gram-Schmidt
+        for i = max(1,j-orth_len+1):j
+            H[i, j] = @view(V[:, i])' * @view(V[:, j + 1])
+            @. V[:, j + 1] = @view(V[:, j + 1]) - H[i, j] * @view(V[:, i])
+        end
+
+        nrm = norm(@view(V[:, j + 1]))
+
+        # Happy breakdown
+        if nrm < tol
+            happy = true
+            break
+        end
+
+        H[j + 1, j] = nrm
+        @. V[:, j + 1] = (1/nrm) * @view(V[:, j + 1])
+
+        krystep = krystep + 1
+    end
+    j, happy, krystep
+end
+
+Base.@propagate_inbounds function kiops_update_solution!(tau_now, tau, tau_out, w, l, V, F, H, beta, j, n, step, numSteps, reject, ireject)
+    # Yep, got the required tolerance update
+    reject = reject + ireject
+    step = step + 1
+
+    # Udate for tau_out in the interval (tau_now, tau_now + tau)
+    blownTs = 0
+    nextT = tau_now + tau
+    for k = l:numSteps
+        if abs(tau_out[k]) < abs(nextT)
+            blownTs = blownTs + 1
+        end
+    end
+
+    if blownTs != 0
+        # Copy current w to w we continue with.
+        copyto!(@view(w[:, l+blownTs]), @view(w[:, l]))
+
+        for k = 0:blownTs - 1
+            tauPhantom = tau_out[l+k] - tau_now
+            F2 = exp(sign(tau_out[end]) * tauPhantom * @view(H[1:j, 1:j]))
+            mul!(@view(w[:, l+k]), @view(V[1:n, 1:j]), @view(F2[1:j, 1]))
+            rmul!(@view(w[:, l+k]), beta)
+        end
+
+        # Advance l.
+        l = l + blownTs
+    end
+
+    # Using the standard scheme
+    mul!(@view(w[:, l]), @view(V[1:n, 1:j]), @view(F[1:j, 1]))
+    rmul!(@view(w[:, l]), beta)
+
+    # Update tau_out
+    tau_now = tau_now + tau
+
+    j = 0
+    ireject = 0
+    return tau_now, l, j, reject, ireject, step
 end
