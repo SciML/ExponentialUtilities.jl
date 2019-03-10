@@ -26,16 +26,17 @@ This is an expensive operation and should be used scarcely.
 mutable struct KrylovSubspace{B, T, U}
     m::Int        # subspace dimension
     maxiter::Int  # maximum allowed subspace size
+    augmented::Int# length of the augmented part
     beta::B       # norm(b,2)
     V::Matrix{T}  # orthonormal bases
     H::Matrix{U}  # Gram-Schmidt coefficients (real for Hermitian matrices)
-    KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30) where {T,U} = new{real(T), T, U}(
-        maxiter, maxiter, zero(real(T)), Matrix{T}(undef, n, maxiter + 1),
-        fill(zero(U), maxiter + 1, maxiter))
-    KrylovSubspace{T}(n::Integer, maxiter::Integer=30) where {T} = KrylovSubspace{T,T}(n, maxiter)
+    KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U} =
+        new{real(T), T, U}(maxiter, maxiter, zero(real(T)), augmented, Matrix{T}(undef, n + augmented, maxiter + 1),
+                           fill(zero(U), maxiter + 1, maxiter + !iszero(augmented)))
+    KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
 end
-getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m])
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
+getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
 function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
     V = Matrix{T}(undef, size(Ks.V, 1), maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter)
@@ -95,9 +96,17 @@ end
 Take the `j`:th step of the Lanczos iteration.
 """
 function arnoldi_step!(j::Integer, iop::Integer, A,
-                       V::AbstractMatrix{T}, H::AbstractMatrix{U}) where {T,U}
-    x,y = @view(V[:, j]),@view(V[:, j+1])
-    mul!(y, A, x)
+                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
+                       (n,p)::NTuple{2,Int}=(0, 0)) where {T,U}
+    x, y = @view(V[:, j]), @view(V[:, j+1])
+    if A isa Tuple # augmented
+        A, B = A
+        V[1:n, j + 1] = A * @view(V[1:n, j]) + B * @view(V[n+1:n+p, j])
+        copyto!(@view(V[n+1:n+p-1, j + 1]), @view(V[n+2:n+p, j]))
+        V[end, j + 1] = 0
+    else
+        mul!(y, A, x)
+    end
     @inbounds for i = max(1, j - iop + 1):j
         alpha = coeff(U, dot(@view(V[:, i]), y))
         H[i, j] = alpha
@@ -110,37 +119,63 @@ function arnoldi_step!(j::Integer, iop::Integer, A,
 end
 
 """
-    arnoldi!(Ks,A,b[;tol,m,opnorm,iop]) -> Ks
+    arnoldi!(Ks,A,b[;tol,m,opnorm,iop,init]) -> Ks
 
 Non-allocating version of `arnoldi`.
 """
-function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A, b::AbstractVector{T2};
+function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A, b;
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  ishermitian::Bool=LinearAlgebra.ishermitian(A),
-                  opnorm=LinearAlgebra.opnorm(A,Inf), iop::Int=0) where {B, T1 <: Number, T2 <: Number, U <: Number}
-    if ishermitian
-        return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
-    end
-    if m > Ks.maxiter
-        resize!(Ks, m)
-    else
-        Ks.m = m # might change if happy-breakdown occurs
-    end
+                  ishermitian::Bool=LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
+                  opnorm=LinearAlgebra.opnorm(A isa Tuple ? first(A) : A,Inf), iop::Int=0,
+                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number}
+    ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm)
     V, H = getV(Ks), getH(Ks)
     # vtol = tol * opnorm
-    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
-    if iop == 0
-        iop = m
+    isaugmented = A isa Tuple
+    local np, n, p, b′, b_aug
+    if isaugmented
+        b′, b_aug = b
+        n = length(b′)
+        p = length(b_aug)
+        np = (n, p)
+        @assert n == size(first(A),1) == size(first(A),2) == size(V, 1)-p "Dimension mismatch"
+    else
+        n = size(V, 1)
+        @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
+        np = (n, 0)
     end
-    # Safe checks
-    n = size(V, 1)
-    @assert length(b) == size(A,1) == size(A,2) == n "Dimension mismatch"
-    # Arnoldi iterations (with IOP)
-    fill!(H, zero(U))
-    Ks.beta = norm(b)
-    @. V[:, 1] = b / Ks.beta
-    @inbounds for j = 1:m
-        beta = arnoldi_step!(j, iop, A, V, H)
+    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
+    if iszero(init)
+        m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
+        iszero(iop) && (iop = m)
+        # Safe checks
+        if isaugmented
+            @inbounds for k=1:p-1
+                i = p - k
+                b_aug[k] = t^i/factorial(i) * mu
+            end
+            b_aug[p] = mu
+
+            # Initialize the matrices V and H
+            fill!(H, 0)
+
+            # Normalize initial vector (this norm is nonzero)
+            bl = @view b′[:, l]
+            Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
+
+            # The first Krylov basis vector
+            @. V[1:n, 1]     = bl / beta
+            @. V[n+1:n+p, 1] = b_aug / beta
+        else
+            # Arnoldi iterations (with IOP)
+            fill!(H, zero(U))
+            Ks.beta = norm(b)
+            @. V[:, 1] = b / Ks.beta
+        end
+        init = 1
+    end
+    @inbounds for j = init:m
+        beta = arnoldi_step!(j, iop, A, V, H, np)
         if beta < vtol # happy-breakdown
             Ks.m = j
             break

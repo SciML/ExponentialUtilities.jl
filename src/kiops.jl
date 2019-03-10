@@ -57,8 +57,12 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
     m = max(mmin, min(m_init, mmax))
 
     # Preallocate matrix
-    V = zeros(n + p, mmax + 1)
-    H = zeros(mmax + 1, mmax + 1)
+    ishermitian = false
+    TA, Tb = eltype(A), eltype(u)
+    T = promote_type(TA, Tb)
+    Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(n, m, p)
+    V = getfield(Ks, :V)
+    H = getfield(Ks, :H)
 
     step    = 0
     krystep = 0
@@ -113,29 +117,11 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
 
     local beta, kest
     while tau_now < tau_end
-        # Compute necessary starting information
-        if j == 0
-            # Update the last part of w
-            for k=1:p-1
-                i = p - k
-                w_aug[k] = (tau_now^i)/factorial(i) * mu
-            end
-            w_aug[p] = mu
-
-            # Initialize the matrices V and H
-            fill!(H, 0)
-
-            # Normalize initial vector (this norm is nonzero)
-            wl = @view w[:, l]
-            beta = sqrt(wl'wl .+ w_aug'w_aug)
-
-            # The first Krylov basis vector
-            @. V[1:n, 1]     = (1/beta) * wl
-            @. V[n+1:n+p, 1] = (1/beta) * w_aug
-        end
-
-        # Incomplete orthogonalization process
-        j, happy, krystep = arnoldi_iop!(A, u_flip, V, H, j, m, n, p, orth_len, tol, krystep)
+        oldm = Ks.m
+        arnoldi!(Ks, (A, u_flip), (w, w_aug); init=j, t=tau_now, mu=mu, l=l, m=m)
+        j = Ks.m
+        happy = j < oldm
+        beta = Ks.beta
 
         # To obtain the phi_1 function which is needed for error estimate
         H[1, j + 1] = 1
