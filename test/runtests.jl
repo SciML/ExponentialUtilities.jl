@@ -60,7 +60,9 @@ end
     Aperm = A + 1e-10 * randn(n, n) # no longer Hermitian
     w = expv(t, A, b; m=m)
     wperm = expv(t, Aperm, b; m=m)
+    wkiops = kiops(t, A, b; m=m)[1]
     @test w ≈ wperm
+    @test w ≈ wkiops
 end
 
 @testset "Complex Value" begin

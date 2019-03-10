@@ -1,7 +1,7 @@
 using LinearAlgebra
 
 """
-    kiops(tstops, A, u; kwargs...) -> (w, m, stats)
+    kiops(tstops, A, u; kwargs...) -> (w, stats)
 
 Evaluate a linear combinaton of the ``φ`` functions evaluated at ``tA`` acting on
 vectors from ``u``, that is
@@ -15,22 +15,25 @@ The Krylov subspace is computed using the incomplete orthogonalization method.
 
 Arguments:
   - `tstops`     - Array of `tstop`
-  - `A`          - the matrix argument of the ``φ`` functions.
-  - `u`          - the matrix with columns representing the vectors to be multiplied by the ``φ`` functions.
+  - `A`          - the matrix argument of the ``φ`` functions
+  - `u`          - the matrix with columns representing the vectors to be multiplied by the ``φ`` functions
 
 Keyword arguments:
-  - `tol`        - the convergence tolerance required.
-  - `m_init`     - an estimate of the appropriate Krylov size.
-  - `mmin`, `mmax` - let the Krylov size vary between mmin and mmax
-  - `task1`      - If true, divide the result by 1/T^p
+  - `tol`        - the convergence tolerance required (default: 1e-7)
+  - `mmin`, `mmax` - let the Krylov size vary between mmin and mmax (default: 10, 128)
+  - `m`          - an estimate of the appropriate Krylov size (default: mmin)
+  - `iop`        - length of incomplete orthogonalization procedure (default: 2)
+  - `ishermitian` -  whether ``A`` is Hermitian (default: ishermitian(A))
+  - `opnorm`     -  the operator norm of ``A`` (default: opnorm(A, Inf))
+  - `task1`      - if true, divide the result by 1/T^p
 
 Returns:
-  - `w`        - the linear combination of the ``φ`` functions evaluated at ``tA`` acting on the vectors from ``u``.
-  - `m`        - the Krylov size of the last substep.
+  - `w`        - the linear combination of the ``φ`` functions evaluated at ``tA`` acting on the vectors from ``u``
   - `stats[1]` - number of substeps
   - `stats[2]` - number of rejected steps
   - `stats[3]` - number of Krylov steps
   - `stats[4]` - number of matrix exponentials
+  - `stats[5]` - the Krylov size of the last substep
 
 `n` is the size of the original problem
 `p` is the highest index of the ``φ`` functions
@@ -40,7 +43,9 @@ References:
 * Niesen, J. and Wright, W.M., 2011. A Krylov subspace method for option pricing. SSRN 1799124
 * Niesen, J. and Wright, W.M., 2012. Algorithm 919: A Krylov subspace algorithm for evaluating the ``φ``-functions appearing in exponential integrators. ACM Transactions on Mathematical Software (TOMS), 38(3), p.22
 """
-function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_init::Int = mmin, task1::Bool = false)
+function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int=min(mmin, mmax),
+               tol::Real=1e-7, opnorm=LinearAlgebra.opnorm(A, Inf), iop::Int=2,
+               ishermitian::Bool=LinearAlgebra.ishermitian(A), task1::Bool = false)
     n, ppo = size(u, 1), size(u, 2)
     p = ppo - 1
 
@@ -50,14 +55,7 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
         u = [u zero(u)]
     end
 
-    # Krylov parameters
-    orth_len = 2
-
-    # We only allow m to vary between mmin and mmax
-    m = max(mmin, min(m_init, mmax))
-
     # Preallocate matrix
-    ishermitian = false
     TA, Tb = eltype(A), eltype(u)
     T = promote_type(TA, Tb)
     Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(n, m, p)
@@ -118,7 +116,7 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
     local beta, kest
     while tau_now < tau_end
         oldm = Ks.m
-        arnoldi!(Ks, (A, u_flip), (w, w_aug); init=j, t=tau_now, mu=mu, l=l, m=m)
+        arnoldi!(Ks, (A, u_flip), (w, w_aug);opnorm=opnorm, ishermitian=ishermitian, iop=iop, init=j, t=tau_now, mu=mu, l=l, m=m)
         j = Ks.m
         happy = j < oldm
         beta = Ks.beta
@@ -243,41 +241,9 @@ function kiops(tau_out, A, u; tol = 1.0e-7, mmin::Int = 10, mmax::Int = 128, m_i
 
     m_ret=m
 
-    stats = (step, reject, krystep, exps)
+    stats = (step, reject, krystep, exps, m_ret)
 
-    return w, m_ret, stats
-end
-
-Base.@propagate_inbounds function arnoldi_iop!(A, B, V, H, j, m, n, p, orth_len, tol, krystep)
-    happy = false
-    while j < m
-        j += 1
-
-        # Augmented matrix - vector product
-        V[1:n, j + 1] = A * @view(V[1:n, j]) + B * @view(V[n+1:n+p, j])
-        copyto!(@view(V[n+1:n+p-1, j + 1]), @view(V[n+2:n+p, j]))
-        V[end, j + 1] = 0
-
-        # Modified Gram-Schmidt
-        for i = max(1,j-orth_len+1):j
-            H[i, j] = @view(V[:, i])' * @view(V[:, j + 1])
-            @. V[:, j + 1] = @view(V[:, j + 1]) - H[i, j] * @view(V[:, i])
-        end
-
-        nrm = norm(@view(V[:, j + 1]))
-
-        # Happy breakdown
-        if nrm < tol
-            happy = true
-            break
-        end
-
-        H[j + 1, j] = nrm
-        @. V[:, j + 1] = (1/nrm) * @view(V[:, j + 1])
-
-        krystep = krystep + 1
-    end
-    j, happy, krystep
+    return w, stats
 end
 
 Base.@propagate_inbounds function kiops_update_solution!(tau_now, tau, tau_out, w, l, V, F, H, beta, j, n, step, numSteps, reject, ireject)
