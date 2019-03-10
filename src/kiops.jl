@@ -59,8 +59,6 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int=min(mmin, 
     TA, Tb = eltype(A), eltype(u)
     T = promote_type(TA, Tb)
     Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(n, m, p)
-    V = getfield(Ks, :V)
-    H = getfield(Ks, :H)
 
     step    = 0
     krystep = 0
@@ -108,17 +106,19 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int=min(mmin, 
     delta = 1.4
 
     # Used in the adaptive selection
-    oldm = NaN; oldtau = NaN; omega = NaN
+    oldm = -1; oldtau = NaN; omega = NaN
     orderold = true; kestold = true
 
     l=1
 
     local beta, kest
     while tau_now < tau_end
-        oldm = Ks.m
-        arnoldi!(Ks, (A, u_flip), (w, w_aug);opnorm=opnorm, ishermitian=ishermitian, iop=iop, init=j, t=tau_now, mu=mu, l=l, m=m)
+        oldj = Ks.m
+        arnoldi!(Ks, (A, u_flip), (w, w_aug); opnorm=opnorm, ishermitian=ishermitian, iop=iop, init=j, t=tau_now, mu=mu, l=l, m=m)
+        V = getfield(Ks, :V)
+        H = getfield(Ks, :H)
         j = Ks.m
-        happy = j < oldm
+        happy = j < oldj
         beta = Ks.beta
 
         # To obtain the phi_1 function which is needed for error estimate
@@ -182,7 +182,7 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int=min(mmin, 
             tau_opt  = tau * (gamma / omega)^(1 / order)
             tau_opt  = min(remaining_time, max(tau/5, min(5*tau, tau_opt)))
 
-            m_opt = ceil(j + log(omega / gamma) / log(kest))
+            m_opt = ceil(Int, j + log(omega / gamma) / log(kest))
             m_opt = max(mmin, min(mmax, max(3÷4*m, min(m_opt, cld(4, 3)*m))))
 
             if j == mmax
