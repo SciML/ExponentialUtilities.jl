@@ -31,7 +31,7 @@ mutable struct KrylovSubspace{B, T, U}
     V::Matrix{T}  # orthonormal bases
     H::Matrix{U}  # Gram-Schmidt coefficients (real for Hermitian matrices)
     KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U} =
-        new{real(T), T, U}(maxiter, maxiter, zero(real(T)), augmented, Matrix{T}(undef, n + augmented, maxiter + 1),
+        new{real(T), T, U}(maxiter, maxiter, augmented, zero(real(T)), Matrix{T}(undef, n + augmented, maxiter + 1),
                            fill(zero(U), maxiter + 1, maxiter + !iszero(augmented)))
     KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
 end
@@ -39,7 +39,7 @@ getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
 function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
     V = Matrix{T}(undef, size(Ks.V, 1), maxiter + 1)
-    H = fill(zero(U), maxiter + 1, maxiter)
+    H = fill(zero(U), maxiter + 1, maxiter + !iszero(Ks.augmented))
     Ks.V = V; Ks.H = H
     Ks.m = Ks.maxiter = maxiter
     return Ks
