@@ -117,14 +117,12 @@ function arnoldi_step!(j::Integer, iop::Integer, A::AT,
     x, y = @view(V[:, j]), @view(V[:, j+1])
     applyA!(y, A, x, V, j, n, p)
     @inbounds for i = max(1, j - iop + 1):j
-        alpha = coeff(U, dot(@view(V[:, i]), y))
-        H[i, j] = alpha
-        axpy!(-alpha, @view(V[:, i]), y)
+        α = H[i, j] = coeff(U, dot(@view(V[:, i]), y))
+        axpy!(-α, @view(V[:, i]), y)
     end
-    beta = norm(y)
-    H[j+1, j] = beta
-    @. y /= beta
-    beta
+    β = H[j+1, j] = norm(y)
+    @. y /= β
+    return β
 end
 
 """
@@ -138,6 +136,7 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
                   opnorm=LinearAlgebra.opnorm(A isa Tuple ? first(A) : A,Inf), iop::Int=0,
                   init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
     ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm, init=init, t=t, mu=mu, l=l)
+    m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     isaugmented = AT <: Tuple
     local np, n, p, b′, b_aug
@@ -151,38 +150,13 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
         _A, b′ = A, b
     end
     @assert length(b′) == size(_A,1) == size(_A,2) == size(V, 1)-p "Dimension mismatch"
+    if iszero(init)
+        isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
+        init = 1
+    end
     # vtol = tol * opnorm
     vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
-    m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
-    @inbounds begin
-        if iszero(init)
-            iszero(iop) && (iop = m)
-            if isaugmented
-                for k=1:p-1
-                    i = p - k
-                    b_aug[k] = t^i/factorial(i) * mu
-                end
-                b_aug[p] = mu
-
-                # Initialize the matrices V and H
-                fill!(H, 0)
-
-                # Normalize initial vector (this norm is nonzero)
-                bl = @view b′[:, l]
-                Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
-
-                # The first Krylov basis vector
-                @. V[1:n, 1]     = bl / beta
-                @. V[n+1:n+p, 1] = b_aug / beta
-            else
-                # Arnoldi iterations (with IOP)
-                fill!(H, zero(U))
-                Ks.beta = norm(b)
-                @. V[:, 1] = b / Ks.beta
-            end
-            init = 1
-        end
-    end
+    iszero(iop) && (iop = m)
     for j = init:m
         beta = arnoldi_step!(j, iop, A, V, H, n, p)
         if beta < vtol # happy-breakdown
@@ -191,6 +165,48 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
         end
     end
     return Ks
+end
+
+"""
+    firststep!(Ks, V, H, b) -> nothing
+
+Compute the first step of Arnoldi or Lanczos iteration.
+"""
+function firststep!(Ks::KrylovSubspace, V, H, b)
+    @inbounds begin
+        fill!(H, zero(eltype(H)))
+        Ks.beta = norm(b)
+        @. V[:, 1] = b / Ks.beta
+    end
+    return
+end
+
+"""
+    firststep!(Ks, V, H, b, b_aug, t, mu, l) -> nothing
+
+Compute the first step of Arnoldi or Lanczos iteration of augmented system.
+"""
+function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
+    @inbounds begin
+        n, p = length(b), length(b_aug)
+        for k=1:p-1
+            i = p - k
+            b_aug[k] = t^i/factorial(i) * mu
+        end
+        b_aug[p] = mu
+
+        # Initialize the matrices V and H
+        fill!(H, 0)
+
+        # Normalize initial vector (this norm is nonzero)
+        bl = @view b[:, l]
+        Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
+
+        # The first Krylov basis vector
+        @. V[1:n, 1]     = bl / beta
+        @. V[n+1:n+p, 1] = b_aug / beta
+    end
+    return
 end
 
 """
@@ -205,12 +221,12 @@ function lanczos_step!(j::Integer, A,
                        n::Int=-1, p::Int=-1) where {B,T,U}
     x,y = @view(V[:, j]),@view(V[:, j+1])
     applyA!(y, A, x, V, j, n, p)
-    α[j] = coeff(U, dot(x, y))
-    axpy!(-α[j], x, y)
+    α′ = α[j] = coeff(U, dot(x, y))
+    axpy!(-α′, x, y)
     j > 1 && axpy!(-β[j-1], @view(V[:, j-1]), y)
-    β[j] = norm(y)
-    @. y /= β[j]
-    β[j]
+    β′ = β[j] = norm(y)
+    @. y /= β′
+    return β′
 end
 
 """
@@ -230,48 +246,24 @@ function lanczos!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
     # Safe checks
     if isaugmented
         b′, b_aug = b
-        T2 = eltype(b′)
         n, p = length(b′), length(b_aug)
         _A = first(A)
     else
-        T2 = eltype(b)
         n, p = size(V, 1), 0
         _A, b′ = A, b
     end
     @assert length(b′) == size(_A,1) == size(_A,2) == size(V, 1)-p "Dimension mismatch"
-    # vtol = tol * opnorm
-    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
+    if iszero(init)
+        isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
+        init = 1
+    end
     @inbounds begin
-        if iszero(init)
-            if isaugmented
-                for k=1:p-1
-                    i = p - k
-                    b_aug[k] = t^i/factorial(i) * mu
-                end
-                b_aug[p] = mu
-
-                # Initialize the matrices V and H
-                fill!(H, 0)
-
-                # Normalize initial vector (this norm is nonzero)
-                bl = @view b′[:, l]
-                Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
-
-                # The first Krylov basis vector
-                @. V[1:n, 1]     = bl / beta
-                @. V[n+1:n+p, 1] = b_aug / beta
-            else
-                # Lanczos iterations
-                fill!(H, zero(T2))
-                Ks.beta = norm(b)
-                @. V[:, 1] = b / Ks.beta
-            end
-            init = 1
-        end
         α = @diagview(H)
         # β is always real, even though α may (in general) be complex.
         β = realview(B, @diagview(H,-1))
     end
+    # vtol = tol * opnorm
+    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
     for j = 1:m
         if vtol > lanczos_step!(j, A, V, α, β, n, p)
             # happy-breakdown
