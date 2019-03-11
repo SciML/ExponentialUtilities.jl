@@ -92,6 +92,7 @@ function arnoldi(A, b; m=min(30, size(A, 1)), ishermitian=LinearAlgebra.ishermit
 end
 
 ## Low-level interface
+
 @inline function applyA!(y, A::AT, x, V, j, n, p) where AT
     # We cannot add `@inbounds` to `mul!`, because it is provided by the user.
     AT <: Tuple #= augmented =# || (mul!(y, A, x); return)
@@ -120,6 +121,54 @@ function checkdims(A, b, V)
     return b′, b_aug, n, p
 end
 
+##############################
+# Utilities
+##############################
+"""
+    firststep!(Ks, V, H, b) -> nothing
+
+Compute the first step of Arnoldi or Lanczos iteration.
+"""
+function firststep!(Ks::KrylovSubspace, V, H, b)
+    @inbounds begin
+        fill!(H, zero(eltype(H)))
+        Ks.beta = norm(b)
+        @. V[:, 1] = b / Ks.beta
+    end
+    return
+end
+
+"""
+    firststep!(Ks, V, H, b, b_aug, t, mu, l) -> nothing
+
+Compute the first step of Arnoldi or Lanczos iteration of augmented system.
+"""
+function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
+    @inbounds begin
+        n, p = length(b), length(b_aug)
+        for k=1:p-1
+            i = p - k
+            b_aug[k] = t^i/factorial(i) * mu
+        end
+        b_aug[p] = mu
+
+        # Initialize the matrices V and H
+        fill!(H, 0)
+
+        # Normalize initial vector (this norm is nonzero)
+        bl = @view b[:, l]
+        Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
+
+        # The first Krylov basis vector
+        @. V[1:n, 1]     = bl / beta
+        @. V[n+1:n+p, 1] = b_aug / beta
+    end
+    return
+end
+
+##############################
+# Arnoldi
+##############################
 """
     arnoldi_step!(j, iop, n, A, V, H)
 
@@ -171,47 +220,9 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
     return Ks
 end
 
-"""
-    firststep!(Ks, V, H, b) -> nothing
-
-Compute the first step of Arnoldi or Lanczos iteration.
-"""
-function firststep!(Ks::KrylovSubspace, V, H, b)
-    @inbounds begin
-        fill!(H, zero(eltype(H)))
-        Ks.beta = norm(b)
-        @. V[:, 1] = b / Ks.beta
-    end
-    return
-end
-
-"""
-    firststep!(Ks, V, H, b, b_aug, t, mu, l) -> nothing
-
-Compute the first step of Arnoldi or Lanczos iteration of augmented system.
-"""
-function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
-    @inbounds begin
-        n, p = length(b), length(b_aug)
-        for k=1:p-1
-            i = p - k
-            b_aug[k] = t^i/factorial(i) * mu
-        end
-        b_aug[p] = mu
-
-        # Initialize the matrices V and H
-        fill!(H, 0)
-
-        # Normalize initial vector (this norm is nonzero)
-        bl = @view b[:, l]
-        Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
-
-        # The first Krylov basis vector
-        @. V[1:n, 1]     = bl / beta
-        @. V[n+1:n+p, 1] = b_aug / beta
-    end
-    return
-end
+##############################
+# Lanczos
+##############################
 
 """
     lanczos_step!(j, m, n, A, V, H)
@@ -232,6 +243,24 @@ function lanczos_step!(j::Integer, A,
     @. y /= β
     return β
 end
+
+"""
+    coeff(::Type,α)
+
+Helper functions that returns the real part if that is what is
+required (for Hermitian matrices), otherwise returns the value
+as-is.
+"""
+coeff(::Type{T},α::T) where {T} = α
+coeff(::Type{U},α::T) where {U<:Real,T<:Complex} = real(α)
+
+
+"""
+    realview(::Type, V) -> real view of `V`
+"""
+realview(::Type{R}, V::AbstractVector{C}) where {R,C<:Complex} =
+    @view(reinterpret(R, V)[1:2:end])
+realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 
 """
     lanczos!(Ks,A,b[;tol,m,opnorm]) -> Ks

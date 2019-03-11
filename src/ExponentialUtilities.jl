@@ -3,7 +3,17 @@ using LinearAlgebra, SparseArrays, Printf
 using LinearAlgebra: exp!, BlasInt
 using LinearAlgebra.LAPACK: stegr!
 
-include("utils.jl")
+"""
+    @diagview(A,d) -> view of the `d`th diagonal of `A`.
+"""
+macro diagview(A,d::Integer=0)
+    s = d<=0 ? 1+abs(d) : :(m+$d)
+    quote
+        m = size($(esc(A)),1)
+        @view($(esc(A))[($s):m+1:end])
+    end
+end
+
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
