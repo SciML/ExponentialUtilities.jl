@@ -38,8 +38,13 @@ end
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
 function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
+    isaugmented = !iszero(Ks.augmented)
     V = Matrix{T}(undef, size(Ks.V, 1), maxiter + 1)
-    H = fill(zero(U), maxiter + 1, maxiter + !iszero(Ks.augmented))
+    H = fill(zero(U), maxiter + 1, maxiter + isaugmented)
+    if isaugmented
+      copyto!(@view(V[axes(Ks.V)...]), Ks.V)
+      copyto!(@view(H[axes(Ks.H)...]), Ks.H)
+    end
     Ks.V = V; Ks.H = H
     Ks.m = Ks.maxiter = maxiter
     return Ks
