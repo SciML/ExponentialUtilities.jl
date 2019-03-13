@@ -35,7 +35,9 @@ end
     A = randn(n, n)
     t = 1e-2
     b = randn(n)
-    @test exp(t * A) * b ≈ expv(t, A, b; m=m)
+    direct = exp(t * A) * b
+    @test direct ≈ expv(t, A, b; m=m)
+    @test direct ≈ kiops(t, A, b)[1]
     P = phi(t * A, K)
     W = fill(0., n, K+1)
     for i = 1:K+1
@@ -44,6 +46,13 @@ end
     Ks = arnoldi(A, b; m=m)
     W_approx = phiv(t, Ks, K)
     @test W ≈ W_approx
+    W_approx_kiops3 = kiops(t, A, hcat([b*inv(t)^i for i in 0:K-1]...))
+    @test sum(W[:, 1:K], dims=2) ≈ W_approx_kiops3[1]
+    @test_skip begin
+        W_approx_kiops4 = kiops(t, A, hcat([b*inv(t)^i for i in 0:K]...))
+        @test_broken sum(W[:, 1:K+1], dims=2) ≈ W_approx_kiops4[1]
+        @test sum(W[:, 1:K+1], dims=2) ≈ W_approx_kiops4[1] atol=1e-2
+    end
 
     # Happy-breakdown in Krylov
     v = normalize(randn(n))
@@ -56,7 +65,9 @@ end
     Aperm = A + 1e-10 * randn(n, n) # no longer Hermitian
     w = expv(t, A, b; m=m)
     wperm = expv(t, Aperm, b; m=m)
+    wkiops = kiops(t, A, b; m=m)[1]
     @test w ≈ wperm
+    @test w ≈ wkiops
 end
 
 @testset "Complex Value" begin
