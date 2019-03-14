@@ -1,5 +1,14 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV
+using ExponentialUtilities: getH, getV, _exp!
+
+@testset "Exp" begin
+    n = 100
+    A = randn(n, n)
+    expA = exp(A)
+    X = zeros(n, n)
+    _exp!(X, A)
+    @test X ≈ expA
+end
 
 @testset "Phi" begin
     # Scalar phi
