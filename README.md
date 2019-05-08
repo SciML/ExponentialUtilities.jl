@@ -76,7 +76,7 @@ Instead of using the recurrence relation, which is numerically unstable, a formu
 arnoldi(A,b[;m,tol,opnorm,iop,cache]) -> Ks
 ```
 
-Performs [Anoldi iterations](https://en.wikipedia.org/wiki/Arnoldi_iteration) to obtain the Krylov subspace `K_m(A,b)`. The result is a `KrylovSubspace` that can be used by `phiv` via the alternative interface
+Performs [Arnoldi iterations](https://en.wikipedia.org/wiki/Arnoldi_iteration) to obtain the Krylov subspace `K_m(A,b)`. The result is a `KrylovSubspace` that can be used by `phiv` via the alternative interface
 
 ```julia
 phiv(t,Ks,k;kwargs) -> [ϕ_0(tA)b ϕ_1(tA)b ... ϕ_k(tA)b][, errest]
