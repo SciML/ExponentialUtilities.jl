@@ -3,8 +3,8 @@
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `X` to
 ## become (approximately) `exp(A)`. `X` and `A` may alias.
-function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T<:BlasFloat
-    n = checksquare(A)
+function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
+    n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)
         # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
@@ -20,7 +20,7 @@ function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T
     end
     fill!(P, zero(T)); fill!(@diagview(P), one(T)) # P = Inn
 
-    ilo, ihi, scale = gebal!('B', A)    # modifies A
+    ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
     nA = opnorm(A, 1)
     ## For sufficiently small nA, use lower order Padé-Approximations
     if (nA <= 2.1)
@@ -49,7 +49,7 @@ function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T
         mul!(temp, A, U); U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
-        gesv!(temp, X)
+        LAPACK.gesv!(temp, X)
     else
         s  = log2(nA/5.4)               # power of 2 later reversed by squaring
         if s > 0
@@ -73,7 +73,7 @@ function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T
         mul!(temp, A, U); U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
-        gesv!(temp, X)
+        LAPACK.gesv!(temp, X)
 
         if s > 0            # squaring to reverse dividing by power of 2
             for t=1:si

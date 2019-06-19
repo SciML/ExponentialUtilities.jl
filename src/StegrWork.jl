@@ -69,8 +69,9 @@ end
 Allocate work arrays for diagonalization of real-symmetric tridiagonal
 matrices of sizes up to `n`×`n`.
 """
-function StegrWork(::Type{T}, n::BlasInt,
+function StegrWork(::Type{T}, n::Integer,
                    jobz::Char = 'V', range::Char = 'A') where T
+    n = convert(BlasInt, n)
     dv = Array{T}(undef, n)
     ev = Array{T}(undef, n)
     abstol = Array{T}(undef, 1)

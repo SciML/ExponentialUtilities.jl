@@ -1,7 +1,5 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
-using LinearAlgebra: BlasInt, BlasFloat, checksquare
-using LinearAlgebra.LAPACK: stegr!, gebal!, gesv!
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
