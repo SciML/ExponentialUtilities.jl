@@ -28,8 +28,7 @@ function phi(z::T, k::Integer; cache=nothing) where {T <: Number}
     for i = 1:k
         cache[i,i+1] = one(T)
     end
-    P = cache
-    _exp!(P, cache)
+    P = _exp!(cache)
     return P[1,:]
 end
 
@@ -75,8 +74,7 @@ function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
     for i = m+1:m+k-1
         cache[i, i+1] = one(T)
     end
-    P = cache
-    _exp!(P, cache)
+    P = _exp!(cache)
     # Extract results
     @views mul!(w[:, 1], P[1:m, 1:m], v)
     @inbounds for i = 1:k

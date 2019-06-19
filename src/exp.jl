@@ -1,9 +1,10 @@
 ## Destructive matrix exponential using algorithm from Higham, 2008,
 ## "Functions of Matrices: Theory and Computation", SIAM
 ##
-## Non-allocating version of `LinearAlgebra.exp!`. Modifies `X` to
-## become (approximately) `exp(A)`. `X` and `A` may alias.
-function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
+## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
+## become (approximately) `exp(A)`.
+function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
+    X = A
     n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)
         # return copytri!(parent(exp(Hermitian(A))), 'U', true)
