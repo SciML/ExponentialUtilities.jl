@@ -1,5 +1,18 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV
+using ExponentialUtilities: getH, getV, _exp!
+
+@testset "Exp" begin
+    n = 100
+    A = randn(n, n)
+    expA = exp(A)
+    _exp!(A)
+    @test A ≈ expA
+    A2 = randn(n, n)
+    A2 ./= opnorm(A2, 1) # test for small opnorm
+    expA2 = exp(A2)
+    _exp!(A2)
+    @test A2 ≈ expA2
+end
 
 @testset "Phi" begin
     # Scalar phi

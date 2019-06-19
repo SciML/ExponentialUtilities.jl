@@ -1,7 +1,5 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
-using LinearAlgebra: exp!, BlasInt
-using LinearAlgebra.LAPACK: stegr!
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
@@ -14,6 +12,7 @@ macro diagview(A,d::Integer=0)
     end
 end
 
+include("exp.jl")
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
