@@ -1,6 +1,6 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
-using LinearAlgebra: exp!, BlasInt, BlasFloat, checksquare
+using LinearAlgebra: BlasInt, BlasFloat, checksquare
 using LinearAlgebra.LAPACK: stegr!, gebal!, gesv!
 
 """

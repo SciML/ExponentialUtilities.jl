@@ -2,7 +2,7 @@
 ## "Functions of Matrices: Theory and Computation", SIAM
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `X` to
-## become (approximately) `exp(A)`.
+## become (approximately) `exp(A)`. `X` and `A` may alias.
 function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T<:BlasFloat
     n = checksquare(A)
     # if ishermitian(A)
@@ -95,11 +95,10 @@ function _exp!(X::StridedMatrix{T}, A::StridedMatrix{T}; caches=nothing) where T
     end
 
     if ilo > 1       # apply lower permutations in reverse order
-        for j in (ilo-1):-1:1; rcswap!(j, Int(scale[j]), X) end
+        for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
     end
     if ihi < n       # apply upper permutations in forward order
-        for j in (ihi+1):n;    rcswap!(j, Int(scale[j]), X) end
+        for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
     end
-    X
+    return X
 end
-
