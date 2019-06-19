@@ -13,7 +13,7 @@ mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
     sw::Stegr.StegrWork{R}
     StegrCache(::Type{T}, n::Integer) where T = new{T,real(T)}(
         Vector{T}(undef, n), Vector{T}(undef, n),
-        Stegr.StegrWork(real(T), BlasInt(n)))
+        Stegr.StegrWork(real(T), n))
 end
 
 """
@@ -25,7 +25,7 @@ super-/subdiagonal, diagonalizing via `stegr!`.
 """
 function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
                cache::StegrCache{T,R}) where {T,R<:Real}
-    stegr!(α, β, cache.sw)
+    LAPACK.stegr!(α, β, cache.sw)
     sel = 1:length(α)
     @inbounds for i = sel
         cache.w[i] = exp(t*cache.sw.w[i])*cache.sw.Z[1,i]
