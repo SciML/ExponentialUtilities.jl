@@ -77,7 +77,7 @@ end
     A = Hermitian(randn(n, n))
     Aperm = A + 1e-10 * randn(n, n) # no longer Hermitian
     w = expv(t, A, b; m=m)
-    wperm = expv(t, Aperm, b; m=m)
+    wperm = expv(t, Aperm, b; m=m, opnorm=opnorm)
     wkiops = kiops(t, A, b; m=m)[1]
     @test w ≈ wperm
     @test w ≈ wkiops
@@ -109,7 +109,8 @@ end
     @test norm(U[:,2] - u_exact) / norm(u_exact) < tol
     # p = 0 special case (expv_timestep)
     u_exact = Phi[1] * B[:, 1]
-    u = expv_timestep(t, A, B[:, 1]; adaptive=true, tol=tol)
+    u = expv_timestep(t, A, B[:, 1]; adaptive=true, tol=tol, opnorm=opnorm)
+    @test_nowarn expv_timestep(t, A, B[:, 1]; adaptive=true, tol=tol, opnorm=opnorm(A, Inf))
     @test norm(u - u_exact) / norm(u_exact) < tol
 end
 
