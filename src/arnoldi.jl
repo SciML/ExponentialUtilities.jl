@@ -201,9 +201,9 @@ Non-allocating version of `arnoldi`.
 function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
                   ishermitian::Bool=LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
-                  opnorm=LinearAlgebra.opnorm(A isa Tuple ? first(A) : A,Inf), iop::Int=0,
+                  opnorm=nothing, iop::Int=0,
                   init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
-    ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, opnorm=opnorm, init=init, t=t, mu=mu, l=l)
+    ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, init=init, t=t, mu=mu, l=l)
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     b′, b_aug, n, p = checkdims(A, b, V)
@@ -212,12 +212,10 @@ function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
         isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
-    # vtol = tol * opnorm
-    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
     iszero(iop) && (iop = m)
     for j = init:m
         beta = arnoldi_step!(j, iop, A, V, H, n, p)
-        if beta < vtol # happy-breakdown
+        if beta < tol # happy-breakdown
             Ks.m = j
             break
         end
@@ -275,7 +273,7 @@ Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=LinearAlgebra.opnorm(A,Inf),
+                  opnorm=nothing,
                   init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
@@ -290,10 +288,8 @@ function lanczos!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
         # `v` is always real, even though `u` may (in general) be complex.
         v = realview(B, @diagview(H,-1))
     end
-    # vtol = tol * opnorm
-    vtol = tol * (opnorm isa Number ? opnorm : opnorm(A,Inf)) # backward compatibility
     for j = 1:m
-        if vtol > lanczos_step!(j, A, V, u, v, n, p)
+        if tol > lanczos_step!(j, A, V, u, v, n, p)
             # happy-breakdown
             Ks.m = j
             break
