@@ -118,7 +118,7 @@ function exp_generic(x, vk=Val{10}())
     nx = opnorm(x, 1)
     s = ceil(Int, log2(nx))
     if s >= 1
-        exp(x/(2^s), vk)^(2^s)
+        exp_generic(x/(2^s), vk)^(2^s)
     else
         exp_pade_p(x, vk, vk) / exp_pade_q(x, vk, vk)
     end
