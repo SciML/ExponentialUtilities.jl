@@ -24,6 +24,8 @@ end
         
         N = randn(n, n)
         @test exp(N) ≈ exp_generic(N)
+
+        exp(n) ≈ exp_generic(n)
     end
 end
 

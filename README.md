@@ -88,6 +88,16 @@ For `arnoldi`, if `A` is hermitian, then the more efficient [Lanczos algorithm](
 
 For the other keyword arguments, `m` determines the dimension of the Krylov subspace and `tol` is the relative tolerance used to determine the "happy-breakdown" condition. You can also set custom operator norm in `opnorm`, e.g. efficient norm estimation functions instead of the default `LinearAlgebra.opnorm`. Only `opnorm(A, Inf)` needs to be defined.
 
+## `exp_generic`
+
+`exp_generic` is a which works on
+```julia
+    exp(x, vk=Val{10}())
+```
+ pure julia, generic implementation of the exponential function using the [scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions 
+`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. Use the argument `vk` to adjust the 
+number of terms used in the Pade approximants at compile time.
+
 ## Advanced features
 
 "In-place" versions for `phi`, `arnoldi`, `expv`, `phiv`, `expv_timestep` and `phiv_timestep` are available as `phi!`, `arnoldi!`, `expv!`, `phiv!`, `expv_timestep!` and `phiv_timestep!`. You can refer to the docstrings for more information.
@@ -101,3 +111,5 @@ In addition, you may provide pre-allocated caches to the functions to further im
 [2] Sidje, R. B. (1998). Expokit: a software package for computing matrix exponentials. ACM Transactions on Mathematical Software (TOMS), 24(1), 130-15.
 
 [3] Koskela, A. (2015). Approximating the matrix exponential of an advection-diffusion operator using the incomplete orthogonalization method. In Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353). Springer, Cham.
+
+[4] HIGHAM, N. J. (2005). "THE SCALING AND SQUARING METHOD FOR THE MATRIX EXPONENTIAL REVISITED." SIAM J. MATRIX ANAL. APPL.Vol. 26, No. 4, pp. 1179–1193

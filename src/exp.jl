@@ -129,7 +129,7 @@ end
     p = map(Tuple(0:k)) do j
         num = factorial(k + m - j) * factorial(k)
         den = factorial(k + m) * factorial(k - j)*factorial(j)
-        (float ∘ eltype)(x)(num // den) * I 
+        (float ∘ eltype)(x)(num // den) * (x <: Number ? 1 : I)
     end
     :(@evalpoly(x, $(p...)))
 end
