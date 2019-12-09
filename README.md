@@ -90,7 +90,7 @@ For the other keyword arguments, `m` determines the dimension of the Krylov subs
 
 ## `exp_generic`
 ```julia
-    exp(x, vk=Val{10}())
+exp(x, vk=Val{10}())
 ```
  pure julia, generic implementation of the exponential function using the [scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions 
 `LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. Use the argument `vk` to adjust the 
