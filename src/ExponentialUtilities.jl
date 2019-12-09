@@ -22,6 +22,6 @@ include("StegrWork.jl")
 include("krylov_phiv_error_estimate.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
-    expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,
+    expv, expv!, exp_generic, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,
     StegrCache, get_subspace_cache
 end
