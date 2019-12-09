@@ -114,7 +114,7 @@ compile time.
 See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
 by Higham, Nicholas J. in 2005 for algorithm details.
 """
-function exp(x, vk=Val{10}()) 
+function exp_generic(x, vk=Val{10}()) 
     nx = opnorm(x, 1)
     s = ceil(Int, log2(nx))
     if s >= 1
