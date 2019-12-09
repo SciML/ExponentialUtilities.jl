@@ -103,3 +103,35 @@ function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.Bla
     end
     return X
 end
+
+"""
+    exp(x, vk=Val{10}()) 
+Generic exponential function, working on any `x` for which the functions 
+`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` are defined. Use the 
+argument `vk` to adjust the number of terms in the Pade approximants at 
+compile time.
+
+See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
+by Higham, Nicholas J. in 2005 for algorithm details.
+"""
+function exp(x, vk=Val{10}()) 
+    nx = opnorm(x, 1)
+    s = ceil(Int, log2(nx))
+    if s >= 1
+        exp(x/(2^s), vk)^(2^s)
+    else
+        exp_pade_p(x, vk, vk) / exp_pade_q(x, vk, vk)
+    end
+end
+
+@generated function exp_pade_p(x, ::Val{k}, ::Val{m}) where {k, m}
+    factorial = Base.factorial ∘ big
+    p = map(Tuple(0:k)) do j
+        num = factorial(k + m - j) * factorial(k)
+        den = factorial(k + m) * factorial(k - j)*factorial(j)
+        (float ∘ eltype)(x)(num // den) * I 
+    end
+    :(@evalpoly(x, $(p...)))
+end
+
+exp_pade_q(x, k, m) = exp_pade_p(-x, m, k)
