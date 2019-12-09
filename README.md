@@ -89,8 +89,6 @@ For `arnoldi`, if `A` is hermitian, then the more efficient [Lanczos algorithm](
 For the other keyword arguments, `m` determines the dimension of the Krylov subspace and `tol` is the relative tolerance used to determine the "happy-breakdown" condition. You can also set custom operator norm in `opnorm`, e.g. efficient norm estimation functions instead of the default `LinearAlgebra.opnorm`. Only `opnorm(A, Inf)` needs to be defined.
 
 ## `exp_generic`
-
-`exp_generic` is a which works on
 ```julia
     exp(x, vk=Val{10}())
 ```
