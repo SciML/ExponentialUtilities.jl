@@ -88,13 +88,25 @@ For `arnoldi`, if `A` is hermitian, then the more efficient [Lanczos algorithm](
 
 For the other keyword arguments, `m` determines the dimension of the Krylov subspace and `tol` is the relative tolerance used to determine the "happy-breakdown" condition. You can also set custom operator norm in `opnorm`, e.g. efficient norm estimation functions instead of the default `LinearAlgebra.opnorm`. Only `opnorm(A, Inf)` needs to be defined.
 
+## `_exp!`
+
+```julia
+_exp(A)
+```
+
+A pure Julia implementation of a non-allocating matrix exponential using the Destructive matrix exponential using algorithm 
+from Higham, 2008. Mostly generic, though the coefficients are geared towards 64-bit floating point calculations, and the
+use of BLAS requires a `StridedMatrix`.
+
 ## `exp_generic`
 ```julia
 exp(x, vk=Val{10}())
 ```
- pure julia, generic implementation of the exponential function using the [scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions 
-`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. Use the argument `vk` to adjust the 
-number of terms used in the Pade approximants at compile time.
+
+A pure Julia generic implementation of the exponential function using the 
+[scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions 
+`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. 
+Use the argument `vk` to adjust the number of terms used in the Pade approximants at compile time.
 
 ## Advanced features
 
