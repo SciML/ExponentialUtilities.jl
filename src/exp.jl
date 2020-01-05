@@ -105,7 +105,7 @@ function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.Bla
 end
 
 """
-    exp(x, vk=Val{10}()) 
+    exp(x, vk=Val{13}()) 
 Generic exponential function, working on any `x` for which the functions 
 `LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with 
 UniformScaling objects) are defined. Use the argument `vk` to adjust the 
@@ -114,7 +114,7 @@ number of terms used in the Pade approximants at compile time.
 See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
 by Higham, Nicholas J. in 2005 for algorithm details.
 """
-function exp_generic(x, vk=Val{10}()) 
+function exp_generic(x, vk=Val{13}()) 
     nx = opnorm(x, 1)
     s = ceil(Int, log2(nx))
     if s >= 1
