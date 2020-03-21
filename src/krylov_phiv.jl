@@ -106,6 +106,10 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     else
         throw(ArgumentError("Cache must be an ExpvCache"))
     end
+    if iszero(Ks.beta)
+        w .= false
+        return w
+    end
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H

@@ -158,9 +158,10 @@ function firststep!(Ks::KrylovSubspace, V, H, b)
     @inbounds begin
         fill!(H, zero(eltype(H)))
         Ks.beta = norm(b)
-        @. V[:, 1] = b / Ks.beta
+        if !iszero(Ks.beta)
+            @. V[:, 1] = b / Ks.beta
+        end
     end
-    return
 end
 
 """
@@ -184,11 +185,12 @@ function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
         bl = @view b[:, l]
         Ks.beta = beta = sqrt(bl'bl + b_aug'b_aug)
 
-        # The first Krylov basis vector
-        @. V[1:n, 1]     = bl / beta
-        @. V[n+1:n+p, 1] = b_aug / beta
+        if !iszero(Ks.beta)
+            # The first Krylov basis vector
+            @. V[1:n, 1]     = bl / beta
+            @. V[n+1:n+p, 1] = b_aug / beta
+        end
     end
-    return
 end
 
 ##############################
@@ -237,6 +239,7 @@ function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
         isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
+    iszero(Ks.beta) && return Ks
     iszero(iop) && (iop = m)
     for j = init:m
         beta = arnoldi_step!(j, iop, A, V, H, n, p)
@@ -308,6 +311,7 @@ function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
         isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
+    iszero(Ks.beta) && return Ks
     @inbounds begin
         u = @diagview(H)
         # `v` is always real, even though `u` may (in general) be complex.

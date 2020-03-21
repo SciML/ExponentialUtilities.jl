@@ -99,6 +99,12 @@ end
     Ks = arnoldi(A, b)
     @test Ks.m == 2
 
+    # Test Arnoldi with zero input
+    z = zeros(n)
+    Ksz = arnoldi(A, z)
+    wz = expv(t, A, z; m=m)
+    @test norm(wz) == 0.0
+
     # Arnoldi vs Lanczos
     A = Hermitian(randn(n, n))
     Aperm = A + 1e-10 * randn(n, n) # no longer Hermitian
@@ -107,6 +113,10 @@ end
     wkiops = kiops(t, A, b; m=m)[1]
     @test w ≈ wperm
     @test w ≈ wkiops
+
+    # Test Lanczos with zero input
+    wz = expv(t, A, z; m=m)
+    @test norm(wz) == 0.0
 end
 
 @testset "Complex Value" begin
@@ -189,6 +199,10 @@ end
     δw = norm(w-w′)
     @test δw < atol
     @test δw/abs(1e-16+norm(w)) < rtol
+
+    z = zeros(ComplexF64, n)
+    wz = expv(-im, dt*A, z, m=m, tol=atol, rtol=rtol, mode=:error_estimate)
+    @test norm(wz) == 0
 end
 
 struct MatrixFreeOperator{T} <: AbstractMatrix{T}
