@@ -1,10 +1,10 @@
 # ExponentialUtilities
 
 [![Join the chat at https://gitter.im/JuliaDiffEq/Lobby](https://badges.gitter.im/JuliaDiffEq/Lobby.svg)](https://gitter.im/JuliaDiffEq/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/JuliaDiffEq/ExponentialUtilities.jl.svg?branch=master)](https://travis-ci.org/JuliaDiffEq/ExponentialUtilities.jl)
+[![Build Status](https://travis-ci.org/SciML/ExponentialUtilities.jl.svg?branch=master)](https://travis-ci.org/SciML/ExponentialUtilities.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/eeww1qm5rrf984bc?svg=true)](https://ci.appveyor.com/project/MSeeker1340/exponentialutilities-jl)
-[![Coverage Status](https://coveralls.io/repos/github/JuliaDiffEq/ExponentialUtilities.jl/badge.svg?branch=master)](https://coveralls.io/github/JuliaDiffEq/ExponentialUtilities.jl?branch=master)
-[![codecov](https://codecov.io/gh/JuliaDiffEq/ExponentialUtilities.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaDiffEq/ExponentialUtilities.jl)
+[![Coverage Status](https://coveralls.io/repos/github/SciML/ExponentialUtilities.jl/badge.svg?branch=master)](https://coveralls.io/github/SciML/ExponentialUtilities.jl?branch=master)
+[![codecov](https://codecov.io/gh/SciML/ExponentialUtilities.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/SciML/ExponentialUtilities.jl)
 
 ExponentialUtilities is a package of utility functions used by the exponential integrators in OrdinaryDiffEq. It is a lightweight pure Julia package with no external dependencies, so it can also be used independently.
 
