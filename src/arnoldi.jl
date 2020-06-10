@@ -40,10 +40,9 @@ end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
 
-
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
-function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
+function Base.resize!(Ks::KrylovSubspace{T,U,B}, maxiter::Integer) where {B,T,U}
     isaugmented = !iszero(Ks.augmented)
     V = Matrix{T}(undef, size(Ks.V, 1), maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + isaugmented)
@@ -204,7 +203,7 @@ end
 
 Non-allocating version of `arnoldi`.
 """
-function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
+function arnoldi!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
                   ishermitian::Bool=LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
                   opnorm=nothing, iop::Int=0,
@@ -277,7 +276,7 @@ realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
-function lanczos!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
+function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
                   opnorm=nothing,
                   init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
