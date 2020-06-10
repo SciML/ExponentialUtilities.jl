@@ -23,18 +23,24 @@ Resize `Ks` to a different `maxiter`, destroying its contents.
 
 This is an expensive operation and should be used scarcely.
 """
-mutable struct KrylovSubspace{B, T, U}
+mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T}, HType <: AbstractMatrix{U}}
     m::Int        # subspace dimension
     maxiter::Int  # maximum allowed subspace size
     augmented::Int# length of the augmented part
     beta::B       # norm(b,2)
-    V::Matrix{T}  # orthonormal bases
-    H::Matrix{U}  # Gram-Schmidt coefficients (real for Hermitian matrices)
-    KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U} =
-        new{real(T), T, U}(maxiter, maxiter, augmented, zero(real(T)), Matrix{T}(undef, n + augmented, maxiter + 1),
-                           fill(zero(U), maxiter + 1, maxiter + !iszero(augmented)))
-    KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
+    V::VType  # orthonormal bases
+    H::HType  # Gram-Schmidt coefficients (real for Hermitian matrices)
 end
+
+function KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U}
+    V = Matrix{T}(undef, n + augmented, maxiter + 1)
+    H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
+    return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented, zero(real(T)), V, H)
+end
+
+KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
+
+
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
 function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
