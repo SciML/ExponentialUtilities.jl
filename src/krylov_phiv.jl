@@ -58,7 +58,7 @@ function _expv_ee(t::Tt, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
 end
-function expv(t::Tt, Ks::KrylovSubspace{B, T, U}; kwargs...) where {Tt, B, T, U}
+function expv(t::Tt, Ks::KrylovSubspace{T, U}; kwargs...) where {Tt, T, U}
     n = size(getV(Ks), 1)
     w = Vector{promote_type(Tt, T)}(undef, n)
     expv!(w, t, Ks; kwargs...)
@@ -68,8 +68,8 @@ end
 
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
-function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{B, T, U};
-               cache=nothing) where {Tw, B, T, U}
+function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
+               cache=nothing) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -95,8 +95,8 @@ end
 # NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
 #       or Tw can be Float64, while t is ComplexF32 and T is Float64
 #       thus they can not share the same TypeVar.
-function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{B, T, U};
-                cache=nothing) where {Tw, Tt, B, T, U}
+function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
+                cache=nothing) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -175,7 +175,7 @@ function phiv(t, A, b, k; cache=nothing, correct=false, errest=false, kwargs_arn
     w = Matrix{eltype(b)}(undef, length(b), k+1)
     phiv!(w, t, Ks, k; cache=cache, correct=correct, errest=errest)
 end
-function phiv(t, Ks::KrylovSubspace{B, T, U}, k; kwargs...) where {B, T, U}
+function phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) where {T, U}
     n = size(getV(Ks), 1)
     w = Matrix{T}(undef, n, k+1)
     phiv!(w, t, Ks, k; kwargs...)
@@ -185,8 +185,8 @@ end
 
 Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
 """
-function phiv!(w::AbstractMatrix{T}, t::Number, Ks::KrylovSubspace{B, T, U}, k::Integer;
-               cache=nothing, correct=false, errest=false) where {B, T <: Number, U <: Number}
+function phiv!(w::AbstractMatrix{T}, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
+               cache=nothing, correct=false, errest=false) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1) == size(V, 1) "Dimension mismatch"
     @assert size(w, 2) == k + 1 "Dimension mismatch"

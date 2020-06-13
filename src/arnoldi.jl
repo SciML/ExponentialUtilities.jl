@@ -23,24 +23,30 @@ Resize `Ks` to a different `maxiter`, destroying its contents.
 
 This is an expensive operation and should be used scarcely.
 """
-mutable struct KrylovSubspace{B, T, U}
+mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T}, HType <: AbstractMatrix{U}}
     m::Int        # subspace dimension
     maxiter::Int  # maximum allowed subspace size
     augmented::Int# length of the augmented part
     beta::B       # norm(b,2)
-    V::Matrix{T}  # orthonormal bases
-    H::Matrix{U}  # Gram-Schmidt coefficients (real for Hermitian matrices)
-    KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U} =
-        new{real(T), T, U}(maxiter, maxiter, augmented, zero(real(T)), Matrix{T}(undef, n + augmented, maxiter + 1),
-                           fill(zero(U), maxiter + 1, maxiter + !iszero(augmented)))
-    KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
+    V::VType  # orthonormal bases
+    H::HType  # Gram-Schmidt coefficients (real for Hermitian matrices)
 end
+
+function KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U}
+    V = Matrix{T}(undef, n + augmented, maxiter + 1)
+    H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
+    return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented, zero(real(T)), V, H)
+end
+
+KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
+
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
-function Base.resize!(Ks::KrylovSubspace{B,T,U}, maxiter::Integer) where {B,T,U}
+function Base.resize!(Ks::KrylovSubspace{T,U}, maxiter::Integer) where {T,U}
     isaugmented = !iszero(Ks.augmented)
-    V = Matrix{T}(undef, size(Ks.V, 1), maxiter + 1)
-    H = fill(zero(U), maxiter + 1, maxiter + isaugmented)
+    V = similar(Ks.V, T, (size(Ks.V, 1), maxiter + 1))
+    H = similar(Ks.H, U, (maxiter + 1, maxiter + isaugmented))
+    fill!(H, zero(U))
     if isaugmented
       copyto!(@view(V[axes(Ks.V)...]), Ks.V)
       copyto!(@view(H[axes(Ks.H)...]), Ks.H)
@@ -92,19 +98,33 @@ Springer, Cham.
 function arnoldi(A, b; m=min(30, size(A, 1)), ishermitian=LinearAlgebra.ishermitian(A), kwargs...)
     TA, Tb = eltype(A), eltype(b)
     T = promote_type(TA, Tb)
-    Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(length(b), m)
+    n = length(b)
+    U = ishermitian ? real(T) : T
+
+    V = similar(A, T, (n, m + 1))
+    H = similar(A, U, (m+1, m))
+    fill!(H, zero(U))
+
+    Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), V, H)
+
     arnoldi!(Ks, A, b; m=m, ishermitian=ishermitian, kwargs...)
 end
 
 ## Low-level interface
-
-@inline function applyA!(y, A::AT, x, V, j, n, p) where AT
+@inline function applyA!(y, A, x, V, j, n, p)
     # We cannot add `@inbounds` to `mul!`, because it is provided by the user.
-    AT <: Tuple #= augmented =# || (mul!(y, A, x); return)
+    mul!(y, A, x)
+    return
+end
+
+# augmented
+# split augmented V? so this runs on GPU
+@inline function applyA!(y, A::Tuple, x, V, j, n, p)
     A, B = A
     @inbounds begin
         # V[1:n, j + 1] = A * @view(V[1:n, j]) + B * @view(V[n+1:n+p, j])
         mul!(@view(V[1:n, j + 1]), A, @view(V[1:n, j]))
+
         BLAS.gemm!('N', 'N', 1.0, B, @view(V[n+1:n+p, j]), 1.0, @view(V[1:n, j + 1]))
         copyto!(@view(V[n+1:n+p-1, j + 1]), @view(V[n+2:n+p, j]))
         V[end, j + 1] = 0
@@ -151,11 +171,11 @@ Compute the first step of Arnoldi or Lanczos iteration of augmented system.
 function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
     @inbounds begin
         n, p = length(b), length(b_aug)
-        for k=1:p-1
+        map!(b_aug, 1:p) do k
+            k == p && return mu
             i = p - k
-            b_aug[k] = t^i/factorial(i) * mu
+            return t^i/factorial(i) * mu
         end
-        b_aug[p] = mu
 
         # Initialize the matrices V and H
         fill!(H, 0)
@@ -184,6 +204,11 @@ function arnoldi_step!(j::Integer, iop::Integer, A::AT,
                        n::Int=-1, p::Int=-1) where {AT,T,U}
     x, y = @view(V[:, j]), @view(V[:, j+1])
     applyA!(y, A, x, V, j, n, p)
+
+    # NOTE: H should always be Array
+    # on CUDA, we prefer to perform dot
+    # using CUBLAS and store the result in Array
+    # since the size of H is rather small
     @inbounds for i = max(1, j - iop + 1):j
         α = H[i, j] = coeff(U, dot(@view(V[:, i]), y))
         axpy!(-α, @view(V[:, i]), y)
@@ -198,11 +223,11 @@ end
 
 Non-allocating version of `arnoldi`.
 """
-function arnoldi!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
+function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
                   tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
                   ishermitian::Bool=LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
                   opnorm=nothing, iop::Int=0,
-                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
+                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {T1 <: Number, U <: Number, AT}
     ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, init=init, t=t, mu=mu, l=l)
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
@@ -271,10 +296,10 @@ realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
-function lanczos!(Ks::KrylovSubspace{B, T1, U}, A::AT, b;
+function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
                   tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
                   opnorm=nothing,
-                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {B, T1 <: Number, U <: Number, AT}
+                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {T1 <: Number, U <: Number, B, AT}
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     b′, b_aug, n, p = checkdims(A, b, V)

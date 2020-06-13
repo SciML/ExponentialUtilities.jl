@@ -33,9 +33,9 @@ function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
     mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel,sel]), @view(cache.w[sel]))
 end
 
-get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Complex} =
+get_subspace_cache(Ks::KrylovSubspace{T,U}) where {T,U<:Complex} =
     error("Subspace exponential caches not yet available for non-Hermitian matrices.")
-get_subspace_cache(Ks::KrylovSubspace{B,T,U}) where {B,T,U<:Real} =
+get_subspace_cache(Ks::KrylovSubspace{T,U}) where {T,U<:Real} =
     StegrCache(T, Ks.maxiter)
 
 ########################################
@@ -52,7 +52,7 @@ exact type decides which algorithm is used to compute the subspace
 exponential.
 """
 function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
-               Ks::KrylovSubspace{B, T, B}, cache::HSC;
+               Ks::KrylovSubspace{T, B, B}, cache::HSC;
                atol::B=1.0e-8, rtol::B=1.0e-4,
                m=min(Ks.maxiter, size(A,1)),
                verbose::Bool=false) where {B, T <: Number, HSC <: HermitianSubspaceCache}
