@@ -37,6 +37,11 @@ using ForwardDiff
     @test ForwardDiff.derivative(exp_generic, 0.1) == exp_generic(0.1)
 end
 
+@testset "Issue 42" begin
+    @test exp_generic(0.0) == 1
+    @test ForwardDiff.derivative(exp_generic, 0.0) == 1
+end
+
 @testset "Phi" begin
     # Scalar phi
     K = 4
