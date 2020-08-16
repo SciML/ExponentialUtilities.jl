@@ -14,19 +14,27 @@ using ExponentialUtilities: getH, getV, _exp!
     @test A2 ≈ expA2
 end
 
-@testset "exp_generic" begin 
+@testset "exp_generic" begin
     for n in [5, 10, 30, 50, 100, 500]
         M = rand(n, n)
         @test exp(M) ≈ exp_generic(M)
 
         M′ = M / 10opnorm(M, 1)
         @test exp(M′) ≈ exp_generic(M′)
-        
+
         N = randn(n, n)
         @test exp(N) ≈ exp_generic(N)
 
         exp(n) ≈ exp_generic(n)
     end
+end
+
+# The issue was only triggered if exp_generic had been called before loading
+# ForwardDiff so it's importnat that the loading happens after the "exp_generic"
+# testset
+using ForwardDiff
+@testset "Issue 41" begin
+    @test ForwardDiff.derivative(exp_generic, 0.1) == exp_generic(0.1)
 end
 
 @testset "Phi" begin

@@ -1,5 +1,5 @@
 module ExponentialUtilities
-using LinearAlgebra, SparseArrays, Printf, Requires
+using LinearAlgebra, SparseArrays, Printf, Requires, ForwardDiff
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
