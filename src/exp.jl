@@ -116,7 +116,11 @@ by Higham, Nicholas J. in 2005 for algorithm details.
 """
 function exp_generic(x, vk=Val{13}())
     nx = opnorm(x, 1)
-    s = ceil(Int, log2(nx))
+    if iszero(nx)
+        return x + oneunit(x)
+    end
+    nxl2 = log2(nx)
+    s = ceil(Int, nxl2)
     if s >= 1
         exp_generic(x/(2^s), vk)^(2^s)
     else
