@@ -37,6 +37,7 @@ end
 @testset "Issue 42" begin
     @test exp_generic(0.0) == 1
     @test ForwardDiff.derivative(exp_generic, 0.0) == 1
+    @test ForwardDiff.derivative(t -> ForwardDiff.derivative(exp_generic, t), 0.0) == 1
 end
 
 @testset "Phi" begin
