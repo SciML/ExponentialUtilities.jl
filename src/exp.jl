@@ -105,23 +105,47 @@ function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.Bla
 end
 
 """
-    exp(x, vk=Val{13}()) 
-Generic exponential function, working on any `x` for which the functions 
-`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with 
-UniformScaling objects) are defined. Use the argument `vk` to adjust the 
+    exp(x, vk=Val{13}())
+Generic exponential function, working on any `x` for which the functions
+`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with
+UniformScaling objects) are defined. Use the argument `vk` to adjust the
 number of terms used in the Pade approximants at compile time.
 
 See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
 by Higham, Nicholas J. in 2005 for algorithm details.
 """
-function exp_generic(x, vk=Val{13}()) 
+function exp_generic(x, vk=Val{13}())
     nx = opnorm(x, 1)
-    s = ceil(Int, log2(nx))
+    s = iszero(nx) ? 0 : ceil(Int, log2(nx))
     if s >= 1
         exp_generic(x/(2^s), vk)^(2^s)
     else
         exp_pade_p(x, vk, vk) / exp_pade_q(x, vk, vk)
     end
+end
+
+function exp_pade_p(x, ::Val{13}, ::Val{13})
+    @evalpoly(x,LinearAlgebra.UniformScaling{Float64}(1.0),
+                LinearAlgebra.UniformScaling{Float64}(0.5),
+                LinearAlgebra.UniformScaling{Float64}(0.12),
+                LinearAlgebra.UniformScaling{Float64}(0.018333333333333333),
+                LinearAlgebra.UniformScaling{Float64}(0.0019927536231884057),
+                LinearAlgebra.UniformScaling{Float64}(0.00016304347826086958),
+                LinearAlgebra.UniformScaling{Float64}(1.0351966873706003e-5),
+                LinearAlgebra.UniformScaling{Float64}(5.175983436853002e-7),
+                LinearAlgebra.UniformScaling{Float64}(2.0431513566525008e-8),
+                LinearAlgebra.UniformScaling{Float64}(6.306022705717595e-10),
+                LinearAlgebra.UniformScaling{Float64}(1.48377004840414e-11),
+                LinearAlgebra.UniformScaling{Float64}(2.529153491597966e-13),
+                LinearAlgebra.UniformScaling{Float64}(2.8101705462199623e-15),
+                LinearAlgebra.UniformScaling{Float64}(1.5440497506703088e-17))
+end
+
+function exp_pade_p(x::Number, ::Val{13}, ::Val{13})
+    @evalpoly(x,1.0,0.5,0.12,0.018333333333333333,0.0019927536231884057,
+              0.00016304347826086958,1.0351966873706003e-5,5.175983436853002e-7,
+              2.0431513566525008e-8,6.306022705717595e-10,1.48377004840414e-11,
+              2.529153491597966e-13,2.8101705462199623e-15,1.5440497506703088e-17)
 end
 
 @generated function exp_pade_p(x, ::Val{k}, ::Val{m}) where {k, m}

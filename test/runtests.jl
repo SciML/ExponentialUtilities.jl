@@ -1,5 +1,6 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
 using ExponentialUtilities: getH, getV, _exp!
+using ForwardDiff
 
 @testset "Exp" begin
     n = 100
@@ -14,19 +15,29 @@ using ExponentialUtilities: getH, getV, _exp!
     @test A2 ≈ expA2
 end
 
-@testset "exp_generic" begin 
+@testset "exp_generic" begin
     for n in [5, 10, 30, 50, 100, 500]
         M = rand(n, n)
         @test exp(M) ≈ exp_generic(M)
 
         M′ = M / 10opnorm(M, 1)
         @test exp(M′) ≈ exp_generic(M′)
-        
+
         N = randn(n, n)
         @test exp(N) ≈ exp_generic(N)
 
         exp(n) ≈ exp_generic(n)
     end
+end
+
+@testset "Issue 41" begin
+    @test ForwardDiff.derivative(exp_generic, 0.1) ≈ exp_generic(0.1) atol=1e-15
+end
+
+@testset "Issue 42" begin
+    @test exp_generic(0.0) == 1
+    @test ForwardDiff.derivative(exp_generic, 0.0) == 1
+    @test ForwardDiff.derivative(t -> ForwardDiff.derivative(exp_generic, t), 0.0) == 1
 end
 
 @testset "Phi" begin
