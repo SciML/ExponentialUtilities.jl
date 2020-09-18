@@ -64,6 +64,11 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
 
     V, H = getV(Ks), getH(Ks)
     Ks.beta = norm(b)
+    if iszero(Ks.beta)
+        Ks.m = 0
+        w .= false
+        return w
+    end
     @. V[:, 1] = b / Ks.beta
 
     ε = atol + rtol * Ks.beta
