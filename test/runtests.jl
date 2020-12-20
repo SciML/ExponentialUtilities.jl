@@ -1,6 +1,6 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
 using ExponentialUtilities: getH, getV, _exp!
-using FiniteDifferences
+using ChainRulesCore, FiniteDifferences
 using ForwardDiff
 
 @testset "Exp" begin
