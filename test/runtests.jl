@@ -1,5 +1,6 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
 using ExponentialUtilities: getH, getV, _exp!
+using FiniteDifferences
 using ForwardDiff
 
 @testset "Exp" begin
@@ -226,5 +227,52 @@ struct OpnormFunctor end
         pv′ = hcat(map(A->A*b, phi(0.01Op.A, 2))...)
 
         @test pv ≈ pv′ atol=1e-12
+    end
+end
+
+@testset "expv chain rules" begin
+    n = 30
+    @testset "frule for T=$T" for T in (Float64, ComplexF64)
+        t = rand(T)
+        A = randn(T, n, n)
+        b = randn(T, n)
+        Δt = FiniteDifferences.rand_tangent(t)
+        Δb = FiniteDifferences.rand_tangent(b)
+
+        w = expv(t, A, b)
+        w_ad, ∂w_ad = frule((NO_FIELDS, Δt, Zero(), Δb), expv, t, A, b)
+        @test w_ad == w
+        ∂w_fd = jvp(central_fdm(5, 1), (t, b) -> expv(t, A, b), (t, Δt), (b, Δb))
+        @test ∂w_ad ≈ ∂w_fd
+
+        w_ad, ∂w_ad = frule((NO_FIELDS, Δt, Zero(), Zero()), expv, t, A, b)
+        @test w_ad == w
+        ∂w_fd = jvp(central_fdm(5, 1), t -> expv(t, A, b), (t, Δt))
+        @test ∂w_ad ≈ ∂w_fd
+
+        ΔA = FiniteDifferences.rand_tangent(A)
+        @test_throws ErrorException frule((NO_FIELDS, Δt, ΔA, Δb), expv, t, A, b)
+    end
+
+    @testset "rrule for T=$T" for T in (Float64, ComplexF64)
+        t = rand(T)
+        A = randn(T, n, n)
+        b = randn(T, n)
+        w = expv(t, A, b)
+        Δw = FiniteDifferences.rand_tangent(w)
+
+        w_ad, back = rrule(expv, t, A, b)
+        @test w_ad == w
+        ∂self, ∂t_ad, ∂A_ad, ∂b_ad = @inferred back(Δw)
+        @test ∂self === NO_FIELDS
+        @test @inferred(extern(∂t_ad)) isa typeof(t)
+        @test @inferred(extern(∂b_ad)) isa typeof(b)
+
+        ∂t_fd, ∂A_fd, ∂b_fd = j′vp(central_fdm(5, 1), expv, Δw, t, A, b)
+        @test extern(∂t_ad) ≈ ∂t_fd
+        @test extern(∂b_ad) ≈ ∂b_fd
+        @test_throws ErrorException unthunk(∂A_ad)
+
+        @test @inferred(back(Zero())) === (NO_FIELDS, Zero(), Zero(), Zero())
     end
 end
