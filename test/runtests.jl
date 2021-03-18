@@ -28,6 +28,14 @@ end
 
         exp(n) ≈ exp_generic(n)
     end
+
+    @testset "Inf" begin
+        @test exp_generic(Inf) == Inf
+        @test exp_generic(NaN) === NaN
+        @test all(isinf, exp_generic([1 Inf; Inf 1]))
+        @test all(isnan, exp_generic([1 Inf; Inf 0]))
+        @test all(isnan, exp_generic([1 Inf 1 0; 1 1 1 1; 1 1 1 1; 1 1 1 1]))
+    end
 end
 
 @testset "Issue 41" begin

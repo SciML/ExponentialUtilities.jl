@@ -116,6 +116,12 @@ by Higham, Nicholas J. in 2005 for algorithm details.
 """
 function exp_generic(x, vk=Val{13}())
     nx = opnorm(x, 1)
+    if !isfinite(nx)
+        # This should (hopefully) ensure that the result is Inf or NaN depending on
+        # which values are produced by a power series. I.e. the result shouldn't
+        # be all Infs when there are both Infs and zero since Inf*0===NaN
+        return x*sum(x*nx)
+    end
     s = iszero(nx) ? 0 : ceil(Int, log2(nx))
     if s >= 1
         exp_generic(x/(2^s), vk)^(2^s)
