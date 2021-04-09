@@ -147,6 +147,27 @@ function exp_pade_p(x, ::Val{13}, ::Val{13})
                 LinearAlgebra.UniformScaling{Float64}(1.5440497506703088e-17))
 end
 
+function exp_pade_p(x::Matrix, ::Val{13}, ::Val{13})
+    N = size(x,1) # check square is in `exp_generic`
+    y1 = x .* 1.5440497506703088e-17
+    y2 = similar(y1)
+    for c ∈ (
+        2.8101705462199623e-15, 2.529153491597966e-13, 1.48377004840414e-11, 6.306022705717595e-10,
+        2.0431513566525008e-8, 5.175983436853002e-7, 1.0351966873706003e-5, 0.00016304347826086958,
+        0.0019927536231884057, 0.018333333333333333, 0.12, 0.5)
+
+        @inbounds for n ∈ 1:N
+            y1[n,n] += c
+        end
+        mul!(y2, y1, x)
+        y1, y2 = y2, y1
+    end
+    @inbounds for n ∈ 1:N
+        y1[n,n] += true
+    end
+    return y1
+end
+
 function exp_pade_p(x::Number, ::Val{13}, ::Val{13})
     @evalpoly(x,1.0,0.5,0.12,0.018333333333333333,0.0019927536231884057,
               0.00016304347826086958,1.0351966873706003e-5,5.175983436853002e-7,
