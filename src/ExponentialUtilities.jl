@@ -1,5 +1,5 @@
 module ExponentialUtilities
-using LinearAlgebra, SparseArrays, Printf, Requires
+using LinearAlgebra, SparseArrays, Printf, Requires, ChainRulesCore
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
@@ -20,6 +20,7 @@ include("krylov_phiv_adaptive.jl")
 include("kiops.jl")
 include("StegrWork.jl")
 include("krylov_phiv_error_estimate.jl")
+include("krylov_phiv_chainrules.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
     expv, expv!, exp_generic, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,

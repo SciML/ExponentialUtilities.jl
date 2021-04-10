@@ -4,20 +4,24 @@ authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>"]
 version = "1.8.2"
 
 [deps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
+ChainRulesCore = "0.9"
+FiniteDifferences = "0.11"
 Requires = "1.0"
 julia = "1"
 
 [extras]
+FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["ForwardDiff", "Test", "SafeTestsets", "Random"]
+test = ["FiniteDifferences", "ForwardDiff", "Test", "SafeTestsets", "Random"]
