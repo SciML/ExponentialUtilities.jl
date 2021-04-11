@@ -104,6 +104,9 @@ function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.Bla
     return X
 end
 
+intlog2(x::T) where {T<:Integer} =  T(8*sizeof(T) - leading_zeros(x-one(T)))
+intlog2(x) = intlog2(ceil(Int,x))
+
 """
     exp(x, vk=Val{13}())
 Generic exponential function, working on any `x` for which the functions
@@ -122,7 +125,8 @@ function exp_generic(x, vk=Val{13}())
         # be all Infs when there are both Infs and zero since Inf*0===NaN
         return x*sum(x*nx)
     end
-    s = iszero(nx) ? 0 : ceil(Int, log2(nx))
+    s = iszero(nx) ? 0 : intlog2(nx)
+    (vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) && return exp_generic_mutable(x, s, Val{13}())
     if s >= 1
         exp_generic(x/(2^s), vk)^(2^s)
     else
@@ -147,10 +151,37 @@ function exp_pade_p(x, ::Val{13}, ::Val{13})
                 LinearAlgebra.UniformScaling{Float64}(1.5440497506703088e-17))
 end
 
-function exp_pade_p(x::Matrix, ::Val{13}, ::Val{13})
-    N = size(x,1) # check square is in `exp_generic`
-    y1 = x .* 1.5440497506703088e-17
+function exp_generic_mutable(x::AbstractMatrix{T}, s, ::Val{13}) where {T}
+    y1 = similar(x, promote_type(T,Float64))
     y2 = similar(y1)
+    y3 = similar(y1)
+    exp_generic!(y1, y2, y3, x, s, Val{13}())
+end
+function exp_generic!(y1, y2, y3, x, s, ::Val{13})
+    if s > 0
+        exp_generic_core!(y1, y2, y3, x .* (1/(1 << s)), Val{13}())
+        for _ ∈ 1:s
+            mul!(y1, y3, y3)
+            y3, y1 = y1, y3
+        end
+        return y3
+    else
+        return exp_generic_core!(y1, y2, y3, x, Val{13}())
+    end
+end
+function exp_generic_core!(y1, y2, y3, x, ::Val{13})
+    @inbounds for i ∈ eachindex(y3)
+        y3[i] = -x[i]
+    end
+    exp_pade_p!(y1, y2, y3, Val{13}(), Val{13}())
+    exp_pade_p!(y3, y2, x, Val{13}(), Val{13}())
+    rdiv!(y3, lu!(y1))
+    return y3
+end
+
+function exp_pade_p!(y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMatrix, ::Val{13}, ::Val{13}) where {T}
+    N = size(x,1) # check square is in `exp_generic`
+    y1 .= x .* 1.5440497506703088e-17
     for c ∈ (
         2.8101705462199623e-15, 2.529153491597966e-13, 1.48377004840414e-11, 6.306022705717595e-10,
         2.0431513566525008e-8, 5.175983436853002e-7, 1.0351966873706003e-5, 0.00016304347826086958,
@@ -163,7 +194,7 @@ function exp_pade_p(x::Matrix, ::Val{13}, ::Val{13})
         y1, y2 = y2, y1
     end
     @inbounds for n ∈ 1:N
-        y1[n,n] += true
+        y1[n,n] += one(T)
     end
     return y1
 end
