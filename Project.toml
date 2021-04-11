@@ -1,7 +1,7 @@
 name = "ExponentialUtilities"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>"]
-version = "1.8.4"
+version = "1.8.3"
 
 [deps]
 ArrayInterface = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
