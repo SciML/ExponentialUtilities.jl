@@ -107,6 +107,65 @@ end
 intlog2(x::T) where {T<:Integer} =  T(8*sizeof(T) - leading_zeros(x-one(T)))
 intlog2(x) = intlog2(ceil(Int,x))
 
+naivemul!(C::StridedMatrix{T}, A::StridedMatrix{T}, B::StridedMatrix{T}) where {T<:LinearAlgebra.BlasFloat} = mul!(C,A,B)
+function naivemul!(C::AbstractMatrix{T}, A, B) where {T}
+    Maxis, Naxis = axes(C)
+    # TODO: heuristically pick `Nunroll` and `Munroll` using `sizeof(T)`, and maybe based on size of register file as well.
+    # Nunroll = 2
+    # Munroll = 4
+    # For now, the `4` and `2` are hardcoded to use `Base.Cartesian.@nexprs` without generated functions.
+    # But a minor code reorgaanization, e.g. loading and storing tuples while moving the `Base.Cartesian.@nexprs`
+    # into `tload` and `tstore!` functions could let us switch APIs.
+    nstep = step(Naxis)
+    mstep = step(Maxis)
+    # I don't want to deal with axes having non-unit step
+    nstep == mstep == 1 || return mul!(C,A,B)
+    N = last(Naxis)
+    M = last(Maxis)
+    Kaxis = axes(B,1)
+    n = first(Naxis)-1
+    Base.Experimental.@aliasscope begin
+        @inbounds begin
+            while n < N - 1
+                m = first(Maxis)-1
+                while m < M - 3
+                    Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> Cmn_i_j = zero(T)
+                    for k ∈ Kaxis
+                        Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> Cmn_i_j = muladd(Base.Experimental.Const(A)[m+i,k],Base.Experimental.Const(B)[k,n+j],Cmn_i_j)
+                    end
+                    Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> C[m+i,n+j] = Cmn_i_j
+                    m += 4
+                end
+                for mm ∈ 1+m:M
+                    Base.Cartesian.@nexprs 2 j -> Cmn_j = zero(T)
+                    for k ∈ Kaxis
+                        Base.Cartesian.@nexprs 2 j -> Cmn_j = muladd(Base.Experimental.Const(A)[mm,k],Base.Experimental.Const(B)[k,n+j],Cmn_j)
+                    end
+                    Base.Cartesian.@nexprs 2 j -> C[mm,n+j] = Cmn_j
+                end
+                n += 2
+            end
+            m = first(Maxis)-1
+            while m < M - 3
+                Base.Cartesian.@nexprs 4 i -> Cmn_i = zero(T)
+                for k ∈ Kaxis
+                    Base.Cartesian.@nexprs 4 i -> Cmn_i = muladd(Base.Experimental.Const(A)[m+i,k],Base.Experimental.Const(B)[k,N],Cmn_i)
+                end
+                Base.Cartesian.@nexprs 4 i -> C[m+i,N] = Cmn_i
+                m += 4
+            end
+            for mm ∈ 1+m:M
+                Cmn = zero(T)
+                for k ∈ Kaxis
+                    Cm = muladd(Base.Experimental.Const(A)[mm,k], Base.Experimental.Const(B)[k,N], Cmn)
+                end
+                C[mm,N] = Cmn_j
+            end            
+        end
+    end
+    C
+end
+
 """
     exp(x, vk=Val{13}())
 Generic exponential function, working on any `x` for which the functions
@@ -161,7 +220,7 @@ function exp_generic!(y1, y2, y3, x, s, ::Val{13})
     if s > 0
         exp_generic_core!(y1, y2, y3, x .* (1/(1 << s)), Val{13}())
         for _ ∈ 1:s
-            mul!(y1, y3, y3)
+            naivemul!(y1, y3, y3)
             y3, y1 = y1, y3
         end
         return y3
@@ -190,7 +249,7 @@ function exp_pade_p!(y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMa
         @inbounds for n ∈ 1:N
             y1[n,n] += c
         end
-        mul!(y2, y1, x)
+        naivemul!(y2, y1, x)
         y1, y2 = y2, y1
     end
     @inbounds for n ∈ 1:N
