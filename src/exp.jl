@@ -125,6 +125,8 @@ function naivemul!(C, A, B)
         mul!(C,A,B)
     end
 end
+_const(A) = A
+_const(A::Array) = Base.Experimental.Const(A)
 # Separated to make it easier to test.
 function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis) where {T}
     N = last(Naxis)
@@ -138,7 +140,7 @@ function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis) where {T}
                 while m < M - 3
                     Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> Cmn_i_j = zero(T)
                     for k ∈ Kaxis
-                        Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> Cmn_i_j = muladd(Base.Experimental.Const(A)[m+i,k],Base.Experimental.Const(B)[k,n+j],Cmn_i_j)
+                        Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> Cmn_i_j = muladd(_const(A)[m+i,k],_const(B)[k,n+j],Cmn_i_j)
                     end
                     Base.Cartesian.@nexprs 2 j -> Base.Cartesian.@nexprs 4 i -> C[m+i,n+j] = Cmn_i_j
                     m += 4
@@ -146,7 +148,7 @@ function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis) where {T}
                 for mm ∈ 1+m:M
                     Base.Cartesian.@nexprs 2 j -> Cmn_j = zero(T)
                     for k ∈ Kaxis
-                        Base.Cartesian.@nexprs 2 j -> Cmn_j = muladd(Base.Experimental.Const(A)[mm,k],Base.Experimental.Const(B)[k,n+j],Cmn_j)
+                        Base.Cartesian.@nexprs 2 j -> Cmn_j = muladd(_const(A)[mm,k],_const(B)[k,n+j],Cmn_j)
                     end
                     Base.Cartesian.@nexprs 2 j -> C[mm,n+j] = Cmn_j
                 end
@@ -156,7 +158,7 @@ function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis) where {T}
             while m < M - 3
                 Base.Cartesian.@nexprs 4 i -> Cmn_i = zero(T)
                 for k ∈ Kaxis
-                    Base.Cartesian.@nexprs 4 i -> Cmn_i = muladd(Base.Experimental.Const(A)[m+i,k],Base.Experimental.Const(B)[k,N],Cmn_i)
+                    Base.Cartesian.@nexprs 4 i -> Cmn_i = muladd(_const(A)[m+i,k],_const(B)[k,N],Cmn_i)
                 end
                 Base.Cartesian.@nexprs 4 i -> C[m+i,N] = Cmn_i
                 m += 4
@@ -164,7 +166,7 @@ function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis) where {T}
             for mm ∈ 1+m:M
                 Cmn = zero(T)
                 for k ∈ Kaxis
-                    Cmn = muladd(Base.Experimental.Const(A)[mm,k], Base.Experimental.Const(B)[k,N], Cmn)
+                    Cmn = muladd(_const(A)[mm,k], _const(B)[k,N], Cmn)
                 end
                 C[mm,N] = Cmn
             end
@@ -225,7 +227,12 @@ function exp_generic_mutable(x::AbstractMatrix{T}, s, ::Val{13}) where {T}
 end
 function exp_generic!(y1, y2, y3, x, s, ::Val{13})
     if s > 0
-        exp_generic_core!(y1, y2, y3, x .* (1/(1 << s)), Val{13}())
+        _y3 = exp_generic_core!(y1, y2, y3, x .* (1/(1 << s)), Val{13}())
+        if typeof(_y3) === (y3)
+            y3 = _y3
+        else
+            y3 .= _y3
+        end
         for _ ∈ 1:s
             naivemul!(y1, y3, y3)
             y3, y1 = y1, y3
@@ -235,14 +242,17 @@ function exp_generic!(y1, y2, y3, x, s, ::Val{13})
         return exp_generic_core!(y1, y2, y3, x, Val{13}())
     end
 end
+# `lu!` is only defined for `StridedMatrix`, and `lu(::StaticArray)` (note `MArray<:StaticArray`) returns `::StaticArrays.LU !== LinearAlgebra.LU`
+_rdiv!(A, B::StridedMatrix) = rdiv!(A, lu!(B))
+_rdiv!(A, B) = A / B
+
 function exp_generic_core!(y1, y2, y3, x, ::Val{13})
     @inbounds for i ∈ eachindex(y3)
         y3[i] = -x[i]
     end
     exp_pade_p!(y1, y2, y3, Val{13}(), Val{13}())
     exp_pade_p!(y3, y2, x, Val{13}(), Val{13}())
-    rdiv!(y3, lu!(y1))
-    return y3
+    return _rdiv!(y3, y1)
 end
 
 function exp_pade_p!(y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMatrix, ::Val{13}, ::Val{13}) where {T}
