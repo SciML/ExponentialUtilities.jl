@@ -108,7 +108,7 @@ intlog2(x::T) where {T<:Integer} =  T(8*sizeof(T) - leading_zeros(x-one(T)))
 intlog2(x) = intlog2(ceil(Int,x))
 
 naivemul!(C::StridedMatrix{T}, A::StridedMatrix{T}, B::StridedMatrix{T}) where {T<:LinearAlgebra.BlasFloat} = mul!(C,A,B)
-function naivemul!(C::AbstractMatrix{T}, A, B) where {T}
+function naivemul!(C, A, B)
     Maxis, Naxis = axes(C)
     # TODO: heuristically pick `Nunroll` and `Munroll` using `sizeof(T)`, and maybe based on size of register file as well.
     # Nunroll = 2
@@ -119,12 +119,19 @@ function naivemul!(C::AbstractMatrix{T}, A, B) where {T}
     nstep = step(Naxis)
     mstep = step(Maxis)
     # I don't want to deal with axes having non-unit step
-    nstep == mstep == 1 || return mul!(C,A,B)
+    if nstep == mstep == 1
+        naivemul!(C, A, B, Maxis, Naxis)
+    else
+        mul!(C,A,B)
+    end
+end
+# Separated to make it easier to test.
+function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis) where {T}
     N = last(Naxis)
     M = last(Maxis)
     Kaxis = axes(B,1)
-    n = first(Naxis)-1
     Base.Experimental.@aliasscope begin
+        n = first(Naxis)-1
         @inbounds begin
             while n < N - 1
                 m = first(Maxis)-1
@@ -157,10 +164,10 @@ function naivemul!(C::AbstractMatrix{T}, A, B) where {T}
             for mm ∈ 1+m:M
                 Cmn = zero(T)
                 for k ∈ Kaxis
-                    Cm = muladd(Base.Experimental.Const(A)[mm,k], Base.Experimental.Const(B)[k,N], Cmn)
+                    Cmn = muladd(Base.Experimental.Const(A)[mm,k], Base.Experimental.Const(B)[k,N], Cmn)
                 end
-                C[mm,N] = Cmn_j
-            end            
+                C[mm,N] = Cmn
+            end
         end
     end
     C
