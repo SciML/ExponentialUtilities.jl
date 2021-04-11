@@ -1,6 +1,6 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
 using ExponentialUtilities: getH, getV, _exp!
-using ForwardDiff
+using ForwardDiff, StaticArrays
 
 @testset "Exp" begin
     n = 100
@@ -83,7 +83,17 @@ end
         B = rand(n,n);
         C = similar(A);
         @test ExponentialUtilities.naivemul!(C, A, B, axes(C)...) ≈ A*B
+        if n ≤ 16
+            Am = MMatrix{n,n}(A)
+            Bm = MMatrix{n,n}(B)
+            Cm = MMatrix{n,n}(A)
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm)...) ≈ A*B
+        end
     end
+    A = @SMatrix rand(7,7);
+    Am = MMatrix(A);
+    Aa = Matrix(A);
+    @test exp(Aa) ≈ exp_generic(Aa) ≈ exp_generic(Am) ≈ exp_generic(A)
 end
 
 @testset "Phi" begin
