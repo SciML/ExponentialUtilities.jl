@@ -105,7 +105,7 @@ function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.Bla
 end
 
 intlog2(x::T) where {T<:Integer} =  T(8*sizeof(T) - leading_zeros(x-one(T)))
-intlog2(x) = intlog2(ceil(Int,x))
+intlog2(x) = x > typemax(UInt) ? ceil(Int, log2(x)) : intlog2(ceil(UInt,x)) % Int
 
 naivemul!(C::StridedMatrix{T}, A::StridedMatrix{T}, B::StridedMatrix{T}) where {T<:LinearAlgebra.BlasFloat} = mul!(C,A,B)
 function naivemul!(C, A, B)
