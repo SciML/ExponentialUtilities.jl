@@ -82,12 +82,17 @@ end
         A = rand(n,n);
         B = rand(n,n);
         C = similar(A);
-        @test ExponentialUtilities.naivemul!(C, A, B, axes(C)...) ≈ A*B
+        AB = A*B;
+        @test ExponentialUtilities.naivemul!(C, A, B, axes(C,1), axes(C,2), Val(2), Val(1)) ≈ AB
+        @test ExponentialUtilities.naivemul!(C, A, B, axes(C,1), axes(C,2), Val(4), Val(2)) ≈ AB
+        @test ExponentialUtilities.naivemul!(C, A, B, axes(C,1), axes(C,2), Val(4), Val(3)) ≈ AB
         if n ≤ 16
             Am = MMatrix{n,n}(A)
             Bm = MMatrix{n,n}(B)
             Cm = MMatrix{n,n}(A)
-            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm)...) ≈ A*B
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(Cm,2), Val(2), Val(2)) ≈ AB
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(Cm,2), Val(4), Val(2)) ≈ AB
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(Cm,2), Val(4), Val(3)) ≈ AB
         end
     end
     A = @SMatrix rand(7,7);
