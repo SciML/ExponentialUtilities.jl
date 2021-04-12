@@ -90,9 +90,9 @@ end
             Am = MMatrix{n,n}(A)
             Bm = MMatrix{n,n}(B)
             Cm = MMatrix{n,n}(A)
-            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(cm,2), Val(2), Val(2)) ≈ AB
-            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(cm,2), Val(4), Val(2)) ≈ AB
-            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(cm,2), Val(4), Val(3)) ≈ AB
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(Cm,2), Val(2), Val(2)) ≈ AB
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(Cm,2), Val(4), Val(2)) ≈ AB
+            @test ExponentialUtilities.naivemul!(Cm, Am, Bm, axes(Cm,1), axes(Cm,2), Val(4), Val(3)) ≈ AB
         end
     end
     A = @SMatrix rand(7,7);
