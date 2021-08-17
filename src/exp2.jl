@@ -10,6 +10,12 @@ end
 function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     n = LinearAlgebra.checksquare(A)
     nA = opnorm(A,1);
+
+    # Maybe to balancing
+    if do_balancing
+        ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+    end
+
     # Select how many multiplications to use
     rhov=    [0.015; 0.25; 0.95; 2.1; 5.4];
     # Number of memslots needed (beside A)
@@ -29,10 +35,6 @@ function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
         thiscache = caches;
     end
 
-    # Maybe to balancing
-    if do_balancing
-        ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
-    end
 
     # Evaluate
     exp_fun=Symbol("exp_$(i)!")
