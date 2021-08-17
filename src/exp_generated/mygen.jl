@@ -2,7 +2,7 @@ using GraphMatFun, LinearAlgebra
 
 
 rhov=[0; 0.015; 0.25; 0.95; 2.1; 5.4];
-for s=1:10
+for s=1:8
     push!(rhov, rhov[end]*2);
 end
 
@@ -21,7 +21,7 @@ for i=1:(size(rhov,1)-1)
     @show norm(E2)
     @show norm(E1-E2)/norm(E1);
     alloc_function=k-> "getmem(cache,$k)";
-    lang=LangJulia(true,true,true,false,alloc_function)
+    lang=LangJulia(true,true,true,false,alloc_function,true)
 
     fname="exp_$(i).jl";
     gen_code(fname,graph,

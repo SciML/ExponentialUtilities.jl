@@ -1,10 +1,5 @@
 using LinearAlgebra
 
-@inline function exp_12(A)
-    T=promote_type(eltype(A),Float64)
-    A_copy=similar(A,T); A_copy .= A;
-    return exp_12!(cache,A_copy)
-end
 
 @inline function exp_12!(cache,A)
     T=promote_type(eltype(A),Float64) # Make it work for many 'bigger' types (matrices and scalars)
