@@ -15,6 +15,20 @@ using ForwardDiff, StaticArrays
     @test A2 ≈ expA2
 end
 
+@testset "Exp2" begin
+    n = 100
+    A = randn(n, n)
+    expA = exp(A)
+    _exp2!(A)
+    @test A ≈ expA
+    A2 = randn(n, n)
+    A2 ./= opnorm(A2, 1) # test for small opnorm
+    expA2 = exp(A2)
+    _exp2!(A2)
+    @test A2 ≈ expA2
+end
+
+
 @testset "exp_generic" begin
     for n in [5, 10, 30, 50, 100, 500]
         M = rand(n, n)
