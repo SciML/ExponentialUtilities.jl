@@ -40,8 +40,8 @@ for i=1:(size(rhov,1)-1)
             if (contains(line,"ValueOne")) # Not needed functionality
                 continue;
             end
-            line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"LAPACK.gesv!(memslots\2, memslots\3); memslots\1=memslots\2")
-            #LAPACK.gesv!(memslots1, memslots2); memslots3 = memslots1;
+            # Make a LAPACK call instead of backslash
+            line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"LAPACK.gesv!(memslots\2, memslots\3); memslots\1=memslots\3")
 
             println(outfile,line);
         end
