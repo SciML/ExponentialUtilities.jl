@@ -1,5 +1,5 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV, _exp!
+using ExponentialUtilities: getH, getV, _exp!, _exp2!
 using ForwardDiff, StaticArrays
 
 @testset "Exp" begin
