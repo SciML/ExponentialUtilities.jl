@@ -13,7 +13,7 @@ end
 for i=1:(size(rhov,1)-1)
     r=(rhov[i]+rhov[i+1])/2;
     (graph,_)=graph_exp_native_jl(r)
-
+    compress_graph!(graph);
     A=randn(3,3); A=r*A/opnorm(A,1)
     E1=eval_graph(graph,A)
     E2=exp(A);
@@ -42,6 +42,10 @@ for i=1:(size(rhov,1)-1)
             end
             # Make a LAPACK call instead of backslash
             line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"LAPACK.gesv!(memslots\2, memslots\3); memslots\1=memslots\3")
+
+            # Make sure the output is in A
+            line=replace(line, r"return memslots(\d+)" => s"copyto!(A,memslots\1)")
+
 
             println(outfile,line);
         end

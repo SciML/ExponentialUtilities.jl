@@ -101,6 +101,6 @@ using LinearAlgebra
     # Computing S6 with operation: mult
     mul!(memslots2,memslots1,memslots1)
     # Deallocating S5 in slot 1
-    return memslots2 # Returning S6
+    copyto!(A,memslots2) # Returning S6
 end
 

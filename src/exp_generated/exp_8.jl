@@ -92,6 +92,6 @@ using LinearAlgebra
     # Computing S3 with operation: mult
     mul!(memslots1,memslots2,memslots2)
     # Deallocating S2 in slot 2
-    return memslots1 # Returning S3
+    copyto!(A,memslots1) # Returning S3
 end
 
