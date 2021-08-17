@@ -14,6 +14,7 @@ macro diagview(A,d::Integer=0)
 end
 
 include("exp.jl")
+include("exp2.jl")
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
@@ -56,7 +57,7 @@ function __init__()
             lmul!(beta, mul!(w, @view(V[:, 1:m]), dexpHe)) # exp(A) ≈ norm(b) * V * exp(H)e
         end
     end
-    
+
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
         function ExponentialUtilities.expv!(w::CUDA.CuVector{Tw},
                                     t::Real, Ks::KrylovSubspace{T, U};
