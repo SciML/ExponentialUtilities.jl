@@ -1,58 +1,25 @@
 using LinearAlgebra
 
-struct ValueOne; end
-ValueOne()
-
-# Compute X <- a X + b I.
-function matfun_axpby!(X,a,b,Y::UniformScaling)
-    m,n=size(X)
-    if ~(a isa ValueOne)
-        rmul!(X,a)
-    end
-    @inbounds for i=1:n
-        X[i,i]+=(b isa ValueOne) ? 1 : b
-    end
-end
-
-
-# Compute X <- a X + b Y.
-function matfun_axpby!(X,a,b,Y)
-    m,n=size(X)
-    if ~(a isa ValueOne)
-        rmul!(X,a)
-    end
-    @inbounds for i=1:m
-        @inbounds for j=1:n
-            if (b isa ValueOne)
-                X[i,j]+=Y[i,j]
-            else
-                X[i,j]+=b*Y[i,j]
-            end
-        end
-    end
-end
-
 @inline function exp_15(A)
     T=promote_type(eltype(A),Float64)
     A_copy=similar(A,T); A_copy .= A;
-    return exp_15!(A_copy)
+    return exp_15!(cache,A_copy)
 end
 
-@inline function exp_15!(A)
+@inline function exp_15!(cache,A)
     T=promote_type(eltype(A),Float64) # Make it work for many 'bigger' types (matrices and scalars)
     # max_memslots=6
     n=size(A,1)
     # The first slots are precomputed nodes [:A]
-    memslots2 = similar(A,T)
-    memslots3 = similar(A,T)
-    memslots4 = similar(A,T)
-    memslots5 = similar(A,T)
-    memslots6 = similar(A,T)
+    memslots2 = getmem(cache,2)
+    memslots3 = getmem(cache,3)
+    memslots4 = getmem(cache,4)
+    memslots5 = getmem(cache,5)
+    memslots6 = getmem(cache,6)
     # Assign precomputed nodes memslots 
     memslots1=A # overwrite A
     # Uniform scaling is exploited.
     # No matrix I explicitly allocated.
-    value_one=ValueOne()
     # Computation order: C A2 A4 A6 Ub3 Ub Uc U Vb3 Vb V Z X P S1 S2 S3 S4 S5 S6 S7 S8 S9 S10
     # Computing C = x*A+x*I
     coeff1=0.0009765625
@@ -118,7 +85,7 @@ end
     memslots2 .= coeff1.*memslots2 .+ coeff2.*memslots5
     # Deallocating U in slot 5
     # Computing P with operation: ldiv
-    memslots3 .=memslots1\memslots2
+    LAPACK.gesv!(memslots1, memslots2); memslots3=memslots2
     # Deallocating Z in slot 1
     # Deallocating X in slot 2
     # Computing S1 with operation: mult

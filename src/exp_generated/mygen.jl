@@ -2,7 +2,7 @@ using GraphMatFun, LinearAlgebra
 
 
 rhov=[0; 0.015; 0.25; 0.95; 2.1; 5.4];
-for s=1:8
+for s=1:10
     push!(rhov, rhov[end]*2);
 end
 
