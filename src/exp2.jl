@@ -24,7 +24,7 @@ function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
         push!(rhov, rhov[end]*2);
         push!(memslots,memslots[end]);
     end
-    i = findfirst(nA .< rhov)
+    i = findfirst(nA < rho for rho in rhov)
 
     # Take care of caching
     if caches == nothing
