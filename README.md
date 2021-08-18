@@ -90,10 +90,10 @@ For the other keyword arguments, `m` determines the dimension of the Krylov subs
 ## `_exp!`
 
 ```julia
-_exp(A)
+_exp!(A)
 ```
 
-A pure Julia implementation of a non-allocating matrix exponential using the Destructive matrix exponential using algorithm 
+A pure Julia implementation of a non-allocating matrix exponential using the Destructive matrix exponential using algorithm
 from Higham, 2008. Mostly generic, though the coefficients are geared towards 64-bit floating point calculations, and the
 use of BLAS requires a `StridedMatrix`.
 
@@ -102,9 +102,9 @@ use of BLAS requires a `StridedMatrix`.
 exp(x, vk=Val{10}())
 ```
 
-A pure Julia generic implementation of the exponential function using the 
-[scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions 
-`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. 
+A pure Julia generic implementation of the exponential function using the
+[scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions
+`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined.
 Use the argument `vk` to adjust the number of terms used in the Pade approximants at compile time.
 
 ## Advanced features

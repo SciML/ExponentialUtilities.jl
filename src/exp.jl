@@ -3,7 +3,7 @@
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
 ## become (approximately) `exp(A)`.
-function _exp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
+function _baseexp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
     X = A
     n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)
@@ -192,7 +192,7 @@ _const(A::Array) = Base.Experimental.Const(A)
                     end
                     n += $NU
                 end
-                $(NU > 1 ? nrem_quote : nothing)               
+                $(NU > 1 ? nrem_quote : nothing)
             end
         end
         C
