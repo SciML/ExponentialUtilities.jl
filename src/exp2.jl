@@ -24,7 +24,7 @@ function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
         push!(rhov, rhov[end]*2);
         push!(memslots,memslots[end]);
     end
-    i = findfirst(nA <. rhov)
+    i = findfirst(nA .< rhov)
 
     # Take care of caching
     if caches == nothing
@@ -36,33 +36,13 @@ function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     end
 
 
-    # Evaluate
-    if (nA < rhov[1])
-        X=exp_1!(thiscache,A)
-    elseif (nA < rhov[2])
-        X=exp_2!(thiscache,A)
-    elseif (nA < rhov[3])
-        X=exp_3!(thiscache,A)
-    elseif (nA < rhov[4])
-        X=exp_4!(thiscache,A)
-    elseif (nA < rhov[5])
-        X=exp_5!(thiscache,A)
-    elseif (nA < rhov[6])
-        X=exp_6!(thiscache,A)
-    elseif (nA < rhov[7])
-        X=exp_7!(thiscache,A)
-    elseif (nA < rhov[8])
-        X=exp_8!(thiscache,A)
-    elseif (nA < rhov[9])
-        X=exp_9!(thiscache,A)
-    elseif (nA < rhov[10])
-        X=exp_10!(thiscache,A)
-    elseif (nA < rhov[11])
-        X=exp_11!(thiscache,A)
-    elseif (nA < rhov[12])
-        X=exp_12!(thiscache,A)
-    else # X will become very close to Inf
-        X=exp_13!(thiscache,A)
+    # Make the call to the appropriate exp_gen! function
+    X = Base.Cartesian.@nif 13 d -> begin
+        nA < rhov[d]
+    end d -> begin # if condition
+        exp_gen!(thiscache, A, Val(d))
+    end d -> begin # fallback (d == 13)
+        exp_gen!(thiscache, A, Val(d))
     end
 
     # Undo the balancing

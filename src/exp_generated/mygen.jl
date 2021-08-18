@@ -36,7 +36,7 @@ for i=1:(size(rhov,1)-1)
 
     open(fname,"w") do outfile
         for (j,line) in enumerate(lines)
-            line=replace(line,"exp_$(i)!(" => "exp_$(i)!(cache,");
+            line=replace(line,"exp_$(i)!(A" => "exp_gen!(cache,A,::Val{$(i)}");
             if (contains(line,"ValueOne")) # Not needed functionality
                 continue;
             end
