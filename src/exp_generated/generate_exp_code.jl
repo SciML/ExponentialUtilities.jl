@@ -7,9 +7,6 @@ for s=1:8
 end
 
 
-#rhov=rhov[1:3]
-
-
 for i=1:(size(rhov,1)-1)
     r=(rhov[i]+rhov[i+1])/2;
     (graph,_)=graph_exp_native_jl(r)
@@ -17,10 +14,10 @@ for i=1:(size(rhov,1)-1)
     A=randn(3,3); A=r*A/opnorm(A,1)
     E1=eval_graph(graph,A)
     E2=exp(A);
-    @show norm(E1)
-    @show norm(E2)
-    @show norm(E1-E2)/norm(E1);
-    alloc_function=k-> "getmem(cache,$k)";
+    ee=norm(E1-E2)/norm(E1);
+    println("Generating graph $i for nA ∈ ($(rhov[i]), $(rhov[i+1]))");
+    println("    Check that the graph gives same solution: $ee");
+    alloc_function=k-> "getmem(cache,$k)"; # Special type of mem allocation
     lang=LangJulia(true,true,true,false,alloc_function,true)
 
     fname="exp_$(i).jl";
@@ -36,6 +33,7 @@ for i=1:(size(rhov,1)-1)
 
     open(fname,"w") do outfile
         for (j,line) in enumerate(lines)
+            # Function name with Val-trick
             line=replace(line,"exp_$(i)!(A" => "exp_gen!(cache,A,::Val{$(i)}");
             if (contains(line,"ValueOne")) # Not needed functionality
                 continue;
@@ -45,7 +43,6 @@ for i=1:(size(rhov,1)-1)
 
             # Make sure the output is in A
             line=replace(line, r"return memslots(\d+)" => s"copyto!(A,memslots\1)")
-
 
             println(outfile,line);
         end
