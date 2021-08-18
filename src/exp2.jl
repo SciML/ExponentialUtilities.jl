@@ -7,8 +7,8 @@ function getmem(cache,k) # Called from generated code
     return cache[k-1];
 end
 function ldiv_for_generated!(C,A,B) # C=A\B. Called from generated code
-    lu!(A);
-    ldiv!(A,B); # Result stored in B
+    F= lu!(A);
+    ldiv!(F,B); # Result stored in B
     if (pointer_from_objref(C) != pointer_from_objref(B)) # Aliasing allowed
         copyto!(C,B)
     end
