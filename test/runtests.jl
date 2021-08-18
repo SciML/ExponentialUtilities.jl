@@ -26,6 +26,30 @@ end
     expA2 = exp(A2)
     _exp2!(A2)
     @test A2 ≈ expA2
+
+    # Test all the cases for coverage of all generated code in exp
+    A0=[3.0 2.0; 0.0 1.0];
+    A0=A0/opnorm(A0,1);
+    rhov=[0; 0.015; 0.25; 0.95; 2.1; 5.4];
+    for s=1:7
+        push!(rhov, rhov[end]*2);
+    end
+    for (i,_) in enumerate(rhov[1:end-1])
+        r=(rhov[i]+rhov[i+1])/2;
+
+        A=A0*r;
+        expA=exp(A);
+        _exp2!(A);
+        @test A ≈ expA
+
+        A=A0*r;
+        cache=[similar(A) for i=1:6];
+        expA=exp(A);
+        _exp2!(A,caches=cache);
+        @test A ≈ expA
+    end
+
+
 end
 
 
