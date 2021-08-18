@@ -23,7 +23,7 @@ end
     end
 end
 
-function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
+function _exp!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     n = LinearAlgebra.checksquare(A)
     nA = opnorm(A,1);
 
