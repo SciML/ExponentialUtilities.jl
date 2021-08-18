@@ -21,8 +21,13 @@ for i=1:(size(rhov,1)-1)
     lang=LangJulia(true,true,true,false,alloc_function,true)
 
     fname="exp_$(i).jl";
+    priohelp=Dict();
+    if i==4 # The topological sorter needs some help. cf https://github.com/matrixfunctions/GraphMatFun.jl/issues/61
+        priohelp[:V]=-100000;
+    end
     gen_code(fname,graph,
-             lang=lang,funname="exp_$(i)",precomputed_nodes=[:A]);
+             lang=lang,funname="exp_$(i)",precomputed_nodes=[:A],
+             priohelp=priohelp);
 
 
     # Post-processing

@@ -43,7 +43,7 @@ end
         @test A ≈ expA
 
         A=A0*r;
-        cache=[similar(A) for i=1:6];
+        cache=[similar(A) for i=1:5];
         expA=exp(A);
         _exp!(A,caches=cache);
         @test A ≈ expA

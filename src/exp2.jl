@@ -35,7 +35,7 @@ function _exp!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     # Select how many multiplications to use
     rhov=    [0.015; 0.25; 0.95; 2.1; 5.4];
     # Number of memslots needed (beside A)
-    memslots=[3   ;    4;    5;   6;   5];
+    memslots=[3   ;    4;    5;   5;   5];
     for s=1:7 # Only 8 since exp(5.4*2^8)=Inf
         push!(rhov, rhov[end]*2);
         push!(memslots,memslots[end]);
