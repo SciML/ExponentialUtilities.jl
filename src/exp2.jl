@@ -14,6 +14,13 @@ function ldiv_for_generated!(C,A,B) # C=A\B. Called from generated code
     return C
 end
 
+# Inplace add of a UniformScaling object (support julia 1.6.2)
+@inline function inplace_add!(A,B::UniformScaling) # Called from generated code
+    s = B.λ
+    @inbounds for i in diagind(A)
+        A[i] += s
+    end
+end
 
 function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     n = LinearAlgebra.checksquare(A)

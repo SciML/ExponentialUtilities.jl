@@ -28,7 +28,7 @@ using LinearAlgebra
     coeff3=1512.0
     coeff4=1.0
     memslots5 .= coeff2.*memslots2 .+ coeff3.*memslots3 .+ coeff4.*memslots4
-    mul!(memslots5,true,I*coeff1,true,true)
+    inplace_add!(memslots5,I*coeff1)
     # Computing U with operation: mult
     mul!(memslots6,memslots5,memslots1)
     # Deallocating Ua in slot 5
@@ -40,7 +40,7 @@ using LinearAlgebra
     coeff4=56.0
     # Smart lincomb recycle A2
     memslots2 .= coeff2.*memslots2 .+ coeff3.*memslots3 .+ coeff4.*memslots4
-    mul!(memslots2,true,I*coeff1,true,true)
+    inplace_add!(memslots2,I*coeff1)
     # Deallocating A4 in slot 3
     # Deallocating A6 in slot 4
     # Computing Z = x*V+x*U

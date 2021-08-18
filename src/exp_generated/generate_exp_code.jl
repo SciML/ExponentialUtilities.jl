@@ -44,6 +44,11 @@ for i=1:(size(rhov,1)-1)
             # Make sure the output is in A
             line=replace(line, r"return memslots(\d+)" => s"copyto!(A,memslots\1)")
 
+            # Support for Julia 1.6.2 with manual inplace add for uniformscaling
+            line=replace(line,
+                         r"mul!\(memslots(\d+),true,I.coeff(\d+),true,true\)"
+                         => s"inplace_add!(memslots\1,I*coeff\2)");
+
             println(outfile,line);
         end
     end
