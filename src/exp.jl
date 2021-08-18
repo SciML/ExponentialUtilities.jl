@@ -3,7 +3,7 @@
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
 ## become (approximately) `exp(A)`.
-function _exp_old!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
+function _baseexp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
     X = A
     n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)

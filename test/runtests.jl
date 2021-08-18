@@ -1,17 +1,17 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV, _exp_old!, _exp!
+using ExponentialUtilities: getH, getV, _baseexp!, _exp!
 using ForwardDiff, StaticArrays
 
-@testset "Exp_old" begin
+@testset "baseexp" begin
     n = 100
     A = randn(n, n)
     expA = exp(A)
-    _exp_old!(A)
+    _baseexp!(A)
     @test A ≈ expA
     A2 = randn(n, n)
     A2 ./= opnorm(A2, 1) # test for small opnorm
     expA2 = exp(A2)
-    _exp_old!(A2)
+    _baseexp!(A2)
     @test A2 ≈ expA2
 end
 
