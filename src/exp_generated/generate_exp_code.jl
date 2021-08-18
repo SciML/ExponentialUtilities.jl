@@ -1,3 +1,4 @@
+# Generates the files exp_generated/exp_X.jl using the GraphMatFun package
 using GraphMatFun, LinearAlgebra
 
 
@@ -9,6 +10,7 @@ end
 
 for i=1:(size(rhov,1)-1)
     r=(rhov[i]+rhov[i+1])/2;
+    # Get the exp_native_jl = Higham 2008 version of scaling and squaring
     (graph,_)=graph_exp_native_jl(r)
     compress_graph!(graph);
     A=randn(3,3); A=r*A/opnorm(A,1)

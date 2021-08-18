@@ -22,7 +22,11 @@ end
         A[i] += s
     end
 end
+"""
+    _exp!(A, caches=nothing, do_balancing = A isa StridedMatrix) -> A
 
+Computes the matrix exponential using the algorithm Higham, N. J. (2005). "The scaling and squaring method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl.Vol. 26, No. 4, pp. 1179–1193" based on generated code. The function does not allocate matrices if the `caches` is provided. Typically `caches::Vector{typeof(A)}`, containing 5 memory slots.
+"""
 function _exp!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     n = LinearAlgebra.checksquare(A)
     nA = opnorm(A,1);
