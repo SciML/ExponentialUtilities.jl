@@ -14,7 +14,7 @@ macro diagview(A,d::Integer=0)
 end
 
 include("exp.jl")
-include("exp2.jl")
+include("exp_noalloc.jl")
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
