@@ -39,8 +39,8 @@ for i=1:(size(rhov,1)-1)
                 continue;
             end
             # Make a LAPACK call instead of backslash
-            line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"LAPACK.gesv!(memslots\2, memslots\3); memslots\1=memslots\3")
-
+            #line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"LAPACK.gesv!(memslots\2, memslots\3); memslots\1=memslots\3")
+            line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"ldiv_for_generated!(memslots\1, memslots\2, memslots\3)")
             # Make sure the output is in A
             line=replace(line, r"return memslots(\d+)" => s"copyto!(A,memslots\1)")
 

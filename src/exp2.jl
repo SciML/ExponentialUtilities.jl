@@ -3,9 +3,17 @@ for i=1:13
     include("exp_generated/exp_$i.jl")
 end
 
-function getmem(cache,k)
+function getmem(cache,k) # Called from generated code
     return cache[k-1];
 end
+function ldiv_for_generated!(C,A,B) # C=A\B. Called from generated code
+    LAPACK.gesv!(A, B);
+    if (pointer_from_objref(C) != pointer_from_objref(B)) # Aliasing allowed
+        copyto!(C,B)
+    end
+    return C
+end
+
 
 function _exp2!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     n = LinearAlgebra.checksquare(A)

@@ -60,7 +60,7 @@ using LinearAlgebra
     memslots2 .= coeff1.*memslots2 .+ coeff2.*memslots7
     # Deallocating U in slot 7
     # Computing P with operation: ldiv
-    LAPACK.gesv!(memslots1, memslots2); memslots3=memslots2
+    ldiv_for_generated!(memslots3, memslots1, memslots2)
     # Deallocating Z in slot 1
     # Deallocating X in slot 2
     copyto!(A,memslots3) # Returning P
