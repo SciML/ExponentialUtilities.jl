@@ -1,3 +1,22 @@
+
+
+"""
+    ExpMethodHigham2005(A::AbstractMatrix);
+    ExpMethodHigham2005(b::Bool=true);
+
+Computes the matrix exponential using the algorithm Higham, N. J. (2005). "The scaling and squaring method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl.Vol. 26, No. 4, pp. 1179–1193" based on generated code. If a matrix is specified, balancing is determined automatically.
+"""
+struct ExpMethodHigham2005
+    do_balancing::Bool
+end
+ExpMethodHigham2005(A::AbstractMatrix)=ExpMethodHigham2005(A isa StridedMatrix)
+
+
+function alloc_mem(A,::ExpMethodHigham2005)
+    return [similar(A) for i=1:5];
+end
+
+
 # Import the generated code
 for i=1:13
     include("exp_generated/exp_$i.jl")
@@ -25,14 +44,14 @@ end
 """
     _exp!(A, caches=nothing, do_balancing = A isa StridedMatrix) -> A
 
-Computes the matrix exponential using the algorithm Higham, N. J. (2005). "The scaling and squaring method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl.Vol. 26, No. 4, pp. 1179–1193" based on generated code. The function does not allocate matrices if the `caches` is provided. Typically `caches::Vector{typeof(A)}`, containing 5 memory slots.
+Computes the matrix exponential using the algorithm Higham, N. J. (2005). "The scaling and squaring method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl.Vol. 26, No. 4, pp. 1179–1193" based on generated code. The function does not allocate matrices if the `cache` is provided.
 """
-function _exp!(A; caches=nothing, do_balancing = A isa StridedMatrix)
+function _exp!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
     n = LinearAlgebra.checksquare(A)
     nA = opnorm(A,1);
 
     # Maybe to balancing
-    if do_balancing
+    if method.do_balancing
         ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
     end
 
@@ -66,7 +85,7 @@ function _exp!(A; caches=nothing, do_balancing = A isa StridedMatrix)
     end
 
     # Undo the balancing
-    if do_balancing
+    if method.do_balancing
         for j = ilo:ihi
             scj = scale[j]
             for i = 1:n

@@ -200,16 +200,25 @@ _const(A::Array) = Base.Experimental.Const(A)
 end
 
 """
-    exp(x, vk=Val{13}())
-Generic exponential function, working on any `x` for which the functions
+    struct ExpMethodGeneric{T}
+    ExpMethodGeneric()=ExpMethodGeneric{Val{13}}();
+
+Generic exponential implementation of the method `ExpMethodHigham2005`,
+for any exp argument `x`  for which the functions
 `LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with
-UniformScaling objects) are defined. Use the argument `vk` to adjust the
+UniformScaling objects) are defined. The type `T` is used to adjust the
 number of terms used in the Pade approximants at compile time.
+
 
 See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
 by Higham, Nicholas J. in 2005 for algorithm details.
+
 """
-function exp_generic(x, vk=Val{13}())
+struct ExpMethodGeneric{T}
+end
+ExpMethodGeneric()=ExpMethodGeneric{Val{13}}();
+
+function _exp!(x,method::ExpMethodGeneric{Vk},cache=alloc_mem(A,method))}()) where Vk
     nx = opnorm(x, 1)
     if !isfinite(nx)
         # This should (hopefully) ensure that the result is Inf or NaN depending on
@@ -218,11 +227,11 @@ function exp_generic(x, vk=Val{13}())
         return x*sum(x*nx)
     end
     s = iszero(nx) ? 0 : intlog2(nx)
-    (vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) && return exp_generic_mutable(x, s, Val{13}())
+    (Vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) && return exp_generic_mutable(x, s, Val{13}())
     if s >= 1
-        exp_generic(x/(2^s), vk)^(2^s)
+        exp_generic(x/(2^s), Vk)^(2^s)
     else
-        exp_pade_p(x, vk, vk) / exp_pade_q(x, vk, vk)
+        exp_pade_p(x, Vk, Vk) / exp_pade_q(x, Vk, Vk)
     end
 end
 
