@@ -129,7 +129,7 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=n
     end
     @inbounds for i = 1:m
         fill!(e, zero(T)); e[i] = one(T) # e is the ith basis vector
-        phiv_dense!(W, A, e, k; cache=C) # W = [phi_0(A)*e phi_1(A)*e ... phi_k(A)*e]
+        phiv_dense!(W, A, e, k; cache=C, expmethod=expmethod) # W = [phi_0(A)*e phi_1(A)*e ... phi_k(A)*e]
         @inbounds for j = 1:k+1
             @inbounds for s = 1:m
                 out[j][s, i] = W[s, j]
