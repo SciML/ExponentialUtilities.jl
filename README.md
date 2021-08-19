@@ -90,12 +90,27 @@ For the other keyword arguments, `m` determines the dimension of the Krylov subs
 ## `_exp!`
 
 ```julia
-_exp!(A)
+_exp!(A; caches=nothing, do_balancing=true)
 ```
 
 A pure Julia implementation of a non-allocating matrix exponential using the Destructive matrix exponential using algorithm
 from Higham, 2008. Mostly generic, though the coefficients are geared towards 64-bit floating point calculations, and the
-use of BLAS requires a `StridedMatrix`.
+use of BLAS requires a `StridedMatrix`. The `caches` is a vector of matrices
+that are used as memory instead of allocating. At most `5` matrices are needed.
+
+
+## `_baseexp!`
+
+```julia
+_baseexp!(A; caches=nothing)
+```
+
+A pure Julia implementation of a non-allocating matrix exponential using the
+Destructive matrix exponential using algorithm
+from Higham, 2008. Similar to `_exp!`, but follows the implementation
+in `Base.exp` closer.
+
+
 
 ## `exp_generic`
 ```julia
@@ -121,4 +136,4 @@ In addition, you may provide pre-allocated caches to the functions to further im
 
 [3] Koskela, A. (2015). Approximating the matrix exponential of an advection-diffusion operator using the incomplete orthogonalization method. In Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353). Springer, Cham.
 
-[4] HIGHAM, N. J. (2005). "THE SCALING AND SQUARING METHOD FOR THE MATRIX EXPONENTIAL REVISITED." SIAM J. MATRIX ANAL. APPL.Vol. 26, No. 4, pp. 1179–1193
+[4] Higham, N. J. (2005). "The scaling and squaring method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl. Vol. 26, No. 4, pp. 1179–1193
