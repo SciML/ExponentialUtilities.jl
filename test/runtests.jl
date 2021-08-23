@@ -15,10 +15,10 @@ using ForwardDiff, StaticArrays
 
         @testset "$(typeof(m))" begin
             E=_exp!(copy(A),m);
-            @show E≈expA
+            @test E≈expA
             mem=alloc_mem(A,m)
             E=_exp!(copy(A),m);
-            @show E≈expA
+            @test E≈expA
         end
     end
 end
