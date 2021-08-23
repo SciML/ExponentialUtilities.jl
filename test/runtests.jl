@@ -5,8 +5,11 @@ using ForwardDiff, StaticArrays
 
 @testset "exp!" begin
     n = 100
-    A = randn(n, n)
-    expA = exp(A);
+    A1 = randn(n, n)
+    expA1 = exp(A1);
+    A2 = 0.5*A1/opnorm(A1,1) # Test small norm as well
+    expA2 = exp(A2);
+
     methodlist=[ExpMethodNative(),
                 ExpMethodDiagonalization(),
                 ExpMethodHigham2005(),
@@ -17,13 +20,15 @@ using ForwardDiff, StaticArrays
     for m in methodlist
 
         @testset "$(typeof(m))" begin
-            E=exponential!(copy(A),m);
-            @test E≈expA
-            mem=alloc_mem(A,m)
-            E=exponential!(copy(A),m);
-            @test E≈expA
-            if (m isa ExpMethodHigham2005)
-            end
+            E1=exponential!(copy(A1),m);
+            @test E1≈expA1
+            E2=exponential!(copy(A2),m);
+            @test E2≈expA2
+
+            # With preallocation
+            mem=alloc_mem(A1,m)
+            E1=exponential!(copy(A1),m);
+            @test E1≈expA1
 
         end
     end
