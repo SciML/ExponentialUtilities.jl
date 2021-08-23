@@ -1,5 +1,5 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV, _baseexp!, _exp!, ExpMethodNative, ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric, alloc_mem
+using ExponentialUtilities: getH, getV, _exp!, ExpMethodNative, ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric, ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays
 
 
@@ -10,6 +10,7 @@ using ForwardDiff, StaticArrays
     methodlist=[ExpMethodNative(),
                 ExpMethodDiagonalization(),
                 ExpMethodHigham2005(),
+                ExpMethodHigham2005Base(),
                 ExpMethodGeneric()
                 ];
 

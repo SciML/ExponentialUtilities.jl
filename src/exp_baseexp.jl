@@ -1,24 +1,32 @@
+struct ExpMethodHigham2005Base
+end
+function alloc_mem(A,method::ExpMethodHigham2005Base)
+    n = LinearAlgebra.checksquare(A)
+    T = eltype(A);
+    A2   = Matrix{T}(undef, n, n)
+    P    = Matrix{T}(undef, n, n)
+    U    = Matrix{T}(undef, n, n)
+    V    = Matrix{T}(undef, n, n)
+    temp = Matrix{T}(undef, n, n)
+    return (A2,P,U,V,temp);
+end
+
+
 ## Destructive matrix exponential using algorithm from Higham, 2008,
 ## "Functions of Matrices: Theory and Computation", SIAM
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
 ## become (approximately) `exp(A)`.
-function _baseexp!(A::StridedMatrix{T}; caches=nothing) where T <: LinearAlgebra.BlasFloat
+function _exp!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
+               cache=alloc_mem(A,method)) where T <: LinearAlgebra.BlasFloat
     X = A
     n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)
         # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
 
-    if caches == nothing
-        A2   = Matrix{T}(undef, n, n)
-        P    = Matrix{T}(undef, n, n)
-        U    = Matrix{T}(undef, n, n)
-        V    = Matrix{T}(undef, n, n)
-        temp = Matrix{T}(undef, n, n)
-    else
-        A2, P, U, V, temp = caches
-    end
+    A2, P, U, V, temp = cache
+
     fill!(P, zero(T)); fill!(@diagview(P), one(T)) # P = Inn
 
     ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
