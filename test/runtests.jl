@@ -228,6 +228,15 @@ end
     # Test Lanczos with zero input
     wz = expv(t, A, z; m=m)
     @test norm(wz) == 0.0
+
+
+    # Test matrix version of phiv
+    n=30;
+    A=diagm(-1=>ones(n-1), 0=>30*ones(n),1=>ones(n-1));
+    t=0.1;
+    Q=phiv(t,A,ones(n),10)
+    @test Q[:,2] ≈ (t*A)\(exp(t*A)-I)*ones(n)
+
 end
 
 @testset "Complex Value" begin
