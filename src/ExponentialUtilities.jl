@@ -16,6 +16,7 @@ end
 include("exp.jl")
 include("exp_baseexp.jl")
 include("exp_noalloc.jl")
+include("exp_generic.jl")
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
