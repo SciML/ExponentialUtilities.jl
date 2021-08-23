@@ -1,8 +1,7 @@
 struct ExpMethodHigham2005Base
 end
-function alloc_mem(A,method::ExpMethodHigham2005Base)
+function alloc_mem(A::StridedMatrix{T},method::ExpMethodHigham2005Base) where T<: LinearAlgebra.BlasFloat
     n = LinearAlgebra.checksquare(A)
-    T = eltype(A);
     A2   = Matrix{T}(undef, n, n)
     P    = Matrix{T}(undef, n, n)
     U    = Matrix{T}(undef, n, n)
