@@ -1,6 +1,27 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV, _baseexp!, _exp!
+using ExponentialUtilities: getH, getV, _baseexp!, _exp!, ExpMethodNative, ExpMethodDiagonalization, ExpMethodHigham2005,alloc_mem
 using ForwardDiff, StaticArrays
+
+
+@testset "exp!" begin
+    n = 100
+    A = randn(n, n)
+    expA = exp(A);
+    methodlist=[ExpMethodNative(),
+                ExpMethodDiagonalization(),
+                ExpMethodHigham2005()];
+
+    for m in methodlist
+
+        @testset "$(typeof(m))" begin
+            E=_exp!(copy(A),m);
+            @show E≈expA
+            mem=alloc_mem(A,m)
+            E=_exp!(copy(A),m);
+            @show E≈expA
+        end
+    end
+end
 
 @testset "baseexp" begin
     n = 100

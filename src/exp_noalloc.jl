@@ -10,7 +10,7 @@ struct ExpMethodHigham2005
     do_balancing::Bool
 end
 ExpMethodHigham2005(A::AbstractMatrix)=ExpMethodHigham2005(A isa StridedMatrix)
-
+ExpMethodHigham2005()=ExpMethodHigham2005(true)
 
 function alloc_mem(A,::ExpMethodHigham2005)
     return [similar(A) for i=1:5];
@@ -65,23 +65,15 @@ function _exp!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
     end
     i = findfirst(nA .< rhov)
 
-    # Take care of caching
-    if caches == nothing
-        # No cache. Allocate Matrix objects
-        TT=eltype(A);
-        thiscache=[Matrix{TT}(undef,n,n) for i=1:memslots[i]];
-    else
-        thiscache = caches;
-    end
 
 
     # Make the call to the appropriate exp_gen! function
     X = Base.Cartesian.@nif 13 d -> begin
         nA < rhov[d]
     end d -> begin # if condition
-        exp_gen!(thiscache, A, Val(d))
+        exp_gen!(cache, A, Val(d))
     end d -> begin # fallback (d == 13)
-        exp_gen!(thiscache, A, Val(d))
+        exp_gen!(cache, A, Val(d))
     end
 
     # Undo the balancing
