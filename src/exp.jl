@@ -18,7 +18,7 @@ struct ExpMethodDiagonalization
     enforce_real::Bool
 end
 ExpMethodDiagonalization()=ExpMethodDiagonalization(true);
-function _exp!(A,method::ExpMethodDiagonalization,cache=nothing)
+function exponential!(A,method::ExpMethodDiagonalization,cache=nothing)
     F=eigen!(A)
     E=F.vectors*Diagonal(exp.(F.values))/F.vectors
     if (method.enforce_real && isreal(A))
@@ -38,6 +38,6 @@ Matrix exponential method corresponding to calling `Base.exp`.
 """
 struct ExpMethodNative
 end
-function _exp!(A,method::ExpMethodNative,cache=nothing)
+function exponential!(A,method::ExpMethodNative,cache=nothing)
     return exp(A)
 end
