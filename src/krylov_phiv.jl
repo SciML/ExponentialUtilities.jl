@@ -69,7 +69,7 @@ end
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
 function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
-               cache=nothing) where {Tw, T, U}
+               cache=nothing,expmethod=ExpMethodHigham2005()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -86,7 +86,7 @@ function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
         expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
     else
         lmul!(t, cache); expH = cache
-        _exp!(expH)
+        _exp!(expH, expmethod)
         expHe = @view(expH[:, 1])
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
@@ -96,7 +96,7 @@ end
 #       or Tw can be Float64, while t is ComplexF32 and T is Float64
 #       thus they can not share the same TypeVar.
 function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
-                cache=nothing) where {Tw, Tt, T, U}
+                cache=nothing,expmethod=ExpMethodHigham2005()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -116,7 +116,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         F = eigen!(SymTridiagonal(real(cache)))
         expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
     else
-        expH = _exp!(t * cache)
+        expH = _exp!(t * cache,expmethod)
         expHe = @view(expH[:, 1])
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
