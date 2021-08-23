@@ -22,7 +22,29 @@ using ForwardDiff, StaticArrays
             mem=alloc_mem(A,m)
             E=_exp!(copy(A),m);
             @test E≈expA
+            if (m isa ExpMethodHigham2005)
+            end
+
         end
+    end
+end
+
+@testset "Exp generated" begin
+    # Test all the cases for coverage of all generated code in exp
+    method = ExpMethodHigham2005();
+    A0=[3.0 2.0; 0.0 1.0];
+    A0=A0/opnorm(A0,1);
+    rhov=[0; 0.015; 0.25; 0.95; 2.1; 5.4];
+    for s=1:7
+        push!(rhov, rhov[end]*2);
+    end
+    for (i,_) in enumerate(rhov[1:end-1])
+        r=(rhov[i]+rhov[i+1])/2;
+
+        A=A0*r;
+        expA=exp(A);
+        A=_exp!(A,method);
+        @test A ≈ expA
     end
 end
 
@@ -39,30 +61,6 @@ end
 #    _exp!(A2)
 #    @test A2 ≈ expA2
 #
-#    # Test all the cases for coverage of all generated code in exp
-#    A0=[3.0 2.0; 0.0 1.0];
-#    A0=A0/opnorm(A0,1);
-#    rhov=[0; 0.015; 0.25; 0.95; 2.1; 5.4];
-#    for s=1:7
-#        push!(rhov, rhov[end]*2);
-#    end
-#    for (i,_) in enumerate(rhov[1:end-1])
-#        r=(rhov[i]+rhov[i+1])/2;
-#
-#        A=A0*r;
-#        expA=exp(A);
-#        _exp!(A);
-#        @test A ≈ expA
-#
-#        A=A0*r;
-#        cache=[similar(A) for i=1:5];
-#        expA=exp(A);
-#        _exp!(A,caches=cache);
-#        @test A ≈ expA
-#    end
-#
-#
-#end
 #
 #
 exp_generic(A) = _exp!(copy(A),ExpMethodGeneric())
