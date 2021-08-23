@@ -38,8 +38,12 @@ end
     for s=1:7
         push!(rhov, rhov[end]*2);
     end
-    for (i,_) in enumerate(rhov[1:end-1])
-        r=(rhov[i]+rhov[i+1])/2;
+    for (i,_) in enumerate(rhov)
+        if (i+1 < size(rhov,1))
+            r=(rhov[i]+rhov[i+1])/2;
+        else
+            r=rhov[i]+0.5;
+        end
 
         A=A0*r;
         expA=exp(A);
