@@ -6,6 +6,7 @@ function alloc_mem(A,method)
     return nothing;
 end
 
+exponential!(A)=exponential!(A,ExpMethodHigham2005(A));
 
 ## The diagonalization based
 """

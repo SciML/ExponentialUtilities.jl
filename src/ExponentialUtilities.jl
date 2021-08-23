@@ -51,7 +51,7 @@ function __init__()
                 expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
             else
                 lmul!(t, cache); expH = cache
-                _exp!(expH)
+                exponential!(expH)
                 expHe = @view(expH[:, 1])
             end
 
