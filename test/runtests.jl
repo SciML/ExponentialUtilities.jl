@@ -1,58 +1,78 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV, _baseexp!, _exp!
+using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative, ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric, ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays
 
-@testset "baseexp" begin
+
+@testset "exp!" begin
     n = 100
-    A = randn(n, n)
-    expA = exp(A)
-    _baseexp!(A)
-    @test A ≈ expA
-    A2 = randn(n, n)
-    A2 ./= opnorm(A2, 1) # test for small opnorm
-    expA2 = exp(A2)
-    _baseexp!(A2)
-    @test A2 ≈ expA2
+    A1 = randn(n, n)
+    expA1 = exp(A1);
+    A2 = 0.5*A1/opnorm(A1,1) # Test small norm as well
+    expA2 = exp(A2);
+
+    methodlist=[ExpMethodNative(),
+                ExpMethodDiagonalization(),
+                ExpMethodHigham2005(),
+                ExpMethodHigham2005Base(),
+                ExpMethodGeneric()
+                ];
+
+    for m in methodlist
+
+        @testset "$(typeof(m))" begin
+            E1=exponential!(copy(A1),m);
+            @test E1≈expA1
+            E2=exponential!(copy(A2),m);
+            @test E2≈expA2
+
+            # With preallocation
+            mem=alloc_mem(A1,m)
+            E1=exponential!(copy(A1),m);
+            @test E1≈expA1
+
+        end
+    end
 end
 
-@testset "Exp" begin
-    n = 100
-    A = randn(n, n)
-    expA = exp(A)
-    _exp!(A)
-    @test A ≈ expA
-    A2 = randn(n, n)
-    A2 ./= opnorm(A2, 1) # test for small opnorm
-    expA2 = exp(A2)
-    _exp!(A2)
-    @test A2 ≈ expA2
-
+@testset "Exp generated" begin
     # Test all the cases for coverage of all generated code in exp
+    method = ExpMethodHigham2005();
     A0=[3.0 2.0; 0.0 1.0];
     A0=A0/opnorm(A0,1);
     rhov=[0; 0.015; 0.25; 0.95; 2.1; 5.4];
     for s=1:7
         push!(rhov, rhov[end]*2);
     end
-    for (i,_) in enumerate(rhov[1:end-1])
-        r=(rhov[i]+rhov[i+1])/2;
+    for (i,_) in enumerate(rhov)
+        if (i+1 < size(rhov,1))
+            r=(rhov[i]+rhov[i+1])/2;
+        else
+            r=rhov[i]+0.5;
+        end
 
         A=A0*r;
         expA=exp(A);
-        _exp!(A);
-        @test A ≈ expA
-
-        A=A0*r;
-        cache=[similar(A) for i=1:5];
-        expA=exp(A);
-        _exp!(A,caches=cache);
+        A=exponential!(A,method);
         @test A ≈ expA
     end
-
-
 end
 
-
+#
+#@testset "Exp" begin
+#    n = 100
+#    A = randn(n, n)
+#    expA = exp(A)
+#    exponential!(A)
+#    @test A ≈ expA
+#    A2 = randn(n, n)
+#    A2 ./= opnorm(A2, 1) # test for small opnorm
+#    expA2 = exp(A2)
+#    exponential!(A2)
+#    @test A2 ≈ expA2
+#
+#
+#
+exp_generic(A) = exponential!(copy(A),ExpMethodGeneric())
 @testset "exp_generic" begin
     for n in [5, 10, 30, 50, 100, 500]
         M = rand(n, n)
@@ -68,6 +88,7 @@ end
     end
 
     @testset "Inf" begin
+
         @test exp_generic(Inf) == Inf
         @test exp_generic(NaN) === NaN
         @test all(isinf, exp_generic([1 Inf; Inf 1]))
@@ -216,6 +237,15 @@ end
     # Test Lanczos with zero input
     wz = expv(t, A, z; m=m)
     @test norm(wz) == 0.0
+
+
+    # Test matrix version of phiv
+    n=30;
+    A=diagm(-1=>ones(n-1), 0=>30*ones(n),1=>ones(n-1));
+    t=0.1;
+    Q=phiv(t,A,ones(n),10)
+    @test Q[:,2] ≈ (t*A)\(exp(t*A)-I)*ones(n)
+
 end
 
 @testset "Complex Value" begin

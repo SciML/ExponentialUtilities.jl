@@ -17,7 +17,7 @@ formula given by Sidje is used (Sidje, R. B. (1998). Expokit: a software
 package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
 """
-function phi(z::T, k::Integer; cache=nothing) where {T <: Number}
+function phi(z::T, k::Integer; cache=nothing,expmethod=ExpMethodHigham2005()) where {T <: Number}
     # Construct the matrix
     if cache == nothing
         cache = fill(zero(T), k+1, k+1)
@@ -28,7 +28,7 @@ function phi(z::T, k::Integer; cache=nothing) where {T <: Number}
     for i = 1:k
         cache[i,i+1] = one(T)
     end
-    P = _exp!(cache)
+    P = exponential!(cache,expmethod)
     return P[1,:]
 end
 
@@ -58,7 +58,9 @@ end
 Non-allocating version of `phiv_dense`.
 """
 function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
-                     v::AbstractVector{T}, k::Integer; cache=nothing) where {T <: Number}
+                     v::AbstractVector{T}, k::Integer;
+                     cache=nothing, expmethod=ExpMethodHigham2005()
+                     ) where {T <: Number}
     @assert size(w, 1) == size(A, 1) == size(A, 2) == length(v) "Dimension mismatch"
     @assert size(w, 2) == k+1 "Dimension mismatch"
     m = length(v)
@@ -74,7 +76,7 @@ function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
     for i = m+1:m+k-1
         cache[i, i+1] = one(T)
     end
-    P = _exp!(cache)
+    P = exponential!(cache,expmethod)
     # Extract results
     @views mul!(w[:, 1], P[1:m, 1:m], v)
     @inbounds for i = 1:k
@@ -114,7 +116,7 @@ end
 
 Non-allocating version of `phi` for non-diagonal matrix inputs.
 """
-function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=nothing) where {T <: Number}
+function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=nothing,expmethod=ExpMethodHigham2005()) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1 && all(P -> size(P) == (m,m), out) "Dimension mismatch"
     if caches == nothing
@@ -127,7 +129,7 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=n
     end
     @inbounds for i = 1:m
         fill!(e, zero(T)); e[i] = one(T) # e is the ith basis vector
-        phiv_dense!(W, A, e, k; cache=C) # W = [phi_0(A)*e phi_1(A)*e ... phi_k(A)*e]
+        phiv_dense!(W, A, e, k; cache=C, expmethod=expmethod) # W = [phi_0(A)*e phi_1(A)*e ... phi_k(A)*e]
         @inbounds for j = 1:k+1
             @inbounds for s = 1:m
                 out[j][s, i] = W[s, j]

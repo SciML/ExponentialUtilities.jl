@@ -14,7 +14,9 @@ macro diagview(A,d::Integer=0)
 end
 
 include("exp.jl")
+include("exp_baseexp.jl")
 include("exp_noalloc.jl")
+include("exp_generic.jl")
 include("phi.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
@@ -25,7 +27,7 @@ include("krylov_phiv_error_estimate.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
     expv, expv!, exp_generic, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,
-    StegrCache, get_subspace_cache
+    StegrCache, get_subspace_cache, exponential!
 
 function __init__()
     @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" begin
@@ -49,7 +51,7 @@ function __init__()
                 expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
             else
                 lmul!(t, cache); expH = cache
-                _exp!(expH)
+                exponential!(expH)
                 expHe = @view(expH[:, 1])
             end
 

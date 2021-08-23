@@ -5,7 +5,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/SciML/ExponentialUtilities.jl/badge.svg?branch=master)](https://coveralls.io/github/SciML/ExponentialUtilities.jl?branch=master)
 [![codecov](https://codecov.io/gh/SciML/ExponentialUtilities.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/SciML/ExponentialUtilities.jl)
 
-ExponentialUtilities is a package of utility functions used by the exponential integrators in OrdinaryDiffEq. It is a lightweight pure Julia package with no external dependencies, so it can also be used independently.
+ExponentialUtilities is a package of utility functions for matrix functions of exponential type, including functionality for the matrix exponential and phi-functions. The tools are used by the exponential integrators in OrdinaryDiffEq. The package has no external dependencies, so it can also be used independently.
 
 ## Matrix-phi-vector product
 
