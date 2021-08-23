@@ -86,7 +86,7 @@ function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
         expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
     else
         lmul!(t, cache); expH = cache
-        _exp!(expH, expmethod)
+        exponential!(expH, expmethod)
         expHe = @view(expH[:, 1])
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
@@ -116,7 +116,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         F = eigen!(SymTridiagonal(real(cache)))
         expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
     else
-        expH = _exp!(t * cache,expmethod)
+        expH = exponential!(t * cache,expmethod)
         expHe = @view(expH[:, 1])
     end
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e

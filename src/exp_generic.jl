@@ -113,7 +113,7 @@ struct ExpMethodGeneric{T}
 end
 ExpMethodGeneric()=ExpMethodGeneric{Val(13)}();
 
-function _exp!(x,method::ExpMethodGeneric{Vk},cache=alloc_mem(x,method)) where Vk
+function exponential!(x,method::ExpMethodGeneric{Vk},cache=alloc_mem(x,method)) where Vk
     nx = opnorm(x, 1)
     if !isfinite(nx)
         # This should (hopefully) ensure that the result is Inf or NaN depending on
@@ -124,7 +124,7 @@ function _exp!(x,method::ExpMethodGeneric{Vk},cache=alloc_mem(x,method)) where V
     s = iszero(nx) ? 0 : intlog2(nx)
     (Vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) && return exp_generic_mutable(x, s, Val{13}())
     if s >= 1
-        return _exp!(x/(2^s), method)^(2^s)
+        return exponential!(x/(2^s), method)^(2^s)
     else
         return exp_pade_p(x, Vk, Vk) / exp_pade_q(x, Vk, Vk)
     end

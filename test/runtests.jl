@@ -1,5 +1,5 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
-using ExponentialUtilities: getH, getV, _exp!, ExpMethodNative, ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric, ExpMethodHigham2005Base, alloc_mem
+using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative, ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric, ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays
 
 
@@ -17,10 +17,10 @@ using ForwardDiff, StaticArrays
     for m in methodlist
 
         @testset "$(typeof(m))" begin
-            E=_exp!(copy(A),m);
+            E=exponential!(copy(A),m);
             @test E≈expA
             mem=alloc_mem(A,m)
-            E=_exp!(copy(A),m);
+            E=exponential!(copy(A),m);
             @test E≈expA
             if (m isa ExpMethodHigham2005)
             end
@@ -43,7 +43,7 @@ end
 
         A=A0*r;
         expA=exp(A);
-        A=_exp!(A,method);
+        A=exponential!(A,method);
         @test A ≈ expA
     end
 end
@@ -53,17 +53,17 @@ end
 #    n = 100
 #    A = randn(n, n)
 #    expA = exp(A)
-#    _exp!(A)
+#    exponential!(A)
 #    @test A ≈ expA
 #    A2 = randn(n, n)
 #    A2 ./= opnorm(A2, 1) # test for small opnorm
 #    expA2 = exp(A2)
-#    _exp!(A2)
+#    exponential!(A2)
 #    @test A2 ≈ expA2
 #
 #
 #
-exp_generic(A) = _exp!(copy(A),ExpMethodGeneric())
+exp_generic(A) = exponential!(copy(A),ExpMethodGeneric())
 @testset "exp_generic" begin
     for n in [5, 10, 30, 50, 100, 500]
         M = rand(n, n)

@@ -16,7 +16,7 @@ end
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
 ## become (approximately) `exp(A)`.
-function _exp!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
+function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
                cache=alloc_mem(A,method)) where T <: LinearAlgebra.BlasFloat
     X = A
     n = LinearAlgebra.checksquare(A)

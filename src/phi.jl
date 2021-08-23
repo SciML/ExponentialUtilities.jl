@@ -28,7 +28,7 @@ function phi(z::T, k::Integer; cache=nothing,expmethod=ExpMethodHigham2005()) wh
     for i = 1:k
         cache[i,i+1] = one(T)
     end
-    P = _exp!(cache,expmethod)
+    P = exponential!(cache,expmethod)
     return P[1,:]
 end
 
@@ -76,7 +76,7 @@ function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
     for i = m+1:m+k-1
         cache[i, i+1] = one(T)
     end
-    P = _exp!(cache,expmethod)
+    P = exponential!(cache,expmethod)
     # Extract results
     @views mul!(w[:, 1], P[1:m, 1:m], v)
     @inbounds for i = 1:k
