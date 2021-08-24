@@ -87,40 +87,27 @@ For `arnoldi`, if `A` is hermitian, then the more efficient [Lanczos algorithm](
 
 For the other keyword arguments, `m` determines the dimension of the Krylov subspace and `tol` is the relative tolerance used to determine the "happy-breakdown" condition. You can also set custom operator norm in `opnorm`, e.g. efficient norm estimation functions instead of the default `LinearAlgebra.opnorm`. Only `opnorm(A, Inf)` needs to be defined.
 
-## `_exp!`
+## Matrix exponential `exponential!`
 
 ```julia
-_exp!(A; caches=nothing, do_balancing=true)
+exponential!(A[,method[,cache]]) -> E
 ```
 
-A pure Julia implementation of a non-allocating matrix exponential using the Destructive matrix exponential using algorithm
+
+Computes the matrix exponential of `A` with method specified in `method`. The contents of `A` is modified allowing for less allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. objects of the type `ExpMethodNative`,
+`ExpMethodDiagonalization`, `ExpMethodGeneric`, `ExpMethodHigham2005`. Memory
+needed in the method can be preallocated and provided in parameter `cache` in order to recycle in subsequent calls. The preallocation is done with the command `alloc_mem`: `cache=alloc_mem(A,method)`.
+
+Methods available:
+
+* `ExpMethodHigham2005`: A pure Julia implementation of a non-allocating matrix exponential using the Destructive matrix exponential using algorithm
 from Higham, 2008. Mostly generic, though the coefficients are geared towards 64-bit floating point calculations, and the
-use of BLAS requires a `StridedMatrix`. The `caches` is a vector of matrices
-that are used as memory instead of allocating. At most `5` matrices are needed.
+use of BLAS requires a `StridedMatrix`.
+* `ExpMethodHigham2005Base`: Same as `ExpMethodHigham2005` but follows `Base.exp` closer
+* `ExpMethodGeneric{Vk}`: A pure Julia generic implementation of the exponential function using the [scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions `LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. Use the argument `Vk` to adjust the number of terms used in the Pade approximants at compile time.
+* `ExpMethodNative`. Calls `Base.exp`
+* `ExpMethodDiagonalization`. Computes the exponential with explicit diagonalization via a call to `eigen`.
 
-
-## `_baseexp!`
-
-```julia
-_baseexp!(A; caches=nothing)
-```
-
-A pure Julia implementation of a non-allocating matrix exponential using the
-Destructive matrix exponential using algorithm
-from Higham, 2008. Similar to `_exp!`, but follows the implementation
-in `Base.exp` closer.
-
-
-
-## `exp_generic`
-```julia
-exp(x, vk=Val{10}())
-```
-
-A pure Julia generic implementation of the exponential function using the
-[scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions
-`LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined.
-Use the argument `vk` to adjust the number of terms used in the Pade approximants at compile time.
 
 ## Advanced features
 

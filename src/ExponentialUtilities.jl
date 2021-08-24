@@ -26,9 +26,9 @@ include("StegrWork.jl")
 include("krylov_phiv_error_estimate.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
-    expv, expv!, exp_generic, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,
+    expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,
     StegrCache, get_subspace_cache, exponential!
-
+export ExpMethodHigham2005, ExpMethodHigham2005Base, ExpMethodHighamGeneric, ExpMethodNative, ExpMethodDiagonalization
 function __init__()
     @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" begin
         function ExponentialUtilities.expv!(w::CuArrays.CuVector{Tw},
