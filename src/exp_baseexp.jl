@@ -4,7 +4,6 @@
 The same as `ExpMethodHigham2005` but follows `Base.exp` closer.
 
 """
-
 struct ExpMethodHigham2005Base
 end
 function alloc_mem(A::StridedMatrix{T},method::ExpMethodHigham2005Base) where T<: LinearAlgebra.BlasFloat
