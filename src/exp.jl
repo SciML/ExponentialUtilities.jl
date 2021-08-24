@@ -31,7 +31,7 @@ ExpMethodDiagonalization()=ExpMethodDiagonalization(true);
     E=exponential!(A,[method [cache]])
 
 Computes the matrix exponential with method specified in `method`. The contents of `A` is modified allowing for less allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. [`ExpMethodNative`](@ref), [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), [`ExpMethodHigham2005`](@ref). Memory
-needed can be preallocated and provided in parameter `cache`. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
+needed can be preallocated and provided in parameter `cache` such that the memory can recycled when calling `exponential!` several times. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
 
 Example
 ```julia-repl
