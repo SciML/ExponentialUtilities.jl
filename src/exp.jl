@@ -2,6 +2,11 @@
 
 
 # Fallback
+"""
+    cache=alloc_mem(A,method)
+
+Pre-allocates memory associated with matrix exponential function `method` and matrix `A`. To be used in combination with [`exponential!`](@ref).
+"""
 function alloc_mem(A,method)
     return nothing;
 end
