@@ -104,7 +104,7 @@ Methods available:
 from Higham, 2008. Mostly generic, though the coefficients are geared towards 64-bit floating point calculations, and the
 use of BLAS requires a `StridedMatrix`.
 * `ExpMethodHigham2005Base`: Same as `ExpMethodHigham2005` but follows `Base.exp` closer
-* `ExpMethodHighamGeneric{Vk}`: A pure Julia generic implementation of the exponential function using the [scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions `LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. Use the argument `Vk` to adjust the number of terms used in the Pade approximants at compile time.
+* `ExpMethodGeneric{Vk}`: A pure Julia generic implementation of the exponential function using the [scaling and squaring method](https://doi.org/10.1137/04061101X), working on any `x` for which the functions `LinearAlgebra.opnorm`, `+`, `*`, `^`, and `/` (including addition with UniformScaling objects) are defined. Use the argument `Vk` to adjust the number of terms used in the Pade approximants at compile time.
 * `ExpMethodNative`. Calls `Base.exp`
 * `ExpMethodDiagonalization`. Computes the exponential with explicit diagonalization via a call to `eigen`.
 
