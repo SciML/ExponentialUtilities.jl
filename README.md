@@ -96,7 +96,7 @@ exponential!(A[,method[,cache]]) -> E
 
 Computes the matrix exponential of `A` with method specified in `method`. The contents of `A` is modified allowing for less allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. objects of the type `ExpMethodNative`,
 `ExpMethodDiagonalization`, `ExpMethodGeneric`, `ExpMethodHigham2005`. Memory
-needed can be preallocated and provided in parameter `cache`. The preallocation is done with the command `alloc_mem`: `cache=alloc_mem(A,method)`.
+needed in the method can be preallocated and provided in parameter `cache` in order to recycle in subsequent calls. The preallocation is done with the command `alloc_mem`: `cache=alloc_mem(A,method)`.
 
 Methods available:
 

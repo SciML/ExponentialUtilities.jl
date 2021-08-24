@@ -12,6 +12,7 @@ function alloc_mem(A,method)
 end
 
 @deprecate _exp! exponential!
+@deprecate exp_generic exponential!
 exponential!(A)=exponential!(A,ExpMethodHigham2005(A));
 
 ## The diagonalization based
