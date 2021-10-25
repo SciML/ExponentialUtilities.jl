@@ -196,6 +196,7 @@ end
     b = randn(n)
     direct = exp(t * A) * b
     @test direct ≈ expv(t, A, b; m=m)
+    @test direct ≈ expv(t, A, b; m=m, method = ExpMethodHigham2005(false))
     @test direct ≈ kiops(t, A, b)[1]
     P = phi(t * A, K)
     W = fill(0., n, K+1)
