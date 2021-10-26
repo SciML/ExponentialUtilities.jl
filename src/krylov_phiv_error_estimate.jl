@@ -55,7 +55,8 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
                Ks::KrylovSubspace{T, B, B}, cache::HSC;
                atol::B=1.0e-8, rtol::B=1.0e-4,
                m=min(Ks.maxiter, size(A,1)),
-               verbose::Bool=false) where {B, T <: Number, HSC <: HermitianSubspaceCache}
+               verbose::Bool=false,
+               expmethod = ExpMethodHigham2005()) where {B, T <: Number, HSC <: HermitianSubspaceCache}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
