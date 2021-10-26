@@ -42,23 +42,27 @@ function expv(t, A, b; mode=:happy_breakdown, kwargs...)
         throw(ArgumentError("Unknown Krylov iteration termination mode, $(mode)"))
     end
 end
-function _expv_hb(t::Tt, A, b; cache=nothing, kwargs_arnoldi...) where Tt
+function _expv_hb(t::Tt, A, b;
+                  expmethod=ExpMethodHigham2005(),
+                  cache=nothing, kwargs_arnoldi...) where Tt
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
-    expv!(w, t, Ks; cache=cache)
+    expv!(w, t, Ks; cache=cache, expmethod=expmethod)
 end
 function _expv_ee(t::Tt, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
-    ishermitian::Bool=LinearAlgebra.ishermitian(A)) where Tt
+    ishermitian::Bool=LinearAlgebra.ishermitian(A),
+    expmethod=ExpMethodHigham2005()) where Tt
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A,1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
     Ks = KrylovSubspace{T,U}(n, m)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
-    expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol)
+    expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol, expmethod=expmethod)
 end
-function expv(t::Tt, Ks::KrylovSubspace{T, U}; kwargs...) where {Tt, T, U}
+function expv(t::Tt, Ks::KrylovSubspace{T, U}; expmethod=ExpMethodHigham2005(),
+              kwargs...) where {Tt, T, U}
     n = size(getV(Ks), 1)
     w = Vector{promote_type(Tt, T)}(undef, n)
     expv!(w, t, Ks; kwargs...)
