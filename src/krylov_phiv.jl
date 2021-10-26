@@ -61,7 +61,8 @@ function _expv_ee(t::Tt, A, b; m=min(30, size(A, 1)), tol=1e-7, rtol=√(tol),
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol=tol, rtol=rtol, expmethod=expmethod)
 end
-function expv(t::Tt, Ks::KrylovSubspace{T, U}; kwargs...) where {Tt, T, U}
+function expv(t::Tt, Ks::KrylovSubspace{T, U}; expmethod=ExpMethodHigham2005(),
+              kwargs...) where {Tt, T, U}
     n = size(getV(Ks), 1)
     w = Vector{promote_type(Tt, T)}(undef, n)
     expv!(w, t, Ks; kwargs...)
