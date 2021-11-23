@@ -114,7 +114,7 @@ end
 ExpMethodGeneric()=ExpMethodGeneric{Val(13)}();
 
 function exponential!(x,method::ExpMethodGeneric{Vk},cache=alloc_mem(x,method)) where Vk
-    nx = opnorm(x, 1)
+    nx = LinearAlgebra.opnorm1(x)
     if !isfinite(nx)
         # This should (hopefully) ensure that the result is Inf or NaN depending on
         # which values are produced by a power series. I.e. the result shouldn't
