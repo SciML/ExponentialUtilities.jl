@@ -115,11 +115,11 @@ ExpMethodGeneric()=ExpMethodGeneric{Val(13)}();
 
 function exponential!(x,method::ExpMethodGeneric{Vk},cache=alloc_mem(x,method)) where Vk
     nx = opnorm(x, 1)
-    if !isfinite(nx)
+    if isnan(nx) || nx > 4611686018427387904 # i.e. 2^62 since it would cause overflow in 2^s
         # This should (hopefully) ensure that the result is Inf or NaN depending on
         # which values are produced by a power series. I.e. the result shouldn't
         # be all Infs when there are both Infs and zero since Inf*0===NaN
-        return x*sum(x*nx)
+        return x*sum(x*exp(nx))
     end
     s = iszero(nx) ? 0 : intlog2(nx)
     (Vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) && return exp_generic_mutable(x, s, Val{13}())
