@@ -91,6 +91,7 @@ exp_generic(A) = exponential!(copy(A),ExpMethodGeneric())
 
         @test exp_generic(Inf) == Inf
         @test exp_generic(NaN) === NaN
+        @test exp_generic(1e20) === Inf
         @test all(isinf, exp_generic([1 Inf; Inf 1]))
         @test all(isnan, exp_generic([1 Inf; Inf 0]))
         @test all(isnan, exp_generic([1 Inf 1 0; 1 1 1 1; 1 1 1 1; 1 1 1 1]))
