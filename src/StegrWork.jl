@@ -3,7 +3,13 @@ using LinearAlgebra
 using LinearAlgebra.BLAS: @blasfunc
 using LinearAlgebra: BlasInt
 import LinearAlgebra.LAPACK: stegr!
-const liblapack = Base.liblapack_name
+
+if VERSION < v"1.7"
+    const liblapack = Base.liblapack_name
+else
+    using libblastrampoline_jll
+    const liblapack = libblastrampoline_jll.libblastrampoline
+end
 
 mutable struct StegrWork{T<:Real}
     jobz::Char
