@@ -2,14 +2,11 @@ module Stegr
 using LinearAlgebra
 using LinearAlgebra.BLAS: @blasfunc
 using LinearAlgebra: BlasInt
+using libblastrampoline_jll
+
 import LinearAlgebra.LAPACK: stegr!
 
-if VERSION < v"1.7"
-    const liblapack = Base.liblapack_name
-else
-    using libblastrampoline_jll
-    const liblapack = libblastrampoline_jll.libblastrampoline
-end
+const liblapack = libblastrampoline_jll.libblastrampoline
 
 mutable struct StegrWork{T<:Real}
     jobz::Char
