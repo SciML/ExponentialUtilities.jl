@@ -47,7 +47,12 @@ function exponential!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
 
     # Maybe to balancing
     if method.do_balancing
-        ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+        if A isa StridedMatrix{<:BlasFloat}
+            ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+        else
+            A, bal = GenericSchur.balance!(A)
+            ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
+        end
     end
 
     # Select how many multiplications to use

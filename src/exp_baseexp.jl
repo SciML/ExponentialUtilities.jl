@@ -33,8 +33,14 @@ function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
     A2, P, U, V, temp = cache
 
     fill!(P, zero(T)); fill!(@diagview(P), one(T)) # P = Inn
+    
+    if A isa StridedMatrix{<:BlasFloat}
+        ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+    else
+        A, bal = GenericSchur.balance!(A)
+        ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
+    end
 
-    ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
     nA = opnorm(A, 1)
     ## For sufficiently small nA, use lower order Padé-Approximations
     if (nA <= 2.1)
