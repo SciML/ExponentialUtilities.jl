@@ -52,7 +52,7 @@ function exponential!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
         else
             A, bal = GenericSchur.balance!(A)
             ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
-        #end
+        end
     end
 
     # Select how many multiplications to use
