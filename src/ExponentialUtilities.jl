@@ -1,6 +1,7 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf, Requires
 using ArrayInterface: ismutable
+import GenericSchur
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.

@@ -47,7 +47,12 @@ function exponential!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
 
     # Maybe to balancing
     if method.do_balancing
-        ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+        if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
+            ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+        else
+            A, bal = GenericSchur.balance!(A)
+            ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
+        end
     end
 
     # Select how many multiplications to use
@@ -83,11 +88,20 @@ function exponential!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
             end
         end
 
-        if ilo > 1       # apply lower permutations in reverse order
-            for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
-        end
-        if ihi < n       # apply upper permutations in forward order
-            for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
+        if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
+            if ilo > 1       # apply lower permutations in reverse order
+                for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
+            end
+            if ihi < n       # apply upper permutations in forward order
+                for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
+            end
+        else
+            if ilo > 1       # apply lower permutations in reverse order
+                for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, bal.prow[j], X) end
+            end
+            if ihi < n       # apply upper permutations in forward order
+                for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, bal.pcol[j-ihi], X) end
+            end
         end
     end
 
