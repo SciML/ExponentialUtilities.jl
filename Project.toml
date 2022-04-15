@@ -1,7 +1,7 @@
 name = "ExponentialUtilities"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>"]
-version = "1.13.0"
+version = "1.14.0"
 
 [deps]
 ArrayInterface = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
@@ -16,6 +16,7 @@ libblastrampoline_jll = "8e850b90-86db-534c-a0d3-1478176c7d93"
 ArrayInterface = "3, 4, 5"
 Requires = "1.0"
 julia = "1.6"
+GenericSchur = "0.5.3"
 
 [extras]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
