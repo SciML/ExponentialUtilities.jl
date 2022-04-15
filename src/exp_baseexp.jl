@@ -115,10 +115,19 @@ function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
     end
 
     if ilo > 1       # apply lower permutations in reverse order
+        for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, bal.prow[j], X) end
+    end
+    if ihi < n       # apply upper permutations in forward order
+        for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, bal.pcol[j-ihi], X) end
+    end
+
+    #=
+    if ilo > 1       # apply lower permutations in reverse order
         for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
     end
     if ihi < n       # apply upper permutations in forward order
         for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
     end
+    =#
     return X
 end
