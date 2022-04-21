@@ -123,8 +123,10 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         expH = exponential!(t * cache,expmethod)
         expHe = @view(expH[:, 1])
     end
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), match_array_type(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
+# NOTE: this function is for for support CuArrays, fall back to identity, i.e. keep the source a dense CPU array as it is.
+match_array_type(target::AbstractArray, source::AbstractArray) = source
 
 
 ############################
