@@ -1,6 +1,6 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf, Requires
-using ArrayInterface: ismutable
+using ArrayInterface: ismutable, restructure
 import GenericSchur
 
 """

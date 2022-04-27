@@ -124,7 +124,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         expHe = @view(expH[:, 1])
     end
     # `ArrayInterface.restructure` will convert the `expHe` to the target matrix type that can interact with `V`.
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), ArrayInterface.restructure(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), restructure(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 ############################
