@@ -101,9 +101,10 @@ function arnoldi(A, b; m=min(30, size(A, 1)), ishermitian=LinearAlgebra.ishermit
     n = length(b)
     U = ishermitian ? real(T) : T
 
-    V = similar(A, T, (n, m + 1))
-    H = similar(A, U, (m+1, m))
-    fill!(H, zero(U))
+    # V stores the Krylov vectors
+    V = similar(b, T, (n, m + 1))
+    # H is a small dense array in tridiagonal form
+    H = zeros(U, (m+1, m))
 
     Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), V, H)
 

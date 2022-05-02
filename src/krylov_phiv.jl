@@ -123,9 +123,11 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         expH = exponential!(t * cache,expmethod)
         expHe = @view(expH[:, 1])
     end
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
+    # `ArrayInterface.restructure` will convert the `expHe` to the target matrix type that can interact with `V`.
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
+compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
 
 ############################
 # Cache for phiv
