@@ -127,6 +127,34 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
+function ExponentialUtilities.expv!(w::GPUArrays.AbstractGPUVector{Tw},
+                            t::Real, Ks::KrylovSubspace{T, U};
+                            cache=nothing,
+                            dexpHe::GPUArrays.AbstractGPUVector = typeof(w)(undef, Ks.m)) where {Tw, T, U}
+    m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
+    @assert length(w) == size(V, 1) "Dimension mismatch"
+    if cache == nothing
+        cache = Matrix{U}(undef, m, m)
+    elseif isa(cache, ExpvCache)
+        cache = get_cache(cache, m)
+    else
+        throw(ArgumentError("Cache must be an ExpvCache"))
+    end
+    copyto!(cache, @view(H[1:m, :]))
+    if ishermitian(cache)
+        # Optimize the case for symtridiagonal H
+        F = eigen!(SymTridiagonal(cache))
+        expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
+    else
+        lmul!(t, cache); expH = cache
+        _exp!(expH)
+        expHe = @view(expH[:, 1])
+    end
+
+    copyto!(dexpHe, expHe)
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), dexpHe)) # exp(A) ≈ norm(b) * V * exp(H)e
+end
+
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
 
 ############################
