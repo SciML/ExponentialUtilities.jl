@@ -2,6 +2,7 @@ module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
 using ArrayInterface: ismutable
 import GenericSchur
+import GPUArrays
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
