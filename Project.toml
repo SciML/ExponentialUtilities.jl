@@ -5,18 +5,18 @@ version = "1.15.0"
 
 [deps]
 ArrayInterface = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
+GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 GenericSchur = "c145ed77-6b09-5dd9-b285-bf645a82121e"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 libblastrampoline_jll = "8e850b90-86db-534c-a0d3-1478176c7d93"
 
 [compat]
 ArrayInterface = "3, 4, 5"
-Requires = "1.0"
-julia = "1.6"
 GenericSchur = "0.5.3"
+GPUArrays = "8"
+julia = "1.6"
 
 [extras]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"

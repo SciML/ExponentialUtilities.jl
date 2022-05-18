@@ -1,7 +1,8 @@
 module ExponentialUtilities
-using LinearAlgebra, SparseArrays, Printf, Requires
+using LinearAlgebra, SparseArrays, Printf
 using ArrayInterface: ismutable
 import GenericSchur
+import GPUArrays
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
@@ -30,66 +31,5 @@ export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCa
     expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep, phiv_timestep!,
     StegrCache, get_subspace_cache, exponential!
 export ExpMethodHigham2005, ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative, ExpMethodDiagonalization
-function __init__()
-    @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" begin
-        function ExponentialUtilities.expv!(w::CuArrays.CuVector{Tw},
-                                    t::Real, Ks::KrylovSubspace{T, U};
-                                    cache=nothing,
-                                    dexpHe::CuArrays.CuVector = CuArrays.CuVector{U}(undef, Ks.m)) where {Tw, T, U}
-            m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-            @assert length(w) == size(V, 1) "Dimension mismatch"
-            if cache == nothing
-                cache = Matrix{U}(undef, m, m)
-            elseif isa(cache, ExpvCache)
-                cache = get_cache(cache, m)
-            else
-                throw(ArgumentError("Cache must be an ExpvCache"))
-            end
-            copyto!(cache, @view(H[1:m, :]))
-            if ishermitian(cache)
-                # Optimize the case for symtridiagonal H
-                F = eigen!(SymTridiagonal(cache))
-                expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
-            else
-                lmul!(t, cache); expH = cache
-                exponential!(expH)
-                expHe = @view(expH[:, 1])
-            end
-
-            copyto!(dexpHe, expHe)
-            lmul!(beta, mul!(w, @view(V[:, 1:m]), dexpHe)) # exp(A) ≈ norm(b) * V * exp(H)e
-        end
-    end
-
-    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
-        function ExponentialUtilities.expv!(w::CUDA.CuVector{Tw},
-                                    t::Real, Ks::KrylovSubspace{T, U};
-                                    cache=nothing,
-                                    dexpHe::CUDA.CuVector = CUDA.CuVector{U}(undef, Ks.m)) where {Tw, T, U}
-            m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-            @assert length(w) == size(V, 1) "Dimension mismatch"
-            if cache == nothing
-                cache = Matrix{U}(undef, m, m)
-            elseif isa(cache, ExpvCache)
-                cache = get_cache(cache, m)
-            else
-                throw(ArgumentError("Cache must be an ExpvCache"))
-            end
-            copyto!(cache, @view(H[1:m, :]))
-            if ishermitian(cache)
-                # Optimize the case for symtridiagonal H
-                F = eigen!(SymTridiagonal(cache))
-                expHe = F.vectors * (exp.(lmul!(t,F.values)) .* @view(F.vectors[1, :]))
-            else
-                lmul!(t, cache); expH = cache
-                _exp!(expH)
-                expHe = @view(expH[:, 1])
-            end
-
-            copyto!(dexpHe, expHe)
-            lmul!(beta, mul!(w, @view(V[:, 1:m]), dexpHe)) # exp(A) ≈ norm(b) * V * exp(H)e
-        end
-    end
-end
 
 end
