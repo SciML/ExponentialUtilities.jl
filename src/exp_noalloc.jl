@@ -13,7 +13,9 @@ ExpMethodHigham2005(A::AbstractMatrix)=ExpMethodHigham2005(A isa StridedMatrix)
 ExpMethodHigham2005()=ExpMethodHigham2005(true)
 
 function alloc_mem(A,::ExpMethodHigham2005)
-    return [similar(A) for i=1:5];
+    T = eltype(A)
+    scale = T <: LinearAlgebra.BlasFloat ? similar(A, real(T), size(A, 1)) : nothing
+    return [similar(A) for i=1:5], scale
 end
 
 
@@ -26,12 +28,46 @@ function getmem(cache,k) # Called from generated code
     return cache[k-1];
 end
 function ldiv_for_generated!(C,A,B) # C=A\B. Called from generated code
-    F= lu!(A);
+    F = lu!(A) # This allocation is unavoidable, due to the interface of LinearAlgebra
     ldiv!(F,B); # Result stored in B
     if (pointer_from_objref(C) != pointer_from_objref(B)) # Aliasing allowed
         copyto!(C,B)
     end
     return C
+end
+
+const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4, 10.8, 21.6, 43.2, 86.4, 172.8, 345.6, 691.2)
+
+# From LinearAlgebra
+const LIBLAPACK = VERSION >= v"1.7" ? BLAS.libblastrampoline : LAPACK.liblapack
+using LinearAlgebra: BlasInt, checksquare
+for (gebal, gebak, elty, relty) in
+    ((:dgebal_, :dgebak_, :Float64, :Float64),
+     (:sgebal_, :sgebak_, :Float32, :Float32),
+     (:zgebal_, :zgebak_, :ComplexF64, :Float64),
+     (:cgebal_, :cgebak_, :ComplexF32, :Float32))
+    @eval begin
+        #     SUBROUTINE DGEBAL( JOB, N, A, LDA, ILO, IHI, SCALE, INFO )
+        #*     .. Scalar Arguments ..
+        #      CHARACTER          JOB
+        #      INTEGER            IHI, ILP, INFO, LDA, N
+        #     .. Array Arguments ..
+        #      DOUBLE PRECISION   A( LDA, * ), SCALE( * )
+        function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
+            BLAS.chkstride1(A)
+            n = checksquare(A)
+            LAPACK.chkfinite(A) # balancing routines don't support NaNs and Infs
+            ihi = Ref{BlasInt}()
+            ilo = Ref{BlasInt}()
+            info = Ref{BlasInt}()
+            ccall((BLAS.@blasfunc($gebal), LIBLAPACK), Cvoid,
+                  (Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+                   Ptr{BlasInt}, Ptr{BlasInt}, Ptr{$relty}, Ptr{BlasInt}, Clong),
+                  job, n, A, max(1,stride(A,2)), ilo, ihi, scale, info, 1)
+            LAPACK.chklapackerror(info[])
+            ilo[], ihi[], scale
+        end
+    end
 end
 
 # Inplace add of a UniformScaling object (support julia 1.6.2)
@@ -41,35 +77,24 @@ end
         A[i] += s
     end
 end
-function exponential!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
+function exponential!(A,method::ExpMethodHigham2005,_cache=alloc_mem(A,method))
+    cache, _scale = _cache
     n = LinearAlgebra.checksquare(A)
     nA = opnorm(A,1);
 
     # Maybe to balancing
     if method.do_balancing
         if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
-            ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
+            ilo, ihi, scale = gebal_noalloc!('B', A, _scale)    # modifies A and _scale
         else
             A, bal = GenericSchur.balance!(A)
             ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
         end
     end
 
-    # Select how many multiplications to use
-    rhov=    [0.015; 0.25; 0.95; 2.1; 5.4];
-    # Number of memslots needed (beside A)
-    memslots=[3   ;    4;    5;   5;   5];
-    for s=1:7 # Only 8 since exp(5.4*2^8)=Inf
-        push!(rhov, rhov[end]*2);
-        push!(memslots,memslots[end]);
-    end
-    i = findfirst(nA .< rhov)
-
-
-
     # Make the call to the appropriate exp_gen! function
     X = Base.Cartesian.@nif 13 d -> begin
-        nA < rhov[d]
+        nA < RHO_V[d]
     end d -> begin # if condition
         exp_gen!(cache, A, Val(d))
     end d -> begin # fallback (d == 13)
@@ -106,5 +131,4 @@ function exponential!(A,method::ExpMethodHigham2005,cache=alloc_mem(A,method))
     end
 
     return X
-
 end
