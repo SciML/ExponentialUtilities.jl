@@ -39,6 +39,7 @@ end
 const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4, 10.8, 21.6, 43.2, 86.4, 172.8, 345.6, 691.2)
 
 # From LinearAlgebra
+const LIBLAPACK = VERSION >= v"1.7" ? BLAS.libblastrampoline : LAPACK.liblapack
 using LinearAlgebra: BlasInt, checksquare
 for (gebal, gebak, elty, relty) in
     ((:dgebal_, :dgebak_, :Float64, :Float64),
@@ -59,7 +60,7 @@ for (gebal, gebak, elty, relty) in
             ihi = Ref{BlasInt}()
             ilo = Ref{BlasInt}()
             info = Ref{BlasInt}()
-            ccall((BLAS.@blasfunc($gebal), BLAS.libblastrampoline), Cvoid,
+            ccall((BLAS.@blasfunc($gebal), LIBLAPACK), Cvoid,
                   (Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
                    Ptr{BlasInt}, Ptr{BlasInt}, Ptr{$relty}, Ptr{BlasInt}, Clong),
                   job, n, A, max(1,stride(A,2)), ilo, ihi, scale, info, 1)
