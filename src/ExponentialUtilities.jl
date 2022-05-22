@@ -1,6 +1,6 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
-using ArrayInterface: ismutable
+using ArrayInterfaceCore: ismutable
 import GenericSchur
 import GPUArrays
 
