@@ -55,12 +55,5 @@ You can adjust how the Krylov subspace is constructed by setting various keyword
 - There are a few community forums:
     - the #diffeq-bridged channel in the [Julia Slack](https://julialang.org/slack/)
     - [JuliaDiffEq](https://gitter.im/JuliaDiffEq/Lobby) on Gitter
-    - on the Julia Discourse forums (look for the [modelingtoolkit tag](https://discourse.julialang.org/tag/modelingtoolkit)
+    - on the [Julia Discourse forums](https://discourse.julialang.org)
     - see also [SciML Community page](https://sciml.ai/community/)
-
-## Roadmap
-
-The current algorithms should support automatic differentiation, though improved
-adjoint overloads are planned to be added in the current update (which will make
-use of the `f(u,p)` form). Future updates will include standard methods for
-larger scale nonlinear solving like Newton-Krylov methods.
