@@ -127,10 +127,10 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-function ExponentialUtilities.expv!(w::GPUArrays.AbstractGPUVector{Tw},
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
                             t::Real, Ks::KrylovSubspace{T, U};
                             cache=nothing,
-                            dexpHe::GPUArrays.AbstractGPUVector = typeof(w)(undef, Ks.m)) where {Tw, T, U}
+                            dexpHe::GPUArraysCore.AbstractGPUVector = typeof(w)(undef, Ks.m)) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if cache == nothing
