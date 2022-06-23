@@ -7,15 +7,15 @@
 abstract type SubspaceCache{T} end
 abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
-mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
+mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
     v::Vector{T} # Subspace-propagated vector
     w::Vector{T}
     sw::Stegr.StegrWork{R}
-    StegrCache(::Type{T}, n::Integer) where {T} = new{T,real(T)}(
-        Vector{T}(undef, n),
-        Vector{T}(undef, n),
-        Stegr.StegrWork(real(T), n),
-    )
+    function StegrCache(::Type{T}, n::Integer) where {T}
+        new{T, real(T)}(Vector{T}(undef, n),
+                        Vector{T}(undef, n),
+                        Stegr.StegrWork(real(T), n))
+    end
 end
 
 """
@@ -25,12 +25,10 @@ Calculate the subspace exponential `exp(t*T)` for a tridiagonal
 subspace matrix `T` with `α` on the diagonal and `β` on the
 super-/subdiagonal, diagonalizing via `stegr!`.
 """
-function expT!(
-    α::AbstractVector{R},
-    β::AbstractVector{R},
-    t::Number,
-    cache::StegrCache{T,R},
-) where {T,R<:Real}
+function expT!(α::AbstractVector{R},
+               β::AbstractVector{R},
+               t::Number,
+               cache::StegrCache{T, R}) where {T, R <: Real}
     LAPACK.stegr!(α, β, cache.sw)
     sel = 1:length(α)
     @inbounds for i in sel
@@ -39,9 +37,12 @@ function expT!(
     mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel, sel]), @view(cache.w[sel]))
 end
 
-get_subspace_cache(Ks::KrylovSubspace{T,U}) where {T,U<:Complex} =
+function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Complex}
     error("Subspace exponential caches not yet available for non-Hermitian matrices.")
-get_subspace_cache(Ks::KrylovSubspace{T,U}) where {T,U<:Real} = StegrCache(T, Ks.maxiter)
+end
+function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Real}
+    StegrCache(T, Ks.maxiter)
+end
 
 ########################################
 # Phiv with error estimate as termination condition
@@ -56,19 +57,18 @@ generated subspace is below the requested tolerance. `Ks` is a
 exact type decides which algorithm is used to compute the subspace
 exponential.
 """
-function expv!(
-    w::AbstractVector{T},
-    t::Number,
-    A,
-    b::AbstractVector{T},
-    Ks::KrylovSubspace{T,B,B},
-    cache::HSC;
-    atol::B = 1.0e-8,
-    rtol::B = 1.0e-4,
-    m = min(Ks.maxiter, size(A, 1)),
-    verbose::Bool = false,
-    expmethod = ExpMethodHigham2005(),
-) where {B,T<:Number,HSC<:HermitianSubspaceCache}
+function expv!(w::AbstractVector{T},
+               t::Number,
+               A,
+               b::AbstractVector{T},
+               Ks::KrylovSubspace{T, B, B},
+               cache::HSC;
+               atol::B = 1.0e-8,
+               rtol::B = 1.0e-4,
+               m = min(Ks.maxiter, size(A, 1)),
+               verbose::Bool = false,
+               expmethod = ExpMethodHigham2005()) where {B, T <: Number,
+                                                         HSC <: HermitianSubspaceCache}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -91,7 +91,7 @@ function expv!(
     β = @diagview(H, -1)
     n = size(V, 1)
 
-    for j ∈ 1:m
+    for j in 1:m
         lanczos_step!(j, A, V, α, β)
         expT!(@view(α[1:j]), @view(β[1:j]), t, cache)
 
@@ -108,5 +108,5 @@ function expv!(
     end
     verbose && println("Krylov subspace size: ", Ks.m)
 
-    lmul!(Ks.beta, mul!(w, @view(Ks.V[:, 1:Ks.m]), @view(cache.v[1:Ks.m])))
+    lmul!(Ks.beta, mul!(w, @view(Ks.V[:, 1:(Ks.m)]), @view(cache.v[1:(Ks.m)])))
 end

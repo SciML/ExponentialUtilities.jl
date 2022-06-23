@@ -1,6 +1,5 @@
 #
 
-
 # Fallback
 """
     cache=alloc_mem(A,method)
@@ -26,7 +25,6 @@ struct ExpMethodDiagonalization
     enforce_real::Bool
 end
 ExpMethodDiagonalization() = ExpMethodDiagonalization(true);
-
 
 """
     E=exponential!(A,[method [cache]])
@@ -54,8 +52,6 @@ function exponential!(A, method::ExpMethodDiagonalization, cache = nothing)
     copyto!(A, E)
     return A
 end
-
-
 
 """
     ExpMethodNative()

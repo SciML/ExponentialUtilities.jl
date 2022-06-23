@@ -43,19 +43,17 @@ References:
 * Niesen, J. and Wright, W.M., 2011. A Krylov subspace method for option pricing. SSRN 1799124
 * Niesen, J. and Wright, W.M., 2012. Algorithm 919: A Krylov subspace algorithm for evaluating the ``φ``-functions appearing in exponential integrators. ACM Transactions on Mathematical Software (TOMS), 38(3), p.22
 """
-function kiops(
-    tau_out,
-    A,
-    u;
-    mmin::Int = 10,
-    mmax::Int = 128,
-    m::Int = min(mmin, mmax),
-    tol::Real = 1e-7,
-    opnorm = LinearAlgebra.opnorm(A, Inf),
-    iop::Int = 2,
-    ishermitian::Bool = LinearAlgebra.ishermitian(A),
-    task1::Bool = false,
-)
+function kiops(tau_out,
+               A,
+               u;
+               mmin::Int = 10,
+               mmax::Int = 128,
+               m::Int = min(mmin, mmax),
+               tol::Real = 1e-7,
+               opnorm = LinearAlgebra.opnorm(A, Inf),
+               iop::Int = 2,
+               ishermitian::Bool = LinearAlgebra.ishermitian(A),
+               task1::Bool = false)
     n, ppo = size(u, 1), size(u, 2)
     p = ppo - 1
 
@@ -68,7 +66,7 @@ function kiops(
     # Preallocate matrix
     TA, Tb = eltype(A), eltype(u)
     T = promote_type(TA, Tb)
-    Ks = KrylovSubspace{T,ishermitian ? real(T) : T}(n, m, p)
+    Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(n, m, p)
 
     step = 0
     krystep = 0
@@ -127,19 +125,17 @@ function kiops(
     local beta, kest
     while tau_now < tau_end
         oldj = Ks.m
-        arnoldi!(
-            Ks,
-            (A, u_flip),
-            (w, w_aug);
-            opnorm = opnorm,
-            ishermitian = ishermitian,
-            iop = iop,
-            init = j,
-            t = tau_now,
-            mu = mu,
-            l = l,
-            m = m,
-        )
+        arnoldi!(Ks,
+                 (A, u_flip),
+                 (w, w_aug);
+                 opnorm = opnorm,
+                 ishermitian = ishermitian,
+                 iop = iop,
+                 init = j,
+                 t = tau_now,
+                 mu = mu,
+                 l = l,
+                 m = m)
         V = getfield(Ks, :V)
         H = getfield(Ks, :H)
         j = Ks.m
@@ -147,18 +143,18 @@ function kiops(
         beta = Ks.beta
 
         # To obtain the phi_1 function which is needed for error estimate
-        H[1, j+1] = 1
+        H[1, j + 1] = 1
 
         # Save h_j+1,j and remove it temporarily to compute the exponential of H
-        nrm = H[j+1, j]
-        H[j+1, j] = 0
+        nrm = H[j + 1, j]
+        H[j + 1, j] = 0
 
         # Compute the exponential of the augmented matrix
-        F = exp(sgn * tau * H[1:j+1, 1:j+1])
+        F = exp(sgn * tau * H[1:(j + 1), 1:(j + 1)])
         exps = exps + 1
 
         # Restore the value of H_{m+1,m}
-        H[j+1, j] = nrm
+        H[j + 1, j] = nrm
 
         if happy
             # Happy breakdown wrap up
@@ -168,7 +164,7 @@ function kiops(
             happy = false
         else
             # Local truncation error estimation
-            err = abs(beta * nrm * F[j, j+1])
+            err = abs(beta * nrm * F[j, j + 1])
 
             # Error for this step
             oldomega = omega
@@ -227,29 +223,27 @@ function kiops(
 
         # Check error against target
         if omega <= delta
-            tau_now, l, j, reject, ireject, step = kiops_update_solution!(
-                tau_now,
-                tau,
-                tau_out,
-                w,
-                l,
-                V,
-                F,
-                H,
-                beta,
-                j,
-                n,
-                step,
-                numSteps,
-                reject,
-                ireject,
-            )
+            tau_now, l, j, reject, ireject, step = kiops_update_solution!(tau_now,
+                                                                          tau,
+                                                                          tau_out,
+                                                                          w,
+                                                                          l,
+                                                                          V,
+                                                                          F,
+                                                                          H,
+                                                                          beta,
+                                                                          j,
+                                                                          n,
+                                                                          step,
+                                                                          numSteps,
+                                                                          reject,
+                                                                          ireject)
         else
             # Nope, try again
             ireject = ireject + 1
 
             # Restore the original matrix
-            H[1, j+1] = 0
+            H[1, j + 1] = 0
         end
 
         oldtau = tau
@@ -274,7 +268,7 @@ function kiops(
                 phiHan = phiHan .- 1
             end
 
-            for l = 1:numSteps
+            for l in 1:numSteps
                 @. wl = wl * (1 / tau_out[l]^phiHan)
             end
         end
@@ -287,23 +281,21 @@ function kiops(
     return w, stats
 end
 
-Base.@propagate_inbounds function kiops_update_solution!(
-    tau_now,
-    tau,
-    tau_out,
-    w,
-    l,
-    V,
-    F,
-    H,
-    beta,
-    j,
-    n,
-    step,
-    numSteps,
-    reject,
-    ireject,
-)
+Base.@propagate_inbounds function kiops_update_solution!(tau_now,
+                                                         tau,
+                                                         tau_out,
+                                                         w,
+                                                         l,
+                                                         V,
+                                                         F,
+                                                         H,
+                                                         beta,
+                                                         j,
+                                                         n,
+                                                         step,
+                                                         numSteps,
+                                                         reject,
+                                                         ireject)
     # Yep, got the required tolerance update
     reject = reject + ireject
     step = step + 1
@@ -311,7 +303,7 @@ Base.@propagate_inbounds function kiops_update_solution!(
     # Udate for tau_out in the interval (tau_now, tau_now + tau)
     blownTs = 0
     nextT = tau_now + tau
-    for k = l:numSteps
+    for k in l:numSteps
         if abs(tau_out[k]) < abs(nextT)
             blownTs = blownTs + 1
         end
@@ -319,13 +311,13 @@ Base.@propagate_inbounds function kiops_update_solution!(
 
     if blownTs != 0
         # Copy current w to w we continue with.
-        copyto!(@view(w[:, l+blownTs]), @view(w[:, l]))
+        copyto!(@view(w[:, l + blownTs]), @view(w[:, l]))
 
-        for k = 0:blownTs-1
-            tauPhantom = tau_out[l+k] - tau_now
+        for k in 0:(blownTs - 1)
+            tauPhantom = tau_out[l + k] - tau_now
             F2 = exp(sign(tau_out[end]) * tauPhantom * @view(H[1:j, 1:j]))
-            mul!(@view(w[:, l+k]), @view(V[1:n, 1:j]), @view(F2[1:j, 1]))
-            rmul!(@view(w[:, l+k]), beta)
+            mul!(@view(w[:, l + k]), @view(V[1:n, 1:j]), @view(F2[1:j, 1]))
+            rmul!(@view(w[:, l + k]), beta)
         end
 
         # Advance l.

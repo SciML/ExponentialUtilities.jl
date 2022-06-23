@@ -1,6 +1,5 @@
 using LinearAlgebra
 
-
 @inline function exp_gen!(cache, A, ::Val{2})
     T = promote_type(eltype(A), Float64) # Make it work for many 'bigger' types (matrices and scalars)
     # max_memslots=5
@@ -53,4 +52,3 @@ using LinearAlgebra
     # Deallocating X in slot 2
     copyto!(A, memslots3) # Returning P
 end
-

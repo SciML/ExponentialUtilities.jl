@@ -1,6 +1,5 @@
 using LinearAlgebra
 
-
 @inline function exp_gen!(cache, A, ::Val{7})
     T = promote_type(eltype(A), Float64) # Make it work for many 'bigger' types (matrices and scalars)
     # max_memslots=6
@@ -43,9 +42,8 @@ using LinearAlgebra
     coeff4 = 3.352212864e10
     coeff5 = 1.0
     # Smart lincomb recycle Ub
-    memslots6 .=
-        coeff2 .* memslots2 .+ coeff3 .* memslots3 .+ coeff4 .* memslots4 .+
-        coeff5 .* memslots6
+    memslots6 .= coeff2 .* memslots2 .+ coeff3 .* memslots3 .+ coeff4 .* memslots4 .+
+                 coeff5 .* memslots6
     inplace_add!(memslots6, I * coeff1)
     # Computing U with operation: mult
     mul!(memslots5, memslots1, memslots6)
@@ -66,9 +64,8 @@ using LinearAlgebra
     coeff4 = 6.704425728e11
     coeff5 = 1.0
     # Smart lincomb recycle A2
-    memslots2 .=
-        coeff2 .* memslots2 .+ coeff3 .* memslots3 .+ coeff4 .* memslots4 .+
-        coeff5 .* memslots6
+    memslots2 .= coeff2 .* memslots2 .+ coeff3 .* memslots3 .+ coeff4 .* memslots4 .+
+                 coeff5 .* memslots6
     inplace_add!(memslots2, I * coeff1)
     # Deallocating A4 in slot 3
     # Deallocating A6 in slot 4
@@ -95,4 +92,3 @@ using LinearAlgebra
     # Deallocating S1 in slot 1
     copyto!(A, memslots2) # Returning S2
 end
-

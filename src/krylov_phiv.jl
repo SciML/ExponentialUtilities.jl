@@ -12,7 +12,7 @@ function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
 end
 function get_cache(C::ExpvCache, m::Int)
     m^2 > length(C.mem) && resize!(C, m) # resize the cache if needed
-    reshape(@view(C.mem[1:m^2]), m, m)
+    reshape(@view(C.mem[1:(m^2)]), m, m)
 end
 
 ############################
@@ -42,53 +42,45 @@ function expv(t, A, b; mode = :happy_breakdown, kwargs...)
         throw(ArgumentError("Unknown Krylov iteration termination mode, $(mode)"))
     end
 end
-function _expv_hb(
-    t::Tt,
-    A,
-    b;
-    expmethod = ExpMethodHigham2005(),
-    cache = nothing,
-    kwargs_arnoldi...,
-) where {Tt}
+function _expv_hb(t::Tt,
+                  A,
+                  b;
+                  expmethod = ExpMethodHigham2005(),
+                  cache = nothing,
+                  kwargs_arnoldi...) where {Tt}
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, Ks; cache = cache, expmethod = expmethod)
 end
-function _expv_ee(
-    t::Tt,
-    A,
-    b;
-    m = min(30, size(A, 1)),
-    tol = 1e-7,
-    rtol = √(tol),
-    ishermitian::Bool = LinearAlgebra.ishermitian(A),
-    expmethod = ExpMethodHigham2005(),
-) where {Tt}
+function _expv_ee(t::Tt,
+                  A,
+                  b;
+                  m = min(30, size(A, 1)),
+                  tol = 1e-7,
+                  rtol = √(tol),
+                  ishermitian::Bool = LinearAlgebra.ishermitian(A),
+                  expmethod = ExpMethodHigham2005()) where {Tt}
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A, 1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
-    Ks = KrylovSubspace{T,U}(n, m)
+    Ks = KrylovSubspace{T, U}(n, m)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
-    expv!(
-        w,
-        t,
-        A,
-        b,
-        Ks,
-        get_subspace_cache(Ks);
-        atol = tol,
-        rtol = rtol,
-        expmethod = expmethod,
-    )
+    expv!(w,
+          t,
+          A,
+          b,
+          Ks,
+          get_subspace_cache(Ks);
+          atol = tol,
+          rtol = rtol,
+          expmethod = expmethod)
 end
-function expv(
-    t::Tt,
-    Ks::KrylovSubspace{T,U};
-    expmethod = ExpMethodHigham2005(),
-    kwargs...,
-) where {Tt,T,U}
+function expv(t::Tt,
+              Ks::KrylovSubspace{T, U};
+              expmethod = ExpMethodHigham2005(),
+              kwargs...) where {Tt, T, U}
     n = size(getV(Ks), 1)
     w = Vector{promote_type(Tt, T)}(undef, n)
     expv!(w, t, Ks; kwargs...)
@@ -98,15 +90,13 @@ end
 
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
-function expv!(
-    w::AbstractVector{Tw},
-    t::Real,
-    Ks::KrylovSubspace{T,U};
-    cache = nothing,
-    expmethod = ExpMethodHigham2005(),
-) where {Tw,T,U}
+function expv!(w::AbstractVector{Tw},
+               t::Real,
+               Ks::KrylovSubspace{T, U};
+               cache = nothing,
+               expmethod = ExpMethodHigham2005()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w) == size(V, 1) "Dimension mismatch"
+    @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache == nothing
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -131,15 +121,13 @@ end
 # NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
 #       or Tw can be Float64, while t is ComplexF32 and T is Float64
 #       thus they can not share the same TypeVar.
-function expv!(
-    w::AbstractVector{Complex{Tw}},
-    t::Complex{Tt},
-    Ks::KrylovSubspace{T,U};
-    cache = nothing,
-    expmethod = ExpMethodHigham2005(),
-) where {Tw,Tt,T,U}
+function expv!(w::AbstractVector{Complex{Tw}},
+               t::Complex{Tt},
+               Ks::KrylovSubspace{T, U};
+               cache = nothing,
+               expmethod = ExpMethodHigham2005()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w) == size(V, 1) "Dimension mismatch"
+    @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache == nothing
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -164,15 +152,18 @@ function expv!(
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-function ExponentialUtilities.expv!(
-    w::GPUArraysCore.AbstractGPUVector{Tw},
-    t::Real,
-    Ks::KrylovSubspace{T,U};
-    cache = nothing,
-    dexpHe::GPUArraysCore.AbstractGPUVector = typeof(w)(undef, Ks.m),
-) where {Tw,T,U}
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
+                                    t::Real,
+                                    Ks::KrylovSubspace{T, U};
+                                    cache = nothing,
+                                    dexpHe::GPUArraysCore.AbstractGPUVector = typeof(w)(undef,
+                                                                                        Ks.m)) where {
+                                                                                                      Tw,
+                                                                                                      T,
+                                                                                                      U
+                                                                                                      }
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w) == size(V, 1) "Dimension mismatch"
+    @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache == nothing
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -217,11 +208,11 @@ function get_caches(C::PhivCache, m::Int, p::Int)
     numelems^2 > length(C.mem) && resize!(C, m, p) # resize the cache if needed
     e = @view(C.mem[1:m])
     offset = m
-    Hcopy = reshape(@view(C.mem[offset+1:offset+m^2]), m, m)
+    Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
     offset += m^2
-    C1 = reshape(@view(C.mem[offset+1:offset+(m+p)^2]), m + p, m + p)
+    C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
     offset += (m + p)^2
-    C2 = reshape(@view(C.mem[offset+1:offset+m*(p+1)]), m, p + 1)
+    C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
     return e, Hcopy, C1, C2
 end
 
@@ -252,21 +243,19 @@ Compute the matrix-phi-vector products using a pre-constructed Krylov subspace.
 the φ-functions in exponential integrators. arXiv preprint arXiv:0907.4631.
 Formula (10).
 """
-function phiv(
-    t,
-    A,
-    b,
-    k;
-    cache = nothing,
-    correct = false,
-    errest = false,
-    kwargs_arnoldi...,
-)
+function phiv(t,
+              A,
+              b,
+              k;
+              cache = nothing,
+              correct = false,
+              errest = false,
+              kwargs_arnoldi...)
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = Matrix{eltype(b)}(undef, length(b), k + 1)
     phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
 end
-function phiv(t, Ks::KrylovSubspace{T,U}, k; kwargs...) where {T,U}
+function phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) where {T, U}
     n = size(getV(Ks), 1)
     w = Matrix{T}(undef, n, k + 1)
     phiv!(w, t, Ks, k; kwargs...)
@@ -276,18 +265,16 @@ end
 
 Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
 """
-function phiv!(
-    w::AbstractMatrix{T},
-    t::Number,
-    Ks::KrylovSubspace{T,U},
-    k::Integer;
-    cache = nothing,
-    correct = false,
-    errest = false,
-) where {T<:Number,U<:Number}
+function phiv!(w::AbstractMatrix{T},
+               t::Number,
+               Ks::KrylovSubspace{T, U},
+               k::Integer;
+               cache = nothing,
+               correct = false,
+               errest = false) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert size(w, 1) == size(V, 1) "Dimension mismatch"
-    @assert size(w, 2) == k + 1 "Dimension mismatch"
+    @assert size(w, 1)==size(V, 1) "Dimension mismatch"
+    @assert size(w, 2)==k + 1 "Dimension mismatch"
     if cache == nothing
         cache = PhivCache{T}(m, k)
     elseif !isa(cache, PhivCache)
@@ -304,8 +291,8 @@ function phiv!(
         # correct_p = beta * h_{m+1,m} * (em^T phi_p+1(H) e1) * v_m+1
         betah = beta * H[end, end] * t
         vlast = @view(V[:, end])
-        @inbounds for i = 1:k
-            axpy!(betah * C2[end, i+1], vlast, @view(w[:, i]))
+        @inbounds for i in 1:k
+            axpy!(betah * C2[end, i + 1], vlast, @view(w[:, i]))
         end
     end
     if errest
