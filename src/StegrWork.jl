@@ -29,24 +29,56 @@ mutable struct StegrWork{T<:Real}
     info::Vector{BlasInt}
 end
 
-for (stegr,elty) in ((:dstegr_,:Float64),
-                     (:sstegr_,:Float32))
+for (stegr, elty) in ((:dstegr_, :Float64), (:sstegr_, :Float32))
     @eval begin
         function stegr!(n::BlasInt, sw::StegrWork{$elty})
             ldz = stride(sw.Z, 2)
-            ccall((@blasfunc($stegr), liblapack), Cvoid,
-                  (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty},
-                   Ptr{$elty}, Ref{$elty}, Ref{$elty}, Ref{BlasInt},
-                   Ref{BlasInt}, Ptr{$elty}, Ptr{BlasInt}, Ptr{$elty},
-                   Ptr{$elty}, Ref{BlasInt}, Ptr{BlasInt}, Ptr{$elty},
-                   Ref{BlasInt}, Ptr{BlasInt}, Ref{BlasInt}, Ptr{BlasInt}),
-                  sw.jobz, sw.range, n,
-                  sw.dv, sw.ev,
-                  sw.vl, sw.vu, sw.il, sw.iu,
-                  sw.abstol, sw.m,
-                  sw.w, sw.Z, ldz,
-                  sw.isuppz, sw.work, sw.lwork, sw.iwork, sw.liwork,
-                  sw.info)
+            ccall(
+                (@blasfunc($stegr), liblapack),
+                Cvoid,
+                (
+                    Ref{UInt8},
+                    Ref{UInt8},
+                    Ref{BlasInt},
+                    Ptr{$elty},
+                    Ptr{$elty},
+                    Ref{$elty},
+                    Ref{$elty},
+                    Ref{BlasInt},
+                    Ref{BlasInt},
+                    Ptr{$elty},
+                    Ptr{BlasInt},
+                    Ptr{$elty},
+                    Ptr{$elty},
+                    Ref{BlasInt},
+                    Ptr{BlasInt},
+                    Ptr{$elty},
+                    Ref{BlasInt},
+                    Ptr{BlasInt},
+                    Ref{BlasInt},
+                    Ptr{BlasInt},
+                ),
+                sw.jobz,
+                sw.range,
+                n,
+                sw.dv,
+                sw.ev,
+                sw.vl,
+                sw.vu,
+                sw.il,
+                sw.iu,
+                sw.abstol,
+                sw.m,
+                sw.w,
+                sw.Z,
+                ldz,
+                sw.isuppz,
+                sw.work,
+                sw.lwork,
+                sw.iwork,
+                sw.liwork,
+                sw.info,
+            )
         end
     end
 end
@@ -58,7 +90,7 @@ Diagonalize the real-symmetric tridiagonal matrix with `α` on the
 diagonal and `β` on the super-/subdiagonal, using the workspaces
 allocated in `sw`.
 """
-function stegr!(α::AbstractVector{T}, β::AbstractVector{T}, sw::StegrWork{T}) where T
+function stegr!(α::AbstractVector{T}, β::AbstractVector{T}, sw::StegrWork{T}) where {T}
     # @assert length(sw.dv) >= length(α)
     # @assert length(sw.ev) >= length(β)
     copyto!(sw.dv, α)
@@ -72,8 +104,7 @@ end
 Allocate work arrays for diagonalization of real-symmetric tridiagonal
 matrices of sizes up to `n`×`n`.
 """
-function StegrWork(::Type{T}, n::Integer,
-                   jobz::Char = 'V', range::Char = 'A') where T
+function StegrWork(::Type{T}, n::Integer, jobz::Char = 'V', range::Char = 'A') where {T}
     n = convert(BlasInt, n)
     dv = Array{T}(undef, n)
     ev = Array{T}(undef, n)
@@ -88,16 +119,26 @@ function StegrWork(::Type{T}, n::Integer,
     iwork = Array{BlasInt}(undef, 1)
     liwork = -one(BlasInt)
     info = Array{BlasInt}(undef, 1)
-    sw = StegrWork(jobz, range,
-                   dv, ev,
-                   0.0, 0.0,
-                   BlasInt(0), BlasInt(0),
-                   abstol, m,
-                   w, Z,
-                   isuppz,
-                   work, lwork,
-                   iwork, liwork,
-                   info)
+    sw = StegrWork(
+        jobz,
+        range,
+        dv,
+        ev,
+        0.0,
+        0.0,
+        BlasInt(0),
+        BlasInt(0),
+        abstol,
+        m,
+        w,
+        Z,
+        isuppz,
+        work,
+        lwork,
+        iwork,
+        liwork,
+        info,
+    )
     # Call stegr! once to query for necessary workspace sizes.
     stegr!(n, sw)
     sw.lwork = BlasInt(sw.work[1])

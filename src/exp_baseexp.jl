@@ -4,16 +4,18 @@
 The same as `ExpMethodHigham2005` but follows `Base.exp` closer.
 
 """
-struct ExpMethodHigham2005Base
-end
-function alloc_mem(A::StridedMatrix{T},method::ExpMethodHigham2005Base) where T<: LinearAlgebra.BlasFloat
+struct ExpMethodHigham2005Base end
+function alloc_mem(
+    A::StridedMatrix{T},
+    method::ExpMethodHigham2005Base,
+) where {T<:LinearAlgebra.BlasFloat}
     n = LinearAlgebra.checksquare(A)
-    A2   = Matrix{T}(undef, n, n)
-    P    = Matrix{T}(undef, n, n)
-    U    = Matrix{T}(undef, n, n)
-    V    = Matrix{T}(undef, n, n)
+    A2 = Matrix{T}(undef, n, n)
+    P = Matrix{T}(undef, n, n)
+    U = Matrix{T}(undef, n, n)
+    V = Matrix{T}(undef, n, n)
     temp = Matrix{T}(undef, n, n)
-    return (A2,P,U,V,temp);
+    return (A2, P, U, V, temp)
 end
 
 
@@ -22,18 +24,22 @@ end
 ##
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
 ## become (approximately) `exp(A)`.
-function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
-               cache=alloc_mem(A,method)) where T <: LinearAlgebra.BlasFloat
+function exponential!(
+    A::StridedMatrix{T},
+    method::ExpMethodHigham2005Base,
+    cache = alloc_mem(A, method),
+) where {T<:LinearAlgebra.BlasFloat}
     X = A
     n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)
-        # return copytri!(parent(exp(Hermitian(A))), 'U', true)
+    # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
 
     A2, P, U, V, temp = cache
 
-    fill!(P, zero(T)); fill!(@diagview(P), one(T)) # P = Inn
-    
+    fill!(P, zero(T))
+    fill!(@diagview(P), one(T)) # P = Inn
+
     if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
         ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
     else
@@ -45,58 +51,80 @@ function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
     ## For sufficiently small nA, use lower order Padé-Approximations
     if (nA <= 2.1)
         if nA > 0.95
-            C = T[17643225600.,8821612800.,2075673600.,302702400.,
-                     30270240.,   2162160.,    110880.,     3960.,
-                           90.,         1.]
+            C = T[
+                17643225600.0,
+                8821612800.0,
+                2075673600.0,
+                302702400.0,
+                30270240.0,
+                2162160.0,
+                110880.0,
+                3960.0,
+                90.0,
+                1.0,
+            ]
         elseif nA > 0.25
-            C = T[17297280.,8648640.,1995840.,277200.,
-                     25200.,   1512.,     56.,     1.]
+            C = T[17297280.0, 8648640.0, 1995840.0, 277200.0, 25200.0, 1512.0, 56.0, 1.0]
         elseif nA > 0.015
-            C = T[30240.,15120.,3360.,
-                    420.,   30.,   1.]
+            C = T[30240.0, 15120.0, 3360.0, 420.0, 30.0, 1.0]
         else
-            C = T[120.,60.,12.,1.]
+            C = T[120.0, 60.0, 12.0, 1.0]
         end
         mul!(A2, A, A)
         @. U = C[2] * P
         @. V = C[1] * P
-        for k in 1:(div(size(C, 1), 2) - 1)
+        for k = 1:(div(size(C, 1), 2)-1)
             k2 = 2 * k
-            mul!(temp, P, A2); P, temp = temp, P # equivalent to P *= A2
-            @. U += C[k2 + 2] * P
-            @. V += C[k2 + 1] * P
+            mul!(temp, P, A2)
+            P, temp = temp, P # equivalent to P *= A2
+            @. U += C[k2+2] * P
+            @. V += C[k2+1] * P
         end
-        mul!(temp, A, U); U, temp = temp, U # equivalent to U = A * U
+        mul!(temp, A, U)
+        U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
         LAPACK.gesv!(temp, X)
     else
-        s  = log2(nA/5.4)               # power of 2 later reversed by squaring
+        s = log2(nA / 5.4)               # power of 2 later reversed by squaring
         if s > 0
-            si = ceil(Int,s)
-            A ./= convert(T,2^si)
+            si = ceil(Int, s)
+            A ./= convert(T, 2^si)
         end
-        C  = T[64764752532480000.,32382376266240000.,7771770303897600.,
-                1187353796428800.,  129060195264000.,  10559470521600.,
-                    670442572800.,      33522128640.,      1323241920.,
-                        40840800.,           960960.,           16380.,
-                             182.,                1.]
+        C = T[
+            64764752532480000.0,
+            32382376266240000.0,
+            7771770303897600.0,
+            1187353796428800.0,
+            129060195264000.0,
+            10559470521600.0,
+            670442572800.0,
+            33522128640.0,
+            1323241920.0,
+            40840800.0,
+            960960.0,
+            16380.0,
+            182.0,
+            1.0,
+        ]
         mul!(A2, A, A)
         @. U = C[2] * P
         @. V = C[1] * P
-        for k in 1:6
+        for k = 1:6
             k2 = 2 * k
-            mul!(temp, P, A2); P, temp = temp, P # equivalent to P *= A2
-            @. U += C[k2 + 2] * P
-            @. V += C[k2 + 1] * P
+            mul!(temp, P, A2)
+            P, temp = temp, P # equivalent to P *= A2
+            @. U += C[k2+2] * P
+            @. V += C[k2+1] * P
         end
-        mul!(temp, A, U); U, temp = temp, U # equivalent to U = A * U
+        mul!(temp, A, U)
+        U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
         LAPACK.gesv!(temp, X)
 
         if s > 0            # squaring to reverse dividing by power of 2
-            for t=1:si
+            for t = 1:si
                 mul!(temp, X, X)
                 X .= temp
             end
@@ -107,28 +135,36 @@ function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
     for j = ilo:ihi
         scj = scale[j]
         for i = 1:n
-            X[j,i] *= scj
+            X[j, i] *= scj
         end
         for i = 1:n
-            X[i,j] /= scj
+            X[i, j] /= scj
         end
     end
 
     if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
         if ilo > 1       # apply lower permutations in reverse order
-            for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
+            for j = (ilo-1):-1:1
+                LinearAlgebra.rcswap!(j, Int(scale[j]), X)
+            end
         end
         if ihi < n       # apply upper permutations in forward order
-            for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, Int(scale[j]), X) end
+            for j = (ihi+1):n
+                LinearAlgebra.rcswap!(j, Int(scale[j]), X)
+            end
         end
     else
         if ilo > 1       # apply lower permutations in reverse order
-            for j in (ilo-1):-1:1; LinearAlgebra.rcswap!(j, bal.prow[j], X) end
+            for j = (ilo-1):-1:1
+                LinearAlgebra.rcswap!(j, bal.prow[j], X)
+            end
         end
         if ihi < n       # apply upper permutations in forward order
-            for j in (ihi+1):n;    LinearAlgebra.rcswap!(j, bal.pcol[j-ihi], X) end
+            for j = (ihi+1):n
+                LinearAlgebra.rcswap!(j, bal.pcol[j-ihi], X)
+            end
         end
     end
-    
+
     return X
 end

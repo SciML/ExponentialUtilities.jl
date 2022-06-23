@@ -17,19 +17,24 @@ formula given by Sidje is used (Sidje, R. B. (1998). Expokit: a software
 package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
 """
-function phi(z::T, k::Integer; cache=nothing,expmethod=ExpMethodHigham2005()) where {T <: Number}
+function phi(
+    z::T,
+    k::Integer;
+    cache = nothing,
+    expmethod = ExpMethodHigham2005(),
+) where {T<:Number}
     # Construct the matrix
     if cache == nothing
-        cache = fill(zero(T), k+1, k+1)
+        cache = fill(zero(T), k + 1, k + 1)
     else
         fill!(cache, zero(T))
     end
-    cache[1,1] = z
+    cache[1, 1] = z
     for i = 1:k
-        cache[i,i+1] = one(T)
+        cache[i, i+1] = one(T)
     end
-    P = exponential!(cache,expmethod)
-    return P[1,:]
+    P = exponential!(cache, expmethod)
+    return P[1, :]
 end
 
 """
@@ -49,7 +54,7 @@ package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
 """
 function phiv_dense(A, v, k; kwargs...)
-    w = Matrix{eltype(A)}(undef, length(v), k+1)
+    w = Matrix{eltype(A)}(undef, length(v), k + 1)
     phiv_dense!(w, A, v, k; kwargs...)
 end
 """
@@ -57,18 +62,22 @@ end
 
 Non-allocating version of `phiv_dense`.
 """
-function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
-                     v::AbstractVector{T}, k::Integer;
-                     cache=nothing, expmethod=ExpMethodHigham2005()
-                     ) where {T <: Number}
+function phiv_dense!(
+    w::AbstractMatrix{T},
+    A::AbstractMatrix{T},
+    v::AbstractVector{T},
+    k::Integer;
+    cache = nothing,
+    expmethod = ExpMethodHigham2005(),
+) where {T<:Number}
     @assert size(w, 1) == size(A, 1) == size(A, 2) == length(v) "Dimension mismatch"
-    @assert size(w, 2) == k+1 "Dimension mismatch"
+    @assert size(w, 2) == k + 1 "Dimension mismatch"
     m = length(v)
     # Construct the extended matrix
     if cache == nothing
-        cache = fill(zero(T), m+k, m+k)
+        cache = fill(zero(T), m + k, m + k)
     else
-        @assert size(cache) == (m+k, m+k) "Dimension mismatch"
+        @assert size(cache) == (m + k, m + k) "Dimension mismatch"
         fill!(cache, zero(T))
     end
     cache[1:m, 1:m] = A
@@ -76,7 +85,7 @@ function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
     for i = m+1:m+k-1
         cache[i, i+1] = one(T)
     end
-    P = exponential!(cache,expmethod)
+    P = exponential!(cache, expmethod)
     # Extract results
     @views mul!(w[:, 1], P[1:m, 1:m], v)
     @inbounds for i = 1:k
@@ -102,7 +111,7 @@ Calls `phiv_dense` on each of the basis vectors to obtain the answer. If A
 is `Diagonal`, instead calls the scalar `phi` on each diagonal element and the
 return values are also `Diagonal`s
 """
-function phi(A::AbstractMatrix{T}, k; kwargs...) where {T <: Number}
+function phi(A::AbstractMatrix{T}, k; kwargs...) where {T<:Number}
     m = size(A, 1)
     if A isa Diagonal
         out = [similar(A) for i = 1:k+1]
@@ -116,20 +125,27 @@ end
 
 Non-allocating version of `phi` for non-diagonal matrix inputs.
 """
-function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=nothing,expmethod=ExpMethodHigham2005(A)) where {T <: Number}
+function phi!(
+    out::Vector{Matrix{T}},
+    A::AbstractMatrix{T},
+    k::Integer;
+    caches = nothing,
+    expmethod = ExpMethodHigham2005(A),
+) where {T<:Number}
     m = size(A, 1)
-    @assert length(out) == k + 1 && all(P -> size(P) == (m,m), out) "Dimension mismatch"
+    @assert length(out) == k + 1 && all(P -> size(P) == (m, m), out) "Dimension mismatch"
     if caches == nothing
         e = Vector{T}(undef, m)
-        W = Matrix{T}(undef, m, k+1)
-        C = Matrix{T}(undef, m+k, m+k)
+        W = Matrix{T}(undef, m, k + 1)
+        C = Matrix{T}(undef, m + k, m + k)
     else
         e, W, C = caches
-        @assert size(e) == (m,) && size(W) == (m, k+1) && size(C) == (m+k, m+k) "Dimension mismatch"
+        @assert size(e) == (m,) && size(W) == (m, k + 1) && size(C) == (m + k, m + k) "Dimension mismatch"
     end
     @inbounds for i = 1:m
-        fill!(e, zero(T)); e[i] = one(T) # e is the ith basis vector
-        phiv_dense!(W, A, e, k; cache=C, expmethod=expmethod) # W = [phi_0(A)*e phi_1(A)*e ... phi_k(A)*e]
+        fill!(e, zero(T))
+        e[i] = one(T) # e is the ith basis vector
+        phiv_dense!(W, A, e, k; cache = C, expmethod = expmethod) # W = [phi_0(A)*e phi_1(A)*e ... phi_k(A)*e]
         @inbounds for j = 1:k+1
             @inbounds for s = 1:m
                 out[j][s, i] = W[s, j]
@@ -138,10 +154,14 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches=n
     end
     return out
 end
-function phi!(out::Vector{Diagonal{T,V}}, A::Diagonal{T,V}, k::Integer;
-              caches=nothing) where {T <: Number, V <: AbstractVector{T}}
+function phi!(
+    out::Vector{Diagonal{T,V}},
+    A::Diagonal{T,V},
+    k::Integer;
+    caches = nothing,
+) where {T<:Number,V<:AbstractVector{T}}
     for i = 1:size(A, 1)
-        phiz = phi(A[i, i], k; cache=caches)
+        phiz = phi(A[i, i], k; cache = caches)
         for j = 1:k+1
             out[j][i, i] = phiz[j]
         end

@@ -7,13 +7,13 @@
 
 Pre-allocates memory associated with matrix exponential function `method` and matrix `A`. To be used in combination with [`exponential!`](@ref).
 """
-function alloc_mem(A,method)
-    return nothing;
+function alloc_mem(A, method)
+    return nothing
 end
 
 @deprecate _exp! exponential!
 @deprecate exp_generic exponential!
-exponential!(A)=exponential!(A,ExpMethodHigham2005(A));
+exponential!(A) = exponential!(A, ExpMethodHigham2005(A));
 
 ## The diagonalization based
 """
@@ -25,7 +25,7 @@ Matrix exponential method corresponding to the diagonalization with `eigen` poss
 struct ExpMethodDiagonalization
     enforce_real::Bool
 end
-ExpMethodDiagonalization()=ExpMethodDiagonalization(true);
+ExpMethodDiagonalization() = ExpMethodDiagonalization(true);
 
 
 """
@@ -45,13 +45,13 @@ julia> E2=exponential!(B,method,cache) # Very little allocation here
 ```
 
 """
-function exponential!(A,method::ExpMethodDiagonalization,cache=nothing)
-    F=eigen!(A)
-    E=F.vectors*Diagonal(exp.(F.values))/F.vectors
+function exponential!(A, method::ExpMethodDiagonalization, cache = nothing)
+    F = eigen!(A)
+    E = F.vectors * Diagonal(exp.(F.values)) / F.vectors
     if (method.enforce_real && isreal(A))
-        E=real.(E);
+        E = real.(E)
     end
-    copyto!(A,E)
+    copyto!(A, E)
     return A
 end
 
@@ -63,8 +63,7 @@ end
 Matrix exponential method corresponding to calling `Base.exp`.
 
 """
-struct ExpMethodNative
-end
-function exponential!(A,method::ExpMethodNative,cache=nothing)
+struct ExpMethodNative end
+function exponential!(A, method::ExpMethodNative, cache = nothing)
     return exp(A)
 end

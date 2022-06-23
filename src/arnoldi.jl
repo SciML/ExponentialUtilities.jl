@@ -23,7 +23,7 @@ Resize `Ks` to a different `maxiter`, destroying its contents.
 
 This is an expensive operation and should be used scarcely.
 """
-mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T}, HType <: AbstractMatrix{U}}
+mutable struct KrylovSubspace{T,U,B,VType<:AbstractMatrix{T},HType<:AbstractMatrix{U}}
     m::Int        # subspace dimension
     maxiter::Int  # maximum allowed subspace size
     augmented::Int# length of the augmented part
@@ -32,26 +32,38 @@ mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T}, HType <: Abst
     H::HType  # Gram-Schmidt coefficients (real for Hermitian matrices)
 end
 
-function KrylovSubspace{T,U}(n::Integer, maxiter::Integer=30, augmented::Integer=false) where {T,U}
+function KrylovSubspace{T,U}(
+    n::Integer,
+    maxiter::Integer = 30,
+    augmented::Integer = false,
+) where {T,U}
     V = Matrix{T}(undef, n + augmented, maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
-    return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented, zero(real(T)), V, H)
+    return KrylovSubspace{T,U,real(T),Matrix{T},Matrix{U}}(
+        maxiter,
+        maxiter,
+        augmented,
+        zero(real(T)),
+        V,
+        H,
+    )
 end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T,T}(args...)
 
-getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m + 1])
-getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m + 1, 1:Ks.m+!iszero(Ks.augmented)])
+getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:Ks.m+1])
+getH(Ks::KrylovSubspace) = @view(Ks.H[1:Ks.m+1, 1:Ks.m+!iszero(Ks.augmented)])
 function Base.resize!(Ks::KrylovSubspace{T,U}, maxiter::Integer) where {T,U}
     isaugmented = !iszero(Ks.augmented)
     V = similar(Ks.V, T, (size(Ks.V, 1), maxiter + 1))
     H = similar(Ks.H, U, (maxiter + 1, maxiter + isaugmented))
     fill!(H, zero(U))
     if isaugmented
-      copyto!(@view(V[axes(Ks.V)...]), Ks.V)
-      copyto!(@view(H[axes(Ks.H)...]), Ks.H)
+        copyto!(@view(V[axes(Ks.V)...]), Ks.V)
+        copyto!(@view(H[axes(Ks.H)...]), Ks.H)
     end
-    Ks.V = V; Ks.H = H
+    Ks.V = V
+    Ks.H = H
     Ks.m = Ks.maxiter = maxiter
     return Ks
 end
@@ -95,7 +107,13 @@ advection-diffusion operator using the incomplete orthogonalization method. In
 Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
 Springer, Cham.
 """
-function arnoldi(A, b; m=min(30, size(A, 1)), ishermitian=LinearAlgebra.ishermitian(A), kwargs...)
+function arnoldi(
+    A,
+    b;
+    m = min(30, size(A, 1)),
+    ishermitian = LinearAlgebra.ishermitian(A),
+    kwargs...,
+)
     TA, Tb = eltype(A), eltype(b)
     T = promote_type(TA, Tb)
     n = length(b)
@@ -104,11 +122,11 @@ function arnoldi(A, b; m=min(30, size(A, 1)), ishermitian=LinearAlgebra.ishermit
     # V stores the Krylov vectors
     V = similar(b, T, (n, m + 1))
     # H is a small dense array in tridiagonal form
-    H = zeros(U, (m+1, m))
+    H = zeros(U, (m + 1, m))
 
-    Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), V, H)
+    Ks = KrylovSubspace{T,U,real(T),typeof(V),typeof(H)}(m, m, false, zero(real(T)), V, H)
 
-    arnoldi!(Ks, A, b; m=m, ishermitian=ishermitian, kwargs...)
+    arnoldi!(Ks, A, b; m = m, ishermitian = ishermitian, kwargs...)
 end
 
 ## Low-level interface
@@ -124,11 +142,11 @@ end
     A, B = A
     @inbounds begin
         # V[1:n, j + 1] = A * @view(V[1:n, j]) + B * @view(V[n+1:n+p, j])
-        mul!(@view(V[1:n, j + 1]), A, @view(V[1:n, j]))
+        mul!(@view(V[1:n, j+1]), A, @view(V[1:n, j]))
 
-        BLAS.gemm!('N', 'N', 1.0, B, @view(V[n+1:n+p, j]), 1.0, @view(V[1:n, j + 1]))
-        copyto!(@view(V[n+1:n+p-1, j + 1]), @view(V[n+2:n+p, j]))
-        V[end, j + 1] = 0
+        BLAS.gemm!('N', 'N', 1.0, B, @view(V[n+1:n+p, j]), 1.0, @view(V[1:n, j+1]))
+        copyto!(@view(V[n+1:n+p-1, j+1]), @view(V[n+2:n+p, j]))
+        V[end, j+1] = 0
     end
     return
 end
@@ -143,7 +161,11 @@ function checkdims(A, b, V)
         n, p = size(V, 1), 0
         _A, b′, b_aug = A, b, nothing
     end
-    length(b′) == size(_A,1) == size(_A,2) == size(V, 1)-p || throw(DimensionMismatch("length(b′) [$(length(b′))] == size(_A,1) [$(size(_A,1))] == size(_A,2) [$(size(_A,2))] == size(V, 1)-p [$(size(V, 1)-p)] doesn't hold"))
+    length(b′) == size(_A, 1) == size(_A, 2) == size(V, 1) - p || throw(
+        DimensionMismatch(
+            "length(b′) [$(length(b′))] == size(_A,1) [$(size(_A,1))] == size(_A,2) [$(size(_A,2))] == size(V, 1)-p [$(size(V, 1)-p)] doesn't hold",
+        ),
+    )
     return b′, b_aug, n, p
 end
 
@@ -176,7 +198,7 @@ function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
         map!(b_aug, 1:p) do k
             k == p && return mu
             i = p - k
-            return t^i/factorial(i) * mu
+            return t^i / factorial(i) * mu
         end
 
         # Initialize the matrices V and H
@@ -188,7 +210,7 @@ function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
 
         if !iszero(Ks.beta)
             # The first Krylov basis vector
-            @. V[1:n, 1]     = bl / beta
+            @. V[1:n, 1] = bl / beta
             @. V[n+1:n+p, 1] = b_aug / beta
         end
     end
@@ -202,9 +224,15 @@ end
 
 Take the `j`:th step of the Lanczos iteration.
 """
-function arnoldi_step!(j::Integer, iop::Integer, A::AT,
-                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
-                       n::Int=-1, p::Int=-1) where {AT,T,U}
+function arnoldi_step!(
+    j::Integer,
+    iop::Integer,
+    A::AT,
+    V::AbstractMatrix{T},
+    H::AbstractMatrix{U},
+    n::Int = -1,
+    p::Int = -1,
+) where {AT,T,U}
     x, y = @view(V[:, j]), @view(V[:, j+1])
     applyA!(y, A, x, V, j, n, p)
 
@@ -226,18 +254,29 @@ end
 
 Non-allocating version of `arnoldi`.
 """
-function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
-                  tol::Real=1e-7, m::Int=min(Ks.maxiter, size(A, 1)),
-                  ishermitian::Bool=LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
-                  opnorm=nothing, iop::Int=0,
-                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {T1 <: Number, U <: Number, AT}
-    ishermitian && return lanczos!(Ks, A, b; tol=tol, m=m, init=init, t=t, mu=mu, l=l)
+function arnoldi!(
+    Ks::KrylovSubspace{T1,U},
+    A::AT,
+    b;
+    tol::Real = 1e-7,
+    m::Int = min(Ks.maxiter, size(A, 1)),
+    ishermitian::Bool = LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
+    opnorm = nothing,
+    iop::Int = 0,
+    init::Int = 0,
+    t::Number = NaN,
+    mu::Number = NaN,
+    l::Int = -1,
+) where {T1<:Number,U<:Number,AT}
+    ishermitian &&
+        return lanczos!(Ks, A, b; tol = tol, m = m, init = init, t = t, mu = mu, l = l)
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     b′, b_aug, n, p = checkdims(A, b, V)
     if iszero(init)
         isaugmented = AT <: Tuple
-        isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
+        isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) :
+        firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
     iszero(Ks.beta) && return Ks
@@ -261,12 +300,16 @@ end
 
 Take the `j`:th step of the Lanczos iteration.
 """
-function lanczos_step!(j::Integer, A,
-                       V::AbstractMatrix{T},
-                       u::AbstractVector{U},
-                       v::AbstractVector{B},
-                       n::Int=-1, p::Int=-1) where {B,T,U}
-    x, y = @view(V[:, j]),@view(V[:, j+1])
+function lanczos_step!(
+    j::Integer,
+    A,
+    V::AbstractMatrix{T},
+    u::AbstractVector{U},
+    v::AbstractVector{B},
+    n::Int = -1,
+    p::Int = -1,
+) where {B,T,U}
+    x, y = @view(V[:, j]), @view(V[:, j+1])
     applyA!(y, A, x, V, j, n, p)
     α = u[j] = coeff(U, dot(x, y))
     axpy!(-α, x, y)
@@ -283,8 +326,8 @@ Helper functions that returns the real part if that is what is
 required (for Hermitian matrices), otherwise returns the value
 as-is.
 """
-coeff(::Type{T},α::T) where {T} = α
-coeff(::Type{U},α::T) where {U<:Real,T<:Complex} = real(α)
+coeff(::Type{T}, α::T) where {T} = α
+coeff(::Type{U}, α::T) where {U<:Real,T<:Complex} = real(α)
 
 
 """
@@ -300,23 +343,32 @@ realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
-function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
-                  tol=1e-7, m=min(Ks.maxiter, size(A, 1)),
-                  opnorm=nothing,
-                  init::Int=0, t::Number=NaN, mu::Number=NaN, l::Int=-1) where {T1 <: Number, U <: Number, B, AT}
+function lanczos!(
+    Ks::KrylovSubspace{T1,U,B},
+    A::AT,
+    b;
+    tol = 1e-7,
+    m = min(Ks.maxiter, size(A, 1)),
+    opnorm = nothing,
+    init::Int = 0,
+    t::Number = NaN,
+    mu::Number = NaN,
+    l::Int = -1,
+) where {T1<:Number,U<:Number,B,AT}
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     b′, b_aug, n, p = checkdims(A, b, V)
     if iszero(init)
         isaugmented = AT <: Tuple
-        isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) : firststep!(Ks::KrylovSubspace, V, H, b)
+        isaugmented ? firststep!(Ks::KrylovSubspace, V, H, b′, b_aug, t, mu, l) :
+        firststep!(Ks::KrylovSubspace, V, H, b)
         init = 1
     end
     iszero(Ks.beta) && return Ks
     @inbounds begin
         u = @diagview(H)
         # `v` is always real, even though `u` may (in general) be complex.
-        v = realview(B, @diagview(H,-1))
+        v = realview(B, @diagview(H, -1))
     end
     for j = 1:m
         if tol > lanczos_step!(j, A, V, u, v, n, p)
@@ -325,6 +377,6 @@ function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
             break
         end
     end
-    @inbounds copyto!(@diagview(H,1), v[1:end-1])
+    @inbounds copyto!(@diagview(H, 1), v[1:end-1])
     return Ks
 end
