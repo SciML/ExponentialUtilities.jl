@@ -7,13 +7,14 @@
 abstract type SubspaceCache{T} end
 abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
-mutable struct StegrCache{T,R<:Real} <: HermitianSubspaceCache{T}
+mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
     v::Vector{T} # Subspace-propagated vector
     w::Vector{T}
     sw::Stegr.StegrWork{R}
-    StegrCache(::Type{T}, n::Integer) where T = new{T,real(T)}(
-        Vector{T}(undef, n), Vector{T}(undef, n),
-        Stegr.StegrWork(real(T), n))
+    function StegrCache(::Type{T}, n::Integer) where {T}
+        new{T, real(T)}(Vector{T}(undef, n), Vector{T}(undef, n),
+                        Stegr.StegrWork(real(T), n))
+    end
 end
 
 """
@@ -24,19 +25,21 @@ subspace matrix `T` with `α` on the diagonal and `β` on the
 super-/subdiagonal, diagonalizing via `stegr!`.
 """
 function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
-               cache::StegrCache{T,R}) where {T,R<:Real}
+               cache::StegrCache{T, R}) where {T, R <: Real}
     LAPACK.stegr!(α, β, cache.sw)
     sel = 1:length(α)
-    @inbounds for i = sel
-        cache.w[i] = exp(t*cache.sw.w[i])*cache.sw.Z[1,i]
+    @inbounds for i in sel
+        cache.w[i] = exp(t * cache.sw.w[i]) * cache.sw.Z[1, i]
     end
-    mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel,sel]), @view(cache.w[sel]))
+    mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel, sel]), @view(cache.w[sel]))
 end
 
-get_subspace_cache(Ks::KrylovSubspace{T,U}) where {T,U<:Complex} =
+function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Complex}
     error("Subspace exponential caches not yet available for non-Hermitian matrices.")
-get_subspace_cache(Ks::KrylovSubspace{T,U}) where {T,U<:Real} =
+end
+function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Real}
     StegrCache(T, Ks.maxiter)
+end
 
 ########################################
 # Phiv with error estimate as termination condition
@@ -53,10 +56,11 @@ exponential.
 """
 function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
                Ks::KrylovSubspace{T, B, B}, cache::HSC;
-               atol::B=1.0e-8, rtol::B=1.0e-4,
-               m=min(Ks.maxiter, size(A,1)),
-               verbose::Bool=false,
-               expmethod = ExpMethodHigham2005()) where {B, T <: Number, HSC <: HermitianSubspaceCache}
+               atol::B = 1.0e-8, rtol::B = 1.0e-4,
+               m = min(Ks.maxiter, size(A, 1)),
+               verbose::Bool = false,
+               expmethod = ExpMethodHigham2005()) where {B, T <: Number,
+                                                         HSC <: HermitianSubspaceCache}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -76,10 +80,10 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     verbose && @printf("Initial norm: β₀ %e, stopping threshold: %e\n", Ks.beta, ε)
 
     α = @diagview(H)
-    β = @diagview(H,-1)
+    β = @diagview(H, -1)
     n = size(V, 1)
 
-    for j ∈ 1:m
+    for j in 1:m
         lanczos_step!(j, A, V, α, β)
         expT!(@view(α[1:j]), @view(β[1:j]), t, cache)
 
@@ -87,8 +91,8 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
         #
         #   Saad, Y. (1992). Analysis of some Krylov subspace
         #   approximations. SIAM Journal on Numerical Analysis.
-        σ = β[j]*Ks.beta*abs(cache.v[j])
-        verbose && @printf("iter %d, α[%d] %e, β[%d] %e, σ %e\n",j, j, α[j], j, β[j], σ)
+        σ = β[j] * Ks.beta * abs(cache.v[j])
+        verbose && @printf("iter %d, α[%d] %e, β[%d] %e, σ %e\n", j, j, α[j], j, β[j], σ)
         if σ < ε
             Ks.m = j
             break
@@ -96,5 +100,5 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     end
     verbose && println("Krylov subspace size: ", Ks.m)
 
-    lmul!(Ks.beta, mul!(w, @view(Ks.V[:,1:Ks.m]), @view(cache.v[1:Ks.m])))
+    lmul!(Ks.beta, mul!(w, @view(Ks.V[:, 1:(Ks.m)]), @view(cache.v[1:(Ks.m)])))
 end
