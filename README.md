@@ -1,9 +1,14 @@
 # ExponentialUtilities
 
-[![Join the chat at https://gitter.im/JuliaDiffEq/Lobby](https://badges.gitter.im/JuliaDiffEq/Lobby.svg)](https://gitter.im/JuliaDiffEq/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://github.com/SciML/ExponentialUtilities.jl/workflows/CI/badge.svg)](https://github.com/SciML/ExponentialUtilities.jl/actions?query=workflow%3ACI)
-[![Coverage Status](https://coveralls.io/repos/github/SciML/ExponentialUtilities.jl/badge.svg?branch=master)](https://coveralls.io/github/SciML/ExponentialUtilities.jl?branch=master)
+[![Join the chat at https://julialang.zulipchat.com #sciml-bridged](https://img.shields.io/static/v1?label=Zulip&message=chat&color=9558b2&labelColor=389826)](https://julialang.zulipchat.com/#narrow/stream/279055-sciml-bridged)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://exponentialutilities.sciml.ai/stable/)
+[![Global Docs](https://img.shields.io/badge/docs-SciML-blue.svg)](https://docs.sciml.ai/dev/modules/ExponentialUtilities/)
+
 [![codecov](https://codecov.io/gh/SciML/ExponentialUtilities.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/SciML/ExponentialUtilities.jl)
+[![Build Status](https://github.com/SciML/ExponentialUtilities.jl/workflows/CI/badge.svg)](https://github.com/SciML/ExponentialUtilities.jl/actions?query=workflow%3ACI)
+
+[![ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://img.shields.io/badge/ColPrac-Contributor's%20Guide-blueviolet)](https://github.com/SciML/ColPrac)
+[![SciML Code Style](https://img.shields.io/static/v1?label=code%20style&message=SciML&color=9558b2&labelColor=389826)](https://github.com/SciML/SciMLStyle)
 
 ExponentialUtilities is a package of utility functions for matrix functions of exponential type, including functionality
 for the matrix exponential and phi-functions. These methods are more numerically stable, generic (thus support a wider 
