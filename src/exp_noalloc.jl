@@ -69,8 +69,12 @@ end
 # Inplace add of a UniformScaling object (support julia 1.6.2)
 @inline function inplace_add!(A, B::UniformScaling) # Called from generated code
     s = B.λ
-    @inbounds for i in diagind(A)
-        A[i] += s
+    if A isa GPUArraysCore.AbstractGPUArray
+        A .= A .+ s * I
+    else
+        @inbounds for i in diagind(A)
+            A[i] += s
+        end
     end
 end
 function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, method))
