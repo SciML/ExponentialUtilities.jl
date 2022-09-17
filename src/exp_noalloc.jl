@@ -70,7 +70,7 @@ end
 @inline function inplace_add!(A, B::UniformScaling) # Called from generated code
     s = B.λ
     if A isa GPUArraysCore.AbstractGPUArray
-        A .= A .+ s * I
+        A .= A + s * I
     else
         @inbounds for i in diagind(A)
             A[i] += s
