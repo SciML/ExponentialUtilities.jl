@@ -148,11 +148,8 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         F = eigen!(SymTridiagonal(cache))
         expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
     else
-        # lmul!(t, cache)
-        # expH = cache
-        # _exp!(expH)
-        # expHe = @view(expH[:, 1])
-        expH = exponential!(t * cache, expmethod)
+        lmul!(t, cache)
+        expH = exponential!(cache, expmethod)
         expHe = @view(expH[:, 1])
     end
 
@@ -243,7 +240,7 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
         throw(ArgumentError("Cache must be a PhivCache"))
     end
     e, Hcopy, C1, C2 = get_caches(cache, m, k)
-    lmul!(t, copyto!(Hcopy, H[1:m, :])) # For the moment copyto! doesn't work with views. lmul!(t, copyto!(Hcopy, @view(H[1:m, :])))
+    lmul!(t, copyto!(Hcopy, @view(H[1:m, :])))
     fill!(e, zero(T))
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
