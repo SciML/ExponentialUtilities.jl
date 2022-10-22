@@ -132,12 +132,7 @@ end
 function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
                                     t::Real, Ks::KrylovSubspace{T, U};
                                     cache = nothing,
-                                    dexpHe::GPUArraysCore.AbstractGPUVector = typeof(w)(undef,
-                                                                                        Ks.m)) where {
-                                                                                                      Tw,
-                                                                                                      T,
-                                                                                                      U
-                                                                                                      }
+                                    expmethod = ExpMethodHigham2005()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -154,13 +149,11 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
     else
         lmul!(t, cache)
-        expH = cache
-        _exp!(expH)
+        expH = exponential!(cache, expmethod)
         expHe = @view(expH[:, 1])
     end
 
-    copyto!(dexpHe, expHe)
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), dexpHe)) # exp(A) ≈ norm(b) * V * exp(H)e
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), typeof(w)(expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
@@ -168,15 +161,15 @@ compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = sour
 ############################
 # Cache for phiv
 mutable struct PhivCache{T}
-    mem::Vector{T}
-    function PhivCache{T}(maxiter::Int, p::Int) where {T}
-        numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-        new{T}(Vector{T}(undef, numelems))
-    end
+    mem::AbstractVector{T}
+end
+function PhivCache{T}(maxiter::Int, p::Int) where {T}
+    numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
+    PhivCache{T}(Vector{T}(undef, numelems))
 end
 function Base.resize!(C::PhivCache{T}, maxiter::Int, p::Int) where {T}
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-    C.mem = Vector{T}(undef, numelems * 2)
+    C.mem = similar(C.mem, numelems * 2)
     return C
 end
 function get_caches(C::PhivCache, m::Int, p::Int)
@@ -235,7 +228,7 @@ end
 
 Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
 """
-function phiv!(w::AbstractMatrix{T}, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
+function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
                cache = nothing, correct = false,
                errest = false) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
@@ -249,9 +242,9 @@ function phiv!(w::AbstractMatrix{T}, t::Number, Ks::KrylovSubspace{T, U}, k::Int
     e, Hcopy, C1, C2 = get_caches(cache, m, k)
     lmul!(t, copyto!(Hcopy, @view(H[1:m, :])))
     fill!(e, zero(T))
-    e[1] = one(T) # e is the [1,0,...,0] basis vector
+    allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), C2)) # f(A) ≈ norm(b) * V * f(H)e
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), typeof(w)(C2))) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost
         # correct_p = beta * h_{m+1,m} * (em^T phi_p+1(H) e1) * v_m+1

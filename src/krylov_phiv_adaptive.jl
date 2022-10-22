@@ -31,11 +31,11 @@ evaluating the φ-functions in exponential integrators. arXiv preprint
 arXiv:0907.4631.
 """
 function expv_timestep(ts::Vector{tType}, A, b; kwargs...) where {tType <: Real}
-    U = Matrix{eltype(b)}(undef, size(A, 1), length(ts))
+    U = similar(b, size(A, 1), length(ts))
     expv_timestep!(U, ts, A, b; kwargs...)
 end
 function expv_timestep(t::tType, A, b; kwargs...) where {tType <: Real}
-    u = Vector{eltype(b)}(undef, size(A, 1))
+    u = similar(b, size(A, 1))
     expv_timestep!(u, t, A, b; kwargs...)
 end
 """
@@ -127,10 +127,13 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
     @assert length(ts)==size(U, 2) "Dimension mismatch"
     @assert n==size(A, 1)==size(A, 2)==size(B, 1) "Dimension mismatch"
     if caches == nothing
-        u = Vector{T}(undef, n)              # stores the current state
-        W = Matrix{T}(undef, n, p + 1)         # stores the w vectors
-        P = Matrix{T}(undef, n, p + 2)         # stores output from phiv!
-        Ks = KrylovSubspace{T}(n, m)  # stores output from arnoldi!
+        u = similar(B, T, n)              # stores the current state
+        W = similar(B, T, n, p + 1)         # stores the w vectors
+        P = similar(B, T, n, p + 2)         # stores output from phiv!
+        V_tmp = similar(B, T, n, m+1)
+        H_tmp = fill(zero(T), m+1, m)
+        Ks = KrylovSubspace{T, T, real(T), typeof(V_tmp), Matrix{T}}(m, m, false, 
+        zero(real(T)), V_tmp, H_tmp) # stores output from arnoldi!. Here we support also GPUs
         phiv_cache = nothing         # cache used by phiv!
     else
         u, W, P, Ks, phiv_cache = caches
