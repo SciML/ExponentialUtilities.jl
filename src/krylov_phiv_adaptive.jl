@@ -130,10 +130,11 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         u = similar(B, T, n)              # stores the current state
         W = similar(B, T, n, p + 1)         # stores the w vectors
         P = similar(B, T, n, p + 2)         # stores output from phiv!
-        V_tmp = similar(B, T, n, m+1)
-        H_tmp = fill(zero(T), m+1, m)
-        Ks = KrylovSubspace{T, T, real(T), typeof(V_tmp), Matrix{T}}(m, m, false, 
-        zero(real(T)), V_tmp, H_tmp) # stores output from arnoldi!. Here we support also GPUs
+        V_tmp = similar(B, T, n, m + 1)
+        H_tmp = fill(zero(T), m + 1, m)
+        Ks = KrylovSubspace{T, T, real(T), typeof(V_tmp), Matrix{T}}(m, m, false,
+                                                                     zero(real(T)), V_tmp,
+                                                                     H_tmp) # stores output from arnoldi!. Here we support also GPUs
         phiv_cache = nothing         # cache used by phiv!
     else
         u, W, P, Ks, phiv_cache = caches
