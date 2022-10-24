@@ -18,8 +18,8 @@ integrators in OrdinaryDiffEq. The package has no external dependencies, so it c
 ## Tutorials and Documentation
 
 For information on using the package,
-[see the stable documentation](https://exponentialutilities.sciml.ai/stable/). Use the
-[in-development documentation](https://exponentialutilities.sciml.ai/dev/) for the version of
+[see the stable documentation](https://docs.sciml.ai/ExponentialUtilities/stable/). Use the
+[in-development documentation](https://docs.sciml.ai/ExponentialUtilities/dev/) for the version of
 the documentation, which contains the unreleased features.
 
 ## Example
