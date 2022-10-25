@@ -251,6 +251,8 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
     aC2 = Adapt.adapt(parameterless_type(w), C2)
+    @show typeof(C2)
+    @show typeof(aC2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost
