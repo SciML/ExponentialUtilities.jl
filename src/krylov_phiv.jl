@@ -183,11 +183,20 @@ function get_caches(C::PhivCache, m::Int, p::Int)
     numelems^2 > length(C.mem) && resize!(C, m, p) # resize the cache if needed
     e = @view(C.mem[1:m])
     offset = m
-    Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
-    offset += m^2
-    C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
-    offset += (m + p)^2
-    C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
+
+    if C.mam isa GPUArraysCore.AbstractGPUArray
+        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
+        offset += m^2
+        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
+        offset += (m + p)^2
+        C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
+    else
+        Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
+        offset += m^2
+        C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
+        offset += (m + p)^2
+        C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
+    end
     return e, Hcopy, C1, C2
 end
 
@@ -240,7 +249,7 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1)==size(V, 1) "Dimension mismatch"
     @assert size(w, 2)==k + 1 "Dimension mismatch"
-    if cache == nothing
+    if cache === nothing
         cache = PhivCache{T}(m, k)
     elseif !isa(cache, PhivCache)
         throw(ArgumentError("Cache must be a PhivCache"))
