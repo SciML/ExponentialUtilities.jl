@@ -105,7 +105,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
                cache = nothing, expmethod = ExpMethodHigham2005()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
-    if cache == nothing
+    if cache === nothing
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
         cache = get_cache(cache, m)
@@ -135,12 +135,16 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
                                     expmethod = ExpMethodHigham2005()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
-    if cache == nothing
+    if cache === nothing
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
         cache = get_cache(cache, m)
     else
         throw(ArgumentError("Cache must be an ExpvCache"))
+    end
+    if iszero(Ks.beta)
+        w .= false
+        return w
     end
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
