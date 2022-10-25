@@ -153,7 +153,7 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         expHe = @view(expH[:, 1])
     end
 
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expH))) # exp(A) ≈ norm(b) * V * exp(H)e
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w),expH))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
@@ -244,7 +244,8 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
     fill!(e, zero(T))
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), typeof(w)(C2))) # f(A) ≈ norm(b) * V * f(H)e
+    aC2 = Adapt.adapt(parameterless_type(w), C2)
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost
         # correct_p = beta * h_{m+1,m} * (em^T phi_p+1(H) e1) * v_m+1
