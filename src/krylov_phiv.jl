@@ -152,8 +152,10 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         F = eigen!(SymTridiagonal(cache))
         expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
     else
-        lmul!(t, cache)
-        expH = exponential!(cache, expmethod)
+        #lmul!(t, cache)
+        #expH = exponential!(cache, expmethod)
+        #expHe = @view(expH[:, 1])
+        expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
     end
 
