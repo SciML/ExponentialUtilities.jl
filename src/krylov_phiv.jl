@@ -159,6 +159,7 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         expHe = @view(expH[:, 1])
     end
 
+    @show size(beta)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expH))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
