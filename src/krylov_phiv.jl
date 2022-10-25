@@ -95,7 +95,6 @@ function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
         exponential!(expH, expmethod)
         expHe = @view(expH[:, 1])
     end
-    @show size(w), size(@view(V[:, 1:m]))
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
@@ -160,10 +159,7 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         expHe = @view(expH[:, 1])
     end
 
-    @show size(w), size(@view(V[:, 1:m]))
-    mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expH))
-    @show size(beta)
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expH))) # exp(A) ≈ norm(b) * V * exp(H)e
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
