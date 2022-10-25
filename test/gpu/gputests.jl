@@ -2,7 +2,8 @@ using LinearAlgebra
 using SparseArrays
 using CUDA
 using CUDA.CUSPARSE
-using ExponentialUtilities: inplace_add!, exponential!, ExpMethodHigham2005
+using ExponentialUtilities: inplace_add!, exponential!, ExpMethodHigham2005, expv,
+                            expv_timestep
 
 using Random: Xoshiro
 
