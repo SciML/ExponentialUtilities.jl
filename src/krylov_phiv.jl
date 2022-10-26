@@ -185,11 +185,11 @@ function get_caches(C::PhivCache, m::Int, p::Int)
     offset = m
 
     #if C.mem isa GPUArraysCore.AbstractGPUArray
-        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
-        offset += m^2
-        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
-        offset += (m + p)^2
-        C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
+    Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
+    offset += m^2
+    C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
+    offset += (m + p)^2
+    C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
     #else
     #    Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
     #    offset += m^2

@@ -45,7 +45,7 @@ b_gpu = CuArray(b)
 t = 0.1
 ts = Array(LinRange(0, 1, 300))
 
-E1 = expv(t, A, b) 
+E1 = expv(t, A, b)
 E2 = Array(expv(t, A_gpu, b_gpu))
 @show size(E1), size(E2)
 @test E1 ≈ E2
