@@ -4,6 +4,13 @@ using ArrayInterfaceCore: ismutable, allowed_getindex, allowed_setindex!
 using ArrayInterfaceGPUArrays
 import GenericSchur
 import GPUArraysCore
+import Adapt
+
+using Base: typename
+
+Base.@pure __parameterless_type(T) = typename(T).wrapper
+parameterless_type(x) = __parameterless_type(typeof(x))
+parameterless_type(::Type{T}) where {T} = __parameterless_type(T)
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
