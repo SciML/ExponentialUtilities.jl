@@ -167,13 +167,13 @@ compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = sour
 ############################
 # Cache for phiv
 mutable struct PhivCache{T}
-    mem::AbstractVector{T}
+    mem::T
 end
-function PhivCache{T}(maxiter::Int, p::Int) where {T}
+function PhivCache(w, maxiter::Int, p::Int) where {T}
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-    PhivCache{T}(Vector{T}(undef, numelems))
+    PhivCache(similar(w, numelems))
 end
-function Base.resize!(C::PhivCache{T}, maxiter::Int, p::Int) where {T}
+function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     C.mem = similar(C.mem, numelems * 2)
     return C
@@ -184,19 +184,19 @@ function get_caches(C::PhivCache, m::Int, p::Int)
     e = @view(C.mem[1:m])
     offset = m
 
-    #if C.mem isa GPUArraysCore.AbstractGPUArray
-    Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
-    offset += m^2
-    C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
-    offset += (m + p)^2
-    C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
-    #else
-    #    Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
-    #    offset += m^2
-    #    C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
-    #    offset += (m + p)^2
-    #    C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
-    #end
+    if C.mem isa GPUArraysCore.AbstractGPUArray
+        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
+        offset += m^2
+        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
+        offset += (m + p)^2
+        C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
+    else
+        Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
+        offset += m^2
+        C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
+        offset += (m + p)^2
+        C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
+    end
     return e, Hcopy, C1, C2
 end
 
@@ -250,7 +250,7 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
     @assert size(w, 1)==size(V, 1) "Dimension mismatch"
     @assert size(w, 2)==k + 1 "Dimension mismatch"
     if cache === nothing
-        cache = PhivCache{T}(m, k)
+        cache = PhivCache(w, m, k)
     elseif !isa(cache, PhivCache)
         throw(ArgumentError("Cache must be a PhivCache"))
     end
@@ -260,8 +260,6 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
     aC2 = Adapt.adapt(parameterless_type(w), C2)
-    @show typeof(C2)
-    @show typeof(aC2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost
