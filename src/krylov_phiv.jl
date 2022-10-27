@@ -169,7 +169,7 @@ compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = sour
 mutable struct PhivCache{useview,T}
     mem::Vector{T}
 end
-function PhivCache(w, maxiter::Int, p::Int) where {T}
+function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
     mem = Vector{T}(undef,numelems)
