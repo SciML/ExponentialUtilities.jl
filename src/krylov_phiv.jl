@@ -166,29 +166,29 @@ compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = sour
 
 ############################
 # Cache for phiv
-mutable struct PhivCache{useview,T}
+mutable struct PhivCache{useview, T}
     mem::Vector{T}
 end
 
 # Deprecated
-function PhivCache{T}(maxiter::Int, p::Int) where T
+function PhivCache{T}(maxiter::Int, p::Int) where {T}
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-    mem = Vector{T}(undef,numelems)
-    PhivCache{true,T}(mem)
+    mem = Vector{T}(undef, numelems)
+    PhivCache{true, T}(mem)
 end
 
 function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
-    mem = Vector{T}(undef,numelems)
-    PhivCache{!(w isa GPUArraysCore.AbstractGPUArray),T}(mem)
+    mem = Vector{T}(undef, numelems)
+    PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T}(mem)
 end
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     C.mem = similar(C.mem, numelems * 2)
     return C
 end
-function get_caches(C::PhivCache{useview,T}, m::Int, p::Int) where {useview,T}
+function get_caches(C::PhivCache{useview, T}, m::Int, p::Int) where {useview, T}
     numelems = m + m^2 + (m + p)^2 + m * (p + 1)
     numelems^2 > length(C.mem) && resize!(C, m, p) # resize the cache if needed
     e = @view(C.mem[1:m])
