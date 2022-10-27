@@ -171,7 +171,7 @@ mutable struct PhivCache{useview,T}
 end
 
 # Deprecated
-function PhivCache{T}(maxiter::Int, p::Int)
+function PhivCache{T}(maxiter::Int, p::Int) where T
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     mem = Vector{T}(undef,numelems)
     PhivCache{true,T}(mem)
