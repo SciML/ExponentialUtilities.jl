@@ -171,7 +171,7 @@ mutable struct PhivCache{T}
 end
 function PhivCache(w, maxiter::Int, p::Int) where {T}
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-    PhivCache(similar(w, numelems))
+    PhivCache(similar(w, real(eltype(w)), numelems))
 end
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
