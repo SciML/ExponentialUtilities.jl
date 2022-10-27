@@ -170,12 +170,13 @@ mutable struct PhivCache{useview,T}
     mem::Vector{T}
 end
 
-function PhivCache(w, maxiter::Int, p::Int)
+# Deprecated
+function PhivCache{T}(maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-    T = eltype(w)
     mem = Vector{T}(undef,numelems)
-    PhivCache{!(w isa GPUArraysCore.AbstractGPUArray),T}(mem)
+    PhivCache{true,T}(mem)
 end
+
 function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
