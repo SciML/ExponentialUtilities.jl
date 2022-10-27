@@ -166,36 +166,38 @@ compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = sour
 
 ############################
 # Cache for phiv
-mutable struct PhivCache{T}
-    mem::T
+mutable struct PhivCache{useview,T}
+    mem::Vector{T}
 end
 function PhivCache(w, maxiter::Int, p::Int) where {T}
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
-    PhivCache(similar(w, real(eltype(w)), numelems))
+    T = eltype(w)
+    mem = Vector{T}(undef,numelems)
+    PhivCache{!(w isa GPUArraysCore.AbstractGPUArray),T}(mem)
 end
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     C.mem = similar(C.mem, numelems * 2)
     return C
 end
-function get_caches(C::PhivCache, m::Int, p::Int)
+function get_caches(C::PhivCache{useview,T}, m::Int, p::Int) where {useview,T}
     numelems = m + m^2 + (m + p)^2 + m * (p + 1)
     numelems^2 > length(C.mem) && resize!(C, m, p) # resize the cache if needed
     e = @view(C.mem[1:m])
     offset = m
 
-    if C.mem isa GPUArraysCore.AbstractGPUArray
-        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
-        offset += m^2
-        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
-        offset += (m + p)^2
-        C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
-    else
+    if useview
         Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
         offset += m^2
         C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
         offset += (m + p)^2
         C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
+    else
+        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
+        offset += m^2
+        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
+        offset += (m + p)^2
+        C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
     end
     return e, Hcopy, C1, C2
 end
