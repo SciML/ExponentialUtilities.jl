@@ -2,6 +2,7 @@ module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
 using ArrayInterfaceCore: ismutable, allowed_getindex, allowed_setindex!
 using ArrayInterfaceGPUArrays
+using SnoopPrecompile
 import GenericSchur
 import GPUArraysCore
 import Adapt
@@ -34,6 +35,8 @@ include("krylov_phiv_adaptive.jl")
 include("kiops.jl")
 include("StegrWork.jl")
 include("krylov_phiv_error_estimate.jl")
+# precompile script
+include("precompile.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
        expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep,
