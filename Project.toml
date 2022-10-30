@@ -21,6 +21,7 @@ ArrayInterfaceCore = "0.1.1"
 ArrayInterfaceGPUArrays = "0.2.2"
 GPUArraysCore = "0.1"
 GenericSchur = "0.5.3"
+SnoopPrecompile = "1"
 julia = "1.6"
 
 [extras]
