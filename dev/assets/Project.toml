@@ -1,0 +1,6 @@
+[deps]
+ExponentialUtilities = "d4d017d3-3776-5f7e-afef-a10c40355c18"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+
+[compat]
+Documenter = "0.27"
