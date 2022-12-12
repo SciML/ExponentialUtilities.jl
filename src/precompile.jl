@@ -6,7 +6,7 @@
         (mx, m, v)
     end
 
-    function precomp_fx(; method, Tx, n=5)
+    function precomp_fx(; method, Tx, n = 5)
         (mx, m, v) = precomp_gen_mat(; Tx, n)
 
         # mat exp
@@ -16,18 +16,16 @@
         # exp v
         [expv(ts, f(m), v)
          for ts in (1.0, 1.0im)
-         for f in (copy, Hermitian)
-        ]
+         for f in (copy, Hermitian)]
 
         # Subspace exponential caches not yet available for non-Hermitian matrices
-        (Tx <: Real) && expv(1.0, Hermitian(m), v; mode=:error_estimate)
+        (Tx <: Real) && expv(1.0, Hermitian(m), v; mode = :error_estimate)
 
         # phi v
         # Subspace exponential caches not yet available for non-Hermitian matrices
         if Tx <: Complex
             [phiv(ts, Hermitian(m), v, 1)
-             for ts in (1.0, 1.0im)
-            ]
+             for ts in (1.0, 1.0im)]
         else
             phiv(1.0, m, v, 1)
         end
@@ -38,12 +36,11 @@
         ExpMethodHigham2005Base(),
         ExpMethodGeneric(),
         ExpMethodNative(),
-        ExpMethodDiagonalization()
+        ExpMethodDiagonalization(),
     ]
 
     Txs = [Float64, ComplexF64]
 
-    @precompile_all_calls begin
-        [precomp_fx(; method, Tx) for method in precomp_ms for Tx in Txs]
-    end
+    @precompile_all_calls begin [precomp_fx(; method, Tx) for method in precomp_ms
+                                 for Tx in Txs] end
 end
