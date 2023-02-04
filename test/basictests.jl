@@ -96,7 +96,9 @@ exp_generic(A) = exponential!(copy(A), ExpMethodGeneric())
     end
 end
 
-@testset "Issue 41" begin @test ForwardDiff.derivative(exp_generic, 0.1)≈exp_generic(0.1) atol=1e-15 end
+@testset "Issue 41" begin
+    @test ForwardDiff.derivative(exp_generic, 0.1)≈exp_generic(0.1) atol=1e-15
+end
 
 @testset "Issue 42" begin
     @test exp_generic(0.0) == 1

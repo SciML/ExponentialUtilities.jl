@@ -13,8 +13,8 @@ mutable struct StegrWork{T <: Real}
     range::Char
     dv::Vector{T}
     ev::Vector{T}
-    vl::Real
-    vu::Real
+    vl::T
+    vu::T
     il::BlasInt
     iu::BlasInt
     abstol::Vector{T}
