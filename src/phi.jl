@@ -117,7 +117,7 @@ end
 Non-allocating version of `phi` for non-diagonal matrix inputs.
 """
 function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches = nothing,
-              expmethod = ExpMethodHigham2005Base(A)) where {T <: Number}
+              expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1&&all(P -> size(P) == (m, m), out) "Dimension mismatch"
     if caches == nothing
