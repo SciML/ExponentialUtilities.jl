@@ -60,7 +60,8 @@ Non-allocating version of `phiv_dense`.
 """
 function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
                      v::AbstractVector{T}, k::Integer;
-                     cache = nothing, expmethod = ExpMethodHigham2005Base()) where {T <: Number}
+                     cache = nothing,
+                     expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     @assert size(w, 1)==size(A, 1)==size(A, 2)==length(v) "Dimension mismatch"
     @assert size(w, 2)==k + 1 "Dimension mismatch"
     m = length(v)

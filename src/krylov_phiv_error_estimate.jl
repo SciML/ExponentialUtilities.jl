@@ -60,7 +60,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
                m = min(Ks.maxiter, size(A, 1)),
                verbose::Bool = false,
                expmethod = ExpMethodHigham2005Base()) where {B, T <: Number,
-                                                         HSC <: HermitianSubspaceCache}
+                                                             HSC <: HermitianSubspaceCache}
     if m > Ks.maxiter
         resize!(Ks, m)
     else
