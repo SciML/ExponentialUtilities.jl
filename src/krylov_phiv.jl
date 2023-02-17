@@ -43,7 +43,7 @@ function expv(t, A, b; mode = :happy_breakdown, kwargs...)
     end
 end
 function _expv_hb(t::Tt, A, b;
-                  expmethod = ExpMethodHigham2005(),
+                  expmethod = ExpMethodHigham2005Base(),
                   cache = nothing, kwargs_arnoldi...) where {Tt}
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
@@ -52,7 +52,7 @@ function _expv_hb(t::Tt, A, b;
 end
 function _expv_ee(t::Tt, A, b; m = min(30, size(A, 1)), tol = 1e-7, rtol = √(tol),
                   ishermitian::Bool = LinearAlgebra.ishermitian(A),
-                  expmethod = ExpMethodHigham2005()) where {Tt}
+                  expmethod = ExpMethodHigham2005Base()) where {Tt}
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A, 1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
@@ -74,7 +74,7 @@ end
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
 function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
-               cache = nothing, expmethod = ExpMethodHigham2005()) where {Tw, T, U}
+               cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -102,7 +102,7 @@ end
 #       or Tw can be Float64, while t is ComplexF32 and T is Float64
 #       thus they can not share the same TypeVar.
 function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
-               cache = nothing, expmethod = ExpMethodHigham2005()) where {Tw, Tt, T, U}
+               cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache === nothing
@@ -132,7 +132,7 @@ end
 function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
                                     t::Real, Ks::KrylovSubspace{T, U};
                                     cache = nothing,
-                                    expmethod = ExpMethodHigham2005()) where {Tw, T, U}
+                                    expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache === nothing

@@ -32,14 +32,15 @@
     end
 
     precomp_ms = [
-        ExpMethodHigham2005(),
+        #ExpMethodHigham2005(),
         ExpMethodHigham2005Base(),
-        ExpMethodGeneric(),
-        ExpMethodNative(),
-        ExpMethodDiagonalization(),
+        #ExpMethodGeneric(),
+        #ExpMethodNative(),
+        #ExpMethodDiagonalization(),
     ]
 
-    Txs = [Float64, ComplexF64]
+    Txs = [Float64]
+    #Txs = [Float64, ComplexF64]
 
     @precompile_all_calls begin [precomp_fx(; method, Tx) for method in precomp_ms
                                  for Tx in Txs] end
