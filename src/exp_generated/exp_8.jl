@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-@inline function exp_gen!(cache, A, ::Val{8})
+function exp_gen!(cache, A, ::Val{8})
     T = promote_type(eltype(A), Float64) # Make it work for many 'bigger' types (matrices and scalars)
     # max_memslots=6
     n = size(A, 1)
