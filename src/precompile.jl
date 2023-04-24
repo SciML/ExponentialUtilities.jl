@@ -1,4 +1,4 @@
-@precompile_setup begin
+@setup_workload begin
     function precomp_gen_mat(; Tx, n)
         mx = rand(Tx, n, n)
         m = rand(Tx, n, n)
@@ -42,6 +42,6 @@
     Txs = [Float64]
     #Txs = [Float64, ComplexF64]
 
-    @precompile_all_calls begin [precomp_fx(; method, Tx) for method in precomp_ms
+    @compile_workload begin [precomp_fx(; method, Tx) for method in precomp_ms
                                  for Tx in Txs] end
 end

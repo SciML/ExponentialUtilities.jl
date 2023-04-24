@@ -1,7 +1,7 @@
 module ExponentialUtilities
 using LinearAlgebra, SparseArrays, Printf
 using ArrayInterface: ismutable, allowed_getindex, allowed_setindex!
-using SnoopPrecompile
+using PrecompileTools
 import GenericSchur
 import GPUArraysCore
 import Adapt
