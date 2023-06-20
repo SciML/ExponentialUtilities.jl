@@ -1,7 +1,7 @@
 # ExponentialUtilities.jl: High-Performance Matrix Exponentiation and Products
 
-ExponentialUtilities is a package of utility functions for matrix functions of exponential type, 
-including functionality for the matrix exponential and phi-functions. The tools are used by the 
+ExponentialUtilities is a package of utility functions for matrix functions of exponential type,
+including functionality for the matrix exponential and phi-functions. The tools are used by the
 exponential integrators in OrdinaryDiffEq.
 
 ## Installation
@@ -18,11 +18,12 @@ Pkg.add("ExponentialUtilities")
 ```julia
 using ExponentialUtilities
 
-A = rand(2,2)
+A = rand(2, 2)
 exponential!(A)
 
-v = rand(2); t = rand()
-expv(t,A,v)
+v = rand(2);
+t = rand();
+expv(t, A, v)
 ```
 
 ## Matrix-phi-vector product
@@ -38,7 +39,7 @@ In exponential algorithms, products in the form of `ϕ_m(tA)b` is frequently enc
 
 ### `expv` and `phiv`
 
-```julia
+```
 expv(t,A,b;kwargs) -> exp(tA)b
 phiv(t,A,b,k;kwargs) -> [ϕ_0(tA)b ϕ_1(tA)b ... ϕ_k(tA)b][, errest]
 ```
@@ -49,66 +50,84 @@ You can adjust how the Krylov subspace is constructed by setting various keyword
 
 ## Contributing
 
-- Please refer to the
-  [SciML ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://github.com/SciML/ColPrac/blob/master/README.md)
-  for guidance on PRs, issues, and other matters relating to contributing to ModelingToolkit.
-- There are a few community forums:
-    - the #diffeq-bridged channel in the [Julia Slack](https://julialang.org/slack/)
-    - [JuliaDiffEq](https://gitter.im/JuliaDiffEq/Lobby) on Gitter
-    - on the [Julia Discourse forums](https://discourse.julialang.org)
-    - see also [SciML Community page](https://sciml.ai/community/)
+  - Please refer to the
+    [SciML ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://github.com/SciML/ColPrac/blob/master/README.md)
+    for guidance on PRs, issues, and other matters relating to contributing to ModelingToolkit.
+
+  - There are a few community forums:
+    
+      + the #diffeq-bridged channel in the [Julia Slack](https://julialang.org/slack/)
+      + [JuliaDiffEq](https://gitter.im/JuliaDiffEq/Lobby) on Gitter
+      + on the [Julia Discourse forums](https://discourse.julialang.org)
+      + see also [SciML Community page](https://sciml.ai/community/)
 
 ## Reproducibility
+
 ```@raw html
 <details><summary>The documentation of this SciML package was built using these direct dependencies,</summary>
 ```
+
 ```@example
 using Pkg # hide
 Pkg.status() # hide
 ```
+
 ```@raw html
 </details>
 ```
+
 ```@raw html
 <details><summary>and using this machine and Julia version.</summary>
 ```
+
 ```@example
 using InteractiveUtils # hide
 versioninfo() # hide
 ```
+
 ```@raw html
 </details>
 ```
+
 ```@raw html
 <details><summary>A more complete overview of all dependencies and their versions is also provided.</summary>
 ```
+
 ```@example
 using Pkg # hide
-Pkg.status(;mode = PKGMODE_MANIFEST) # hide
+Pkg.status(; mode = PKGMODE_MANIFEST) # hide
 ```
+
 ```@raw html
 </details>
 ```
+
 ```@raw html
 You can also download the 
 <a href="
 ```
+
 ```@eval
 using TOML
-version = TOML.parse(read("../../Project.toml",String))["version"]
-name = TOML.parse(read("../../Project.toml",String))["name"]
-link = "https://github.com/SciML/"*name*".jl/tree/gh-pages/v"*version*"/assets/Manifest.toml"
+version = TOML.parse(read("../../Project.toml", String))["version"]
+name = TOML.parse(read("../../Project.toml", String))["name"]
+link = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
+       "/assets/Manifest.toml"
 ```
+
 ```@raw html
 ">manifest</a> file and the
 <a href="
 ```
+
 ```@eval
 using TOML
-version = TOML.parse(read("../../Project.toml",String))["version"]
-name = TOML.parse(read("../../Project.toml",String))["name"]
-link = "https://github.com/SciML/"*name*".jl/tree/gh-pages/v"*version*"/assets/Project.toml"
+version = TOML.parse(read("../../Project.toml", String))["version"]
+name = TOML.parse(read("../../Project.toml", String))["name"]
+link = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
+       "/assets/Project.toml"
 ```
+
 ```@raw html
 ">project</a> file.
 ```

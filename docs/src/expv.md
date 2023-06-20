@@ -13,11 +13,11 @@ In exponential algorithms, products in the form of `ϕ_m(tA)b` is frequently enc
 
 You can use any object as the "matrix" `A` as long as it implements the following linear operator interface:
 
-* `Base.eltype(A)`
-* `Base.size(A, dim)`
-* `LinearAlgebra.mul!(y, A, x)` (for computing `y = A * x` in place).
-* `LinearAlgebra.opnorm(A, p=Inf)`. If this is not implemented or the default implementation can be slow, you can manually pass in the operator norm (a rough estimate is fine) using the keyword argument `opnorm`.
-* `LinearAlgebra.ishermitian(A)`. If this is not implemented or the default implementation can be slow, you can manually pass in the value using the keyword argument `ishermitian`.
+  - `Base.eltype(A)`
+  - `Base.size(A, dim)`
+  - `LinearAlgebra.mul!(y, A, x)` (for computing `y = A * x` in place).
+  - `LinearAlgebra.opnorm(A, p=Inf)`. If this is not implemented or the default implementation can be slow, you can manually pass in the operator norm (a rough estimate is fine) using the keyword argument `opnorm`.
+  - `LinearAlgebra.ishermitian(A)`. If this is not implemented or the default implementation can be slow, you can manually pass in the value using the keyword argument `ishermitian`.
 
 ## Core API
 
