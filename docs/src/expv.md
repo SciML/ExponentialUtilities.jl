@@ -7,7 +7,7 @@ The main functionality of ExponentialUtilities is the computation of matrix-phi-
 ϕ_(k+1)(z) = (ϕ_k(z) - 1) / z
 ```
 
-In exponential algorithms, products in the form of `ϕ_m(tA)b` is frequently encountered. Instead of computing the matrix function first and then computing the matrix-vector product, the common alternative is to construct a [Krylov subspace](https://en.wikipedia.org/wiki/Krylov_subspace) `K_m(A,b)` and then approximate the matrix-phi-vector product.
+In exponential algorithms, products in the form of `ϕ_m(tA)b` are frequently encountered. Instead of computing the matrix function first and then computing the matrix-vector product, the common alternative is to construct a [Krylov subspace](https://en.wikipedia.org/wiki/Krylov_subspace) `K_m(A,b)` and then approximate the matrix-phi-vector product.
 
 ### Support for matrix-free operators
 

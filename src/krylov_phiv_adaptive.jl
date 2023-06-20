@@ -13,10 +13,10 @@ also be just one value, in which case only the end result is returned and `U`
 is a vector.
 
 The time stepping formula of Niesen & Wright is used [^1]. If the time step
-`tau` is not specified, it is chosen according to (17) of Neisen & Wright. If
-`adaptive==true`, the time step and Krylov subsapce size adaptation scheme of
+`tau` is not specified, it is chosen according to (17) of Niesen & Wright. If
+`adaptive==true`, the time step and Krylov subspace size adaptation scheme of
 Niesen & Wright is used, the relative tolerance of which can be set using the
-keyword parameter `tol`. The delta and gamma parameter of the adaptation
+keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
 Set `verbose=true` to print out the internal steps (for debugging). For the
@@ -67,8 +67,8 @@ also be just one value, in which case only the end result is returned and `U`
 is a vector.
 
 The time stepping formula of Niesen & Wright is used [^1]. If the time step
-`tau` is not specified, it is chosen according to (17) of Neisen & Wright. If
-`adaptive==true`, the time step and Krylov subsapce size adaptation scheme of
+`tau` is not specified, it is chosen according to (17) of Niesen & Wright. If
+`adaptive==true`, the time step and Krylov subspace size adaptation scheme of
 Niesen & Wright is used, the relative tolerance of which can be set using the
 keyword parameter `tol`. The delta and gamma parameter of the adaptation
 scheme can also be adjusted.

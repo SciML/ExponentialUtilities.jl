@@ -76,7 +76,7 @@ end
 """
     arnoldi(A,b[;m,tol,opnorm,iop]) -> Ks
 
-Performs `m` anoldi iterations to obtain the Krylov subspace K_m(A,b).
+Performs `m` arnoldi iterations to obtain the Krylov subspace K_m(A,b).
 
 The n x (m + 1) basis vectors `getV(Ks)` and the (m + 1) x m upper Hessenberg
 matrix `getH(Ks)` are related by the recurrence formula
@@ -91,7 +91,7 @@ The default value of 0 indicates full Arnoldi. For symmetric/Hermitian `A`,
 
 Refer to `KrylovSubspace` for more information regarding the output.
 
-Happy-breakdown occurs whenver `norm(v_j) < tol * opnorm`, in this case
+Happy-breakdown occurs whenever `norm(v_j) < tol * opnorm`, in this case,
 the dimension of `Ks` is smaller than `m`.
 
 [^1]: Koskela, A. (2015). Approximating the matrix exponential of an

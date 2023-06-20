@@ -35,7 +35,7 @@ The main functionality of ExponentialUtilities is the computation of matrix-phi-
 ϕ_(k+1)(z) = (ϕ_k(z) - 1) / z
 ```
 
-In exponential algorithms, products in the form of `ϕ_m(tA)b` is frequently encountered. Instead of computing the matrix function first and then computing the matrix-vector product, the common alternative is to construct a [Krylov subspace](https://en.wikipedia.org/wiki/Krylov_subspace) `K_m(A,b)` and then approximate the matrix-phi-vector product.
+In exponential algorithms, products in the form of `ϕ_m(tA)b` are frequently encountered. Instead of computing the matrix function first and then computing the matrix-vector product, the common alternative is to construct a [Krylov subspace](https://en.wikipedia.org/wiki/Krylov_subspace) `K_m(A,b)` and then approximate the matrix-phi-vector product.
 
 ### `expv` and `phiv`
 
@@ -44,7 +44,7 @@ expv(t,A,b;kwargs) -> exp(tA)b
 phiv(t,A,b,k;kwargs) -> [ϕ_0(tA)b ϕ_1(tA)b ... ϕ_k(tA)b][, errest]
 ```
 
-For `phiv`, *all* `ϕ_m(tA)b` products up to order `k` is returned as a matrix. This is because it's more economical to produce all the results at once than individually. A second output is returned if `errest=true` in `kwargs`. The error estimate is given for the second-to-last product, using the last product as an estimator. If `correct=true`, then `ϕ_0` through `ϕ_(k-1)` are updated using the last Arnoldi vector. The correction algorithm is described in [1].
+For `phiv`, *all* `ϕ_m(tA)b` products up to order `k` are returned as a matrix. This is because it's more economical to produce all the results at once than individually. A second output is returned if `errest=true` in `kwargs`. The error estimate is given for the second-to-last product, using the last product as an estimator. If `correct=true`, then `ϕ_0` through `ϕ_(k-1)` are updated using the last Arnoldi vector. The correction algorithm is described in [1].
 
 You can adjust how the Krylov subspace is constructed by setting various keyword arguments. See the Arnoldi iteration section for more details.
 
