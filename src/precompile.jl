@@ -42,6 +42,8 @@
     Txs = [Float64]
     #Txs = [Float64, ComplexF64]
 
-    @compile_workload begin [precomp_fx(; method, Tx) for method in precomp_ms
-                                 for Tx in Txs] end
+    @compile_workload begin
+        [precomp_fx(; method, Tx) for method in precomp_ms
+         for Tx in Txs]
+    end
 end

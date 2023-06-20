@@ -38,10 +38,11 @@ include("krylov_phiv_error_estimate.jl")
 include("precompile.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
-       expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep,
-       phiv_timestep!,
-       StegrCache, get_subspace_cache, exponential!
-export ExpMethodHigham2005, ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative,
-       ExpMethodDiagonalization
+    expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep,
+    phiv_timestep!,
+    StegrCache, get_subspace_cache, exponential!
+export ExpMethodHigham2005,
+    ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative,
+    ExpMethodDiagonalization
 
 end

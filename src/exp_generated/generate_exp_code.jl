@@ -27,8 +27,8 @@ for i in 1:(size(rhov, 1) - 1)
         priohelp[:V] = -100000
     end
     gen_code(fname, graph,
-             lang = lang, funname = "exp_$(i)", precomputed_nodes = [:A],
-             priohelp = priohelp)
+        lang = lang, funname = "exp_$(i)", precomputed_nodes = [:A],
+        priohelp = priohelp)
 
     # Post-processing
     lines = []
@@ -46,14 +46,14 @@ for i in 1:(size(rhov, 1) - 1)
             # Make a LAPACK call instead of backslash
             #line=replace(line, r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"LAPACK.gesv!(memslots\2, memslots\3); memslots\1=memslots\3")
             line = replace(line,
-                           r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"ldiv_for_generated!(memslots\1, memslots\2, memslots\3)")
+                r"memslots(\d+)\s*.?=\s*memslots(\d+)..?memslots(\d+)" => s"ldiv_for_generated!(memslots\1, memslots\2, memslots\3)")
             # Make sure the output is in A
             line = replace(line, r"return memslots(\d+)" => s"copyto!(A,memslots\1)")
 
             # Support for Julia 1.6.2 with manual inplace add for uniformscaling
             line = replace(line,
-                           r"mul!\(memslots(\d+),true,I.coeff(\d+),true,true\)"
-                           => s"inplace_add!(memslots\1,I*coeff\2)")
+                r"mul!\(memslots(\d+),true,I.coeff(\d+),true,true\)"
+                => s"inplace_add!(memslots\1,I*coeff\2)")
 
             println(outfile, line)
         end
