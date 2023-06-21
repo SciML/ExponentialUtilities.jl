@@ -13,10 +13,10 @@ also be just one value, in which case only the end result is returned and `U`
 is a vector.
 
 The time stepping formula of Niesen & Wright is used [^1]. If the time step
-`tau` is not specified, it is chosen according to (17) of Neisen & Wright. If
-`adaptive==true`, the time step and Krylov subsapce size adaptation scheme of
+`tau` is not specified, it is chosen according to (17) of Niesen & Wright. If
+`adaptive==true`, the time step and Krylov subspace size adaptation scheme of
 Niesen & Wright is used, the relative tolerance of which can be set using the
-keyword parameter `tol`. The delta and gamma parameter of the adaptation
+keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
 Set `verbose=true` to print out the internal steps (for debugging). For the
@@ -27,8 +27,8 @@ Note that this function is just a special case of `phiv_timestep` with a more
 intuitive interface (vector `b` instead of a n-by-1 matrix `B`).
 
 [^1]: Niesen, J., & Wright, W. (2009). A Krylov subspace algorithm for
-evaluating the φ-functions in exponential integrators. arXiv preprint
-arXiv:0907.4631.
+    evaluating the φ-functions in exponential integrators. arXiv preprint
+    arXiv:0907.4631.
 """
 function expv_timestep(ts::Vector{tType}, A, b; kwargs...) where {tType <: Real}
     U = similar(b, size(A, 1), length(ts))
@@ -44,12 +44,12 @@ end
 Non-allocating version of `expv_timestep`.
 """
 function expv_timestep!(u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
-                        kwargs...) where {T <: Number, tType <: Real}
+    kwargs...) where {T <: Number, tType <: Real}
     expv_timestep!(reshape(u, length(u), 1), [t], A, b; kwargs...)
     return u
 end
 function expv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, b::AbstractVector{T};
-                        kwargs...) where {T <: Number, tType <: Real}
+    kwargs...) where {T <: Number, tType <: Real}
     B = reshape(b, length(b), 1)
     phiv_timestep!(U, ts, A, B; kwargs...)
 end
@@ -67,19 +67,15 @@ also be just one value, in which case only the end result is returned and `U`
 is a vector.
 
 The time stepping formula of Niesen & Wright is used [^1]. If the time step
-`tau` is not specified, it is chosen according to (17) of Neisen & Wright. If
-`adaptive==true`, the time step and Krylov subsapce size adaptation scheme of
+`tau` is not specified, it is chosen according to (17) of Niesen & Wright. If
+`adaptive==true`, the time step and Krylov subspace size adaptation scheme of
 Niesen & Wright is used, the relative tolerance of which can be set using the
-keyword parameter `tol`. The delta and gamma parameter of the adaptation
+keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
 Set `verbose=true` to print out the internal steps (for debugging). For the
 other keyword arguments, consult `arnoldi` and `phiv`, which are used
 internally.
-
-[^1]: Niesen, J., & Wright, W. (2009). A Krylov subspace algorithm for
-evaluating the φ-functions in exponential integrators. arXiv preprint
-arXiv:0907.4631.
 """
 function phiv_timestep(ts::Vector{tType}, A, B; kwargs...) where {tType <: Real}
     U = Matrix{eltype(B)}(undef, size(A, 1), length(ts))
@@ -95,19 +91,19 @@ end
 Non-allocating version of `phiv_timestep`.
 """
 function phiv_timestep!(u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};
-                        kwargs...) where {T <: Number, tType <: Real}
+    kwargs...) where {T <: Number, tType <: Real}
     phiv_timestep!(reshape(u, length(u), 1), [t], A, B; kwargs...)
     return u
 end
 function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T};
-                        tau::Real = 0.0,
-                        m::Int = min(10, size(A, 1)), tol::Real = 1e-7,
-                        opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 0,
-                        correct::Bool = false, caches = nothing, adaptive = false,
-                        delta::Real = 1.2,
-                        ishermitian::Bool = LinearAlgebra.ishermitian(A),
-                        gamma::Real = 0.8, NA::Int = 0,
-                        verbose = false) where {T <: Number, tType <: Real}
+    tau::Real = 0.0,
+    m::Int = min(10, size(A, 1)), tol::Real = 1e-7,
+    opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 0,
+    correct::Bool = false, caches = nothing, adaptive = false,
+    delta::Real = 1.2,
+    ishermitian::Bool = LinearAlgebra.ishermitian(A),
+    gamma::Real = 0.8, NA::Int = 0,
+    verbose = false) where {T <: Number, tType <: Real}
     # Choose initial timestep
     opnorm = opnorm isa Number ? opnorm : opnorm(A, Inf) # backward compatibility
     abstol = tol * opnorm
@@ -133,8 +129,8 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         V_tmp = similar(B, T, n, m + 1)
         H_tmp = fill(zero(T), m + 1, m)
         Ks = KrylovSubspace{T, T, real(T), typeof(V_tmp), Matrix{T}}(m, m, false,
-                                                                     zero(real(T)), V_tmp,
-                                                                     H_tmp) # stores output from arnoldi!. Here we support also GPUs
+            zero(real(T)), V_tmp,
+            H_tmp) # stores output from arnoldi!. Here we support also GPUs
         phiv_cache = nothing         # cache used by phiv!
     else
         u, W, P, Ks, phiv_cache = caches
@@ -179,7 +175,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         # Part 2: compute ϕp(tau*A)wp using Krylov, possibly with adaptation
         arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm, iop = iop)
         _, epsilon = phiv!(P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
-                           errest = true)
+            errest = true)
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
         if adaptive
             omega = (tend / tau) * (epsilon / abstol)
@@ -191,20 +187,20 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
             maxtau = tend - t
             while omega > delta # inner loop of Algorithm 3
                 m_new, tau_new, q, kappa = _phiv_timestep_adapt(m, tau, epsilon, m_old,
-                                                                tau_old, epsilon_old, q,
-                                                                kappa,
-                                                                gamma, omega, maxtau, n, p,
-                                                                NA, iop,
-                                                                LinearAlgebra.opnorm(getH(Ks),
-                                                                                     1),
-                                                                verbose)
+                    tau_old, epsilon_old, q,
+                    kappa,
+                    gamma, omega, maxtau, n, p,
+                    NA, iop,
+                    LinearAlgebra.opnorm(getH(Ks),
+                        1),
+                    verbose)
                 m, m_old = m_new, m
                 tau, tau_old = tau_new, tau
                 # Compute ϕp(tau*A)wp using the new parameters
                 arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm,
-                         iop = iop)
+                    iop = iop)
                 _, epsilon_new = phiv!(P, tau, Ks, p + 1; cache = phiv_cache,
-                                       correct = correct, errest = true)
+                    correct = correct, errest = true)
                 epsilon, epsilon_old = epsilon_new, epsilon
                 omega = (tend / tau) * (epsilon / abstol)
                 verbose && println("  * m = $m, tau = $tau, error estimate = $epsilon")
@@ -240,7 +236,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
 end
 # Helper functions for phiv_timestep!
 function _phiv_timestep_adapt(m, tau, epsilon, m_old, tau_old, epsilon_old, q, kappa,
-                              gamma, omega, maxtau, n, p, NA, iop, Hnorm, verbose)
+    gamma, omega, maxtau, n, p, NA, iop, Hnorm, verbose)
     # Compute new m and tau (Algorithm 4)
     if tau_old > tau
         q = log(tau / tau_old) / log(epsilon / epsilon_old) - 1

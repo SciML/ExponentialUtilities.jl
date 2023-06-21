@@ -13,7 +13,7 @@ mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
     sw::Stegr.StegrWork{R}
     function StegrCache(::Type{T}, n::Integer) where {T}
         new{T, real(T)}(Vector{T}(undef, n), Vector{T}(undef, n),
-                        Stegr.StegrWork(real(T), n))
+            Stegr.StegrWork(real(T), n))
     end
 end
 
@@ -25,7 +25,7 @@ subspace matrix `T` with `α` on the diagonal and `β` on the
 super-/subdiagonal, diagonalizing via `stegr!`.
 """
 function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
-               cache::StegrCache{T, R}) where {T, R <: Real}
+    cache::StegrCache{T, R}) where {T, R <: Real}
     LAPACK.stegr!(α, β, cache.sw)
     sel = 1:length(α)
     @inbounds for i in sel
@@ -55,12 +55,12 @@ exact type decides which algorithm is used to compute the subspace
 exponential.
 """
 function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
-               Ks::KrylovSubspace{T, B, B}, cache::HSC;
-               atol::B = 1.0e-8, rtol::B = 1.0e-4,
-               m = min(Ks.maxiter, size(A, 1)),
-               verbose::Bool = false,
-               expmethod = ExpMethodHigham2005Base()) where {B, T <: Number,
-                                                             HSC <: HermitianSubspaceCache}
+    Ks::KrylovSubspace{T, B, B}, cache::HSC;
+    atol::B = 1.0e-8, rtol::B = 1.0e-4,
+    m = min(Ks.maxiter, size(A, 1)),
+    verbose::Bool = false,
+    expmethod = ExpMethodHigham2005Base()) where {B, T <: Number,
+    HSC <: HermitianSubspaceCache}
     if m > Ks.maxiter
         resize!(Ks, m)
     else

@@ -19,7 +19,6 @@ exponential!(A) = exponential!(A, ExpMethodHigham2005(A));
     ExpMethodDiagonalization(enforce_real=true)
 
 Matrix exponential method corresponding to the diagonalization with `eigen` possibly by removing imaginary part introduced by the numerical approximation.
-
 """
 struct ExpMethodDiagonalization
     enforce_real::Bool
@@ -29,19 +28,25 @@ ExpMethodDiagonalization() = ExpMethodDiagonalization(true);
 """
     E=exponential!(A,[method [cache]])
 
-Computes the matrix exponential with method specified in `method`. The contents of `A` is modified allowing for less allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. [`ExpMethodNative`](@ref), [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), [`ExpMethodHigham2005`](@ref). Memory
-needed can be preallocated and provided in parameter `cache` such that the memory can recycled when calling `exponential!` several times. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
+Computes the matrix exponential with the method specified in `method`. The contents of `A` are modified, allowing for fewer allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. [`ExpMethodNative`](@ref), [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), [`ExpMethodHigham2005`](@ref). Memory
+needed can be preallocated and provided in the parameter `cache` such that the memory can be recycled when calling `exponential!` several times. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
 
 Example
-```julia-repl
-julia> A=randn(50,50);
-julia> Acopy=B*2;
-julia> method=ExpMethodHigham2005();
-julia> cache=alloc_mem(A,method); # Main allocation done here
-julia> E1=exponential!(A,method,cache) # Very little allocation here
-julia> E2=exponential!(B,method,cache) # Very little allocation here
-```
 
+```julia-repl
+julia> A = randn(50, 50);
+
+julia> Acopy = B * 2;
+
+julia> method = ExpMethodHigham2005();
+
+julia> cache = alloc_mem(A, method); # Main allocation done here
+
+julia> E1 = exponential!(A, method, cache) # Very little allocation here
+
+julia> E2 = exponential!(B, method, cache) # Very little allocation here
+
+```
 """
 function exponential!(A, method::ExpMethodDiagonalization, cache = nothing)
     F = eigen!(A)
@@ -57,7 +62,6 @@ end
     ExpMethodNative()
 
 Matrix exponential method corresponding to calling `Base.exp`.
-
 """
 struct ExpMethodNative end
 function exponential!(A, method::ExpMethodNative, cache = nothing)

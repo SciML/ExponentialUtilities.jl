@@ -18,7 +18,7 @@ package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
 """
 function phi(z::T, k::Integer; cache = nothing,
-             expmethod = ExpMethodHigham2005Base()) where {T <: Number}
+    expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     # Construct the matrix
     if cache == nothing
         cache = fill(zero(T), k + 1, k + 1)
@@ -59,9 +59,9 @@ end
 Non-allocating version of `phiv_dense`.
 """
 function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
-                     v::AbstractVector{T}, k::Integer;
-                     cache = nothing,
-                     expmethod = ExpMethodHigham2005Base()) where {T <: Number}
+    v::AbstractVector{T}, k::Integer;
+    cache = nothing,
+    expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     @assert size(w, 1)==size(A, 1)==size(A, 2)==length(v) "Dimension mismatch"
     @assert size(w, 2)==k + 1 "Dimension mismatch"
     m = length(v)
@@ -118,7 +118,7 @@ end
 Non-allocating version of `phi` for non-diagonal matrix inputs.
 """
 function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches = nothing,
-              expmethod = ExpMethodHigham2005Base()) where {T <: Number}
+    expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1&&all(P -> size(P) == (m, m), out) "Dimension mismatch"
     if caches == nothing
@@ -142,7 +142,7 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches =
     return out
 end
 function phi!(out::Vector{Diagonal{T, V}}, A::Diagonal{T, V}, k::Integer;
-              caches = nothing) where {T <: Number, V <: AbstractVector{T}}
+    caches = nothing) where {T <: Number, V <: AbstractVector{T}}
     for i in 1:size(A, 1)
         phiz = phi(A[i, i], k; cache = caches)
         for j in 1:(k + 1)

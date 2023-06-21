@@ -40,30 +40,31 @@ const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4, 10.8, 21.6, 43.2, 86.4, 172.8, 345.6
 const LIBLAPACK = VERSION >= v"1.7" ? BLAS.libblastrampoline : LAPACK.liblapack
 using LinearAlgebra: BlasInt, checksquare
 for (gebal, gebak, elty, relty) in ((:dgebal_, :dgebak_, :Float64, :Float64),
-                                    (:sgebal_, :sgebak_, :Float32, :Float32),
-                                    (:zgebal_, :zgebak_, :ComplexF64, :Float64),
-                                    (:cgebal_, :cgebak_, :ComplexF32, :Float32))
+    (:sgebal_, :sgebak_, :Float32, :Float32),
+    (:zgebal_, :zgebak_, :ComplexF64, :Float64),
+    (:cgebal_, :cgebak_, :ComplexF32, :Float32))
     @eval begin
-    #     SUBROUTINE DGEBAL( JOB, N, A, LDA, ILO, IHI, SCALE, INFO )
-    #*     .. Scalar Arguments ..
-    #      CHARACTER          JOB
-    #      INTEGER            IHI, ILP, INFO, LDA, N
-    #     .. Array Arguments ..
-    #      DOUBLE PRECISION   A( LDA, * ), SCALE( * )
-    function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
-        BLAS.chkstride1(A)
-        n = checksquare(A)
-        LAPACK.chkfinite(A) # balancing routines don't support NaNs and Infs
-        ihi = Ref{BlasInt}()
-        ilo = Ref{BlasInt}()
-        info = Ref{BlasInt}()
-        ccall((BLAS.@blasfunc($gebal), LIBLAPACK), Cvoid,
-              (Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
-               Ptr{BlasInt}, Ptr{BlasInt}, Ptr{$relty}, Ptr{BlasInt}, Clong),
-              job, n, A, max(1, stride(A, 2)), ilo, ihi, scale, info, 1)
-        LAPACK.chklapackerror(info[])
-        ilo[], ihi[], scale
-    end end
+        #     SUBROUTINE DGEBAL( JOB, N, A, LDA, ILO, IHI, SCALE, INFO )
+        #*     .. Scalar Arguments ..
+        #      CHARACTER          JOB
+        #      INTEGER            IHI, ILP, INFO, LDA, N
+        #     .. Array Arguments ..
+        #      DOUBLE PRECISION   A( LDA, * ), SCALE( * )
+        function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
+            BLAS.chkstride1(A)
+            n = checksquare(A)
+            LAPACK.chkfinite(A) # balancing routines don't support NaNs and Infs
+            ihi = Ref{BlasInt}()
+            ilo = Ref{BlasInt}()
+            info = Ref{BlasInt}()
+            ccall((BLAS.@blasfunc($gebal), LIBLAPACK), Cvoid,
+                (Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+                    Ptr{BlasInt}, Ptr{BlasInt}, Ptr{$relty}, Ptr{BlasInt}, Clong),
+                job, n, A, max(1, stride(A, 2)), ilo, ihi, scale, info, 1)
+            LAPACK.chklapackerror(info[])
+            ilo[], ihi[], scale
+        end
+    end
 end
 
 # Inplace add of a UniformScaling object (support julia 1.6.2)
@@ -93,9 +94,13 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
     end
 
     # Make the call to the appropriate exp_gen! function
-    X = Base.Cartesian.@nif 13 d->begin nA < RHO_V[d] end d->begin # if condition
-    exp_gen!(cache, A, Val(d)) end d->begin # fallback (d == 13)
-    exp_gen!(cache, A, Val(d)) end
+    X = Base.Cartesian.@nif 13 d->begin
+        nA < RHO_V[d]
+    end d->begin # if condition
+        exp_gen!(cache, A, Val(d))
+    end d->begin # fallback (d == 13)
+        exp_gen!(cache, A, Val(d))
+    end
 
     # Undo the balancing
     if method.do_balancing

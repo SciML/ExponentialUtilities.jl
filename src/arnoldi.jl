@@ -24,7 +24,7 @@ Resize `Ks` to a different `maxiter`, destroying its contents.
 This is an expensive operation and should be used scarcely.
 """
 mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T},
-                              HType <: AbstractMatrix{U}}
+    HType <: AbstractMatrix{U}}
     m::Int        # subspace dimension
     maxiter::Int  # maximum allowed subspace size
     augmented::Int# length of the augmented part
@@ -34,11 +34,11 @@ mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T},
 end
 
 function KrylovSubspace{T, U}(n::Integer, maxiter::Integer = 30,
-                              augmented::Integer = false) where {T, U}
+    augmented::Integer = false) where {T, U}
     V = Matrix{T}(undef, n + augmented, maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
     return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented,
-                                                               zero(real(T)), V, H)
+        zero(real(T)), V, H)
 end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T, T}(args...)
@@ -76,7 +76,7 @@ end
 """
     arnoldi(A,b[;m,tol,opnorm,iop]) -> Ks
 
-Performs `m` anoldi iterations to obtain the Krylov subspace K_m(A,b).
+Performs `m` arnoldi iterations to obtain the Krylov subspace K_m(A,b).
 
 The n x (m + 1) basis vectors `getV(Ks)` and the (m + 1) x m upper Hessenberg
 matrix `getH(Ks)` are related by the recurrence formula
@@ -91,16 +91,16 @@ The default value of 0 indicates full Arnoldi. For symmetric/Hermitian `A`,
 
 Refer to `KrylovSubspace` for more information regarding the output.
 
-Happy-breakdown occurs whenver `norm(v_j) < tol * opnorm`, in this case
+Happy-breakdown occurs whenever `norm(v_j) < tol * opnorm`, in this case,
 the dimension of `Ks` is smaller than `m`.
 
 [^1]: Koskela, A. (2015). Approximating the matrix exponential of an
-advection-diffusion operator using the incomplete orthogonalization method. In
-Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
-Springer, Cham.
+    advection-diffusion operator using the incomplete orthogonalization method. In
+    Numerical Mathematics and Advanced Applications-ENUMATH 2013 (pp. 345-353).
+    Springer, Cham.
 """
 function arnoldi(A, b; m = min(30, size(A, 1)), ishermitian = LinearAlgebra.ishermitian(A),
-                 kwargs...)
+    kwargs...)
     TA, Tb = eltype(A), eltype(b)
     T = promote_type(TA, Tb)
     n = length(b)
@@ -112,7 +112,7 @@ function arnoldi(A, b; m = min(30, size(A, 1)), ishermitian = LinearAlgebra.ishe
     H = zeros(U, (m + 1, m))
 
     Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), V,
-                                                             H)
+        H)
 
     arnoldi!(Ks, A, b; m = m, ishermitian = ishermitian, kwargs...)
 end
@@ -133,7 +133,7 @@ end
         mul!(@view(V[1:n, j + 1]), A, @view(V[1:n, j]))
 
         BLAS.gemm!('N', 'N', 1.0, B, @view(V[(n + 1):(n + p), j]), 1.0,
-                   @view(V[1:n, j + 1]))
+            @view(V[1:n, j + 1]))
         copyto!(@view(V[(n + 1):(n + p - 1), j + 1]), @view(V[(n + 2):(n + p), j]))
         V[end, j + 1] = 0
     end
@@ -208,11 +208,11 @@ end
 """
     arnoldi_step!(j, iop, n, A, V, H)
 
-Take the `j`:th step of the Lanczos iteration.
+Take the `j` 'th step of the Lanczos iteration.
 """
 function arnoldi_step!(j::Integer, iop::Integer, A::AT,
-                       V::AbstractMatrix{T}, H::AbstractMatrix{U},
-                       n::Int = -1, p::Int = -1) where {AT, T, U}
+    V::AbstractMatrix{T}, H::AbstractMatrix{U},
+    n::Int = -1, p::Int = -1) where {AT, T, U}
     x, y = @view(V[:, j]), @view(V[:, j + 1])
     applyA!(y, A, x, V, j, n, p)
 
@@ -235,11 +235,11 @@ end
 Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
-                  tol::Real = 1e-7, m::Int = min(Ks.maxiter, size(A, 1)),
-                  ishermitian::Bool = LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
-                  opnorm = nothing, iop::Int = 0,
-                  init::Int = 0, t::Number = NaN, mu::Number = NaN,
-                  l::Int = -1) where {T1 <: Number, U <: Number, AT}
+    tol::Real = 1e-7, m::Int = min(Ks.maxiter, size(A, 1)),
+    ishermitian::Bool = LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
+    opnorm = nothing, iop::Int = 0,
+    init::Int = 0, t::Number = NaN, mu::Number = NaN,
+    l::Int = -1) where {T1 <: Number, U <: Number, AT}
     ishermitian &&
         return lanczos!(Ks, A, b; tol = tol, m = m, init = init, t = t, mu = mu, l = l)
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
@@ -270,13 +270,13 @@ end
 """
     lanczos_step!(j, m, n, A, V, H)
 
-Take the `j`:th step of the Lanczos iteration.
+Take the `j`'th step of the Lanczos iteration.
 """
 function lanczos_step!(j::Integer, A,
-                       V::AbstractMatrix{T},
-                       u::AbstractVector{U},
-                       v::AbstractVector{B},
-                       n::Int = -1, p::Int = -1) where {B, T, U}
+    V::AbstractMatrix{T},
+    u::AbstractVector{U},
+    v::AbstractVector{B},
+    n::Int = -1, p::Int = -1) where {B, T, U}
     x, y = @view(V[:, j]), @view(V[:, j + 1])
     applyA!(y, A, x, V, j, n, p)
     α = u[j] = coeff(U, dot(x, y))
@@ -312,10 +312,10 @@ A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
-                  tol = 1e-7, m = min(Ks.maxiter, size(A, 1)),
-                  opnorm = nothing,
-                  init::Int = 0, t::Number = NaN, mu::Number = NaN,
-                  l::Int = -1) where {T1 <: Number, U <: Number, B, AT}
+    tol = 1e-7, m = min(Ks.maxiter, size(A, 1)),
+    opnorm = nothing,
+    init::Int = 0, t::Number = NaN, mu::Number = NaN,
+    l::Int = -1) where {T1 <: Number, U <: Number, B, AT}
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     b′, b_aug, n, p = checkdims(A, b, V)
