@@ -76,10 +76,6 @@ scheme can also be adjusted.
 Set `verbose=true` to print out the internal steps (for debugging). For the
 other keyword arguments, consult `arnoldi` and `phiv`, which are used
 internally.
-
-[^1]: Niesen, J., & Wright, W. (2009). A Krylov subspace algorithm for
-    evaluating the φ-functions in exponential integrators. arXiv preprint
-    arXiv:0907.4631.
 """
 function phiv_timestep(ts::Vector{tType}, A, B; kwargs...) where {tType <: Real}
     U = Matrix{eltype(B)}(undef, size(A, 1), length(ts))

@@ -18,5 +18,5 @@ ExpMethodDiagonalization
 ## Utilities
 
 ```@docs
-alloc_mem
+ExponentialUtilities.alloc_mem
 ```

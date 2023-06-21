@@ -26,16 +26,15 @@ expv
 phiv
 expv!
 phiv!
-exp_timestep
+expv_timestep
 phiv_timestep
-exp_timestep!
+expv_timestep!
 phiv_timestep!
-phi
 ```
 
 ## Caches
 
 ```@docs
-ExpvCache
-PhivCache
+ExponentialUtilities.ExpvCache
+ExponentialUtilities.PhivCache
 ```

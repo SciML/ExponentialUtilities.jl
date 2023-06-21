@@ -10,8 +10,8 @@ lanczos!
 
 ```@docs
 KrylovSubspace
-firststep!
-arnoldi_step!
-lanczos_step!
-coeff
+ExponentialUtilities.firststep!
+ExponentialUtilities.arnoldi_step!
+ExponentialUtilities.lanczos_step!
+ExponentialUtilities.coeff
 ```
