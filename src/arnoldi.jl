@@ -208,7 +208,7 @@ end
 """
     arnoldi_step!(j, iop, n, A, V, H)
 
-Take the `j`:th step of the Lanczos iteration.
+Take the `j` 'th step of the Lanczos iteration.
 """
 function arnoldi_step!(j::Integer, iop::Integer, A::AT,
     V::AbstractMatrix{T}, H::AbstractMatrix{U},
@@ -270,7 +270,7 @@ end
 """
     lanczos_step!(j, m, n, A, V, H)
 
-Take the `j`:th step of the Lanczos iteration.
+Take the `j`'th step of the Lanczos iteration.
 """
 function lanczos_step!(j::Integer, A,
     V::AbstractMatrix{T},
