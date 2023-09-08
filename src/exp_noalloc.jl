@@ -10,6 +10,7 @@ struct ExpMethodHigham2005
 end
 ExpMethodHigham2005(A::AbstractMatrix) = ExpMethodHigham2005(A isa StridedMatrix)
 ExpMethodHigham2005() = ExpMethodHigham2005(true)
+ExpMethodHigham2005(A::GPUArraysCore.AbstractGPUArray) = ExpMethodHigham2005(false)
 
 function alloc_mem(A, ::ExpMethodHigham2005)
     T = eltype(A)
