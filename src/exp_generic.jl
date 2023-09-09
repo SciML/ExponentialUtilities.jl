@@ -184,6 +184,7 @@ function exp_generic!(y1, y2, y3, x, s, ::Val{13})
 end
 # `lu!` is only defined for `StridedMatrix`, and `lu(::StaticArray)` (note `MArray<:StaticArray`) returns `::StaticArrays.LU !== LinearAlgebra.LU`
 _rdiv!(A, B::StridedMatrix) = rdiv!(A, lu!(B))
+_rdiv!(A, B::SparseMatrixCSC) = A / Array(B)
 _rdiv!(A, B) = A / B
 
 function exp_generic_core!(y1, y2, y3, x, ::Val{13})
