@@ -25,7 +25,7 @@ end
     eA = exp(A)
     A_d = cu(A)
 
-    ExponentialUtilities.exponential!(copy(A_d)) # Make sure simple command works
+    exponential!(copy(A_d)) # Make sure simple command works
     
     # Iterate over GPU-compatible methods
     for m in (ExpMethodHigham2005(false),)
