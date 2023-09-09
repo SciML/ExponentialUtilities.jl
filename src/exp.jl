@@ -13,6 +13,7 @@ end
 @deprecate _exp! exponential!
 @deprecate exp_generic exponential!
 exponential!(A) = exponential!(A, ExpMethodHigham2005(A));
+exponential!(A::GPUArraysCore.AbstractGPUArray) = exponential!(A, ExpMethodHigham2005(false));
 
 ## The diagonalization based
 """
