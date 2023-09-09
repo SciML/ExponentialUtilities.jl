@@ -96,9 +96,11 @@ exp_generic(A) = exponential!(copy(A), ExpMethodGeneric())
     end
 end
 
-@testset "exponential! sparse" begin
-    A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
-    exponential!(copy(A), ExpMethodGeneric()) ≈ exp(Array(A))
+if VERSION >= v"1.9"
+    @testset "exponential! sparse" begin
+        A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
+        exponential!(copy(A), ExpMethodGeneric()) ≈ exp(Array(A))
+    end
 end
 
 @testset "Issue 41" begin
