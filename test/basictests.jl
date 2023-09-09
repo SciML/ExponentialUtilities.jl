@@ -96,6 +96,11 @@ exp_generic(A) = exponential!(copy(A), ExpMethodGeneric())
     end
 end
 
+@testset "exponential! sparse" begin
+    A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
+    exponential!(copy(A), ExpMethodGeneric()) ≈ exp(Array(A))
+end
+
 @testset "Issue 41" begin
     @test ForwardDiff.derivative(exp_generic, 0.1)≈exp_generic(0.1) atol=1e-15
 end
