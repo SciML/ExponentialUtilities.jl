@@ -112,10 +112,11 @@ You can also download the
 
 ```@eval
 using TOML
+using Markdown
 version = TOML.parse(read("../../Project.toml", String))["version"]
 name = TOML.parse(read("../../Project.toml", String))["name"]
-link = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
-       "/assets/Manifest.toml"
+link = Markdown.MD("https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
+                   "/assets/Manifest.toml")
 ```
 
 ```@raw html
@@ -125,10 +126,11 @@ link = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
 
 ```@eval
 using TOML
+using Markdown
 version = TOML.parse(read("../../Project.toml", String))["version"]
 name = TOML.parse(read("../../Project.toml", String))["name"]
-link = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
-       "/assets/Project.toml"
+link = Markdown.MD("https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
+                   "/assets/Project.toml")
 ```
 
 ```@raw html
