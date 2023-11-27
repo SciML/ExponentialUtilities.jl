@@ -1,6 +1,6 @@
 # Krylov phiv with internal time-stepping
 """
-    exp_timestep(ts,A,b[;adaptive,tol,kwargs...]) -> U
+    expv_timestep(ts,A,b[;adaptive,tol,kwargs...]) -> U
 
 Evaluates the matrix exponentiation-vector product using time stepping
 
