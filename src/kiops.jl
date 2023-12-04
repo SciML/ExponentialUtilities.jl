@@ -3,7 +3,7 @@ using LinearAlgebra
 """
     kiops(tstops, A, u; kwargs...) -> (w, stats)
 
-Evaluate a linear combinaton of the ``φ`` functions evaluated at ``tA`` acting on
+Evaluate a linear combination of the ``φ`` functions evaluated at ``tA`` acting on
 vectors from ``u``, that is
 
 ```math
@@ -265,7 +265,7 @@ Base.@propagate_inbounds function kiops_update_solution!(tau_now, tau, tau_out, 
     reject = reject + ireject
     step = step + 1
 
-    # Udate for tau_out in the interval (tau_now, tau_now + tau)
+    # Update for tau_out in the interval (tau_now, tau_now + tau)
     blownTs = 0
     nextT = tau_now + tau
     for k in l:numSteps
