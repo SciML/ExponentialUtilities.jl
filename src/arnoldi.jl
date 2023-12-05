@@ -25,10 +25,11 @@ This is an expensive operation and should be used scarcely.
 """
 mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T},
     HType <: AbstractMatrix{U}}
-    m::Int        # subspace dimension
-    maxiter::Int  # maximum allowed subspace size
-    augmented::Int# length of the augmented part
-    beta::B       # norm(b,2)
+    m::Int             # subspace dimension
+    maxiter::Int       # maximum allowed subspace size
+    augmented::Int     # length of the augmented part
+    beta::B            # norm(b,2)
+    wasbreakdown::Bool # Did a happy breakdown occur?
     V::VType  # orthonormal bases
     H::HType  # Gram-Schmidt coefficients (real for Hermitian matrices)
 end
@@ -38,7 +39,7 @@ function KrylovSubspace{T, U}(n::Integer, maxiter::Integer = 30,
     V = Matrix{T}(undef, n + augmented, maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
     return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented,
-        zero(real(T)), V, H)
+        zero(real(T)), false, V, H)
 end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T, T}(args...)
@@ -111,8 +112,7 @@ function arnoldi(A, b; m = min(30, size(A, 1)), ishermitian = LinearAlgebra.ishe
     # H is a small dense array in tridiagonal form
     H = zeros(U, (m + 1, m))
 
-    Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), V,
-        H)
+    Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), false, V, H)
 
     arnoldi!(Ks, A, b; m = m, ishermitian = ishermitian, kwargs...)
 end
@@ -257,6 +257,7 @@ function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
         beta = arnoldi_step!(j, iop, A, V, H, n, p)
         if beta < tol # happy-breakdown
             Ks.m = j
+            Ks.wasbreakdown = true
             break
         end
     end
@@ -335,6 +336,7 @@ function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
         if tol > lanczos_step!(j, A, V, u, v, n, p)
             # happy-breakdown
             Ks.m = j
+            Ks.wasbreakdown = true
             break
         end
     end

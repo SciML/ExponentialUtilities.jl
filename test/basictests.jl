@@ -113,6 +113,18 @@ end
     @test ForwardDiff.derivative(t -> ForwardDiff.derivative(exp_generic, t), 0.0) == 1
 end
 
+@testset "Issue 143" begin
+    out = Pipe()
+    ts = collect(0:0.1:1)
+    res = redirect_stdout(out) do
+        expv_timestep(ts, [1.;;], [1.]; verbose = true)
+    end
+    close(Base.pipe_writer(out))
+
+    @test vec(res) ≈ exp.(ts)
+    @test occursin("Completed after 1 time step(s)", read(out, String))
+end
+
 @testset "naive_matmul" begin
     A = Matrix(reshape((1.0:(23.0^2)) ./ 700, (23, 23)))
     @test exp_generic(A) ≈ exp(A)
