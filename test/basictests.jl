@@ -114,15 +114,21 @@ end
 end
 
 @testset "Issue 143" begin
-    out = Pipe()
     ts = collect(0:0.1:1)
-    res = redirect_stdout(out) do
-        expv_timestep(ts, [1.;;], [1.]; verbose = true)
+
+    if VERSION >= v"1.7"
+        out = Pipe()
+        res = redirect_stdout(out) do
+            expv_timestep(ts, [1.;;], [1.]; verbose = true)
+        end
+        close(Base.pipe_writer(out))
+
+        @test occursin("Completed after 1 time step(s)", read(out, String))
+    else
+        res = expv_timestep(ts, [1.;;], [1.]; verbose = true)
     end
-    close(Base.pipe_writer(out))
 
     @test vec(res) ≈ exp.(ts)
-    @test occursin("Completed after 1 time step(s)", read(out, String))
 end
 
 @testset "naive_matmul" begin
