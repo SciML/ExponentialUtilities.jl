@@ -73,6 +73,10 @@ Niesen & Wright is used, the relative tolerance of which can be set using the
 keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
+When encountering a happy breakdown in the Krylov subspace construction, the
+time step is set to the remainder of the time interval since time stepping is
+no longer necessary.
+
 Set `verbose=true` to print out the internal steps (for debugging). For the
 other keyword arguments, consult `arnoldi` and `phiv`, which are used
 internally.
