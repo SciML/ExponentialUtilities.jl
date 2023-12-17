@@ -240,6 +240,9 @@ function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
     opnorm = nothing, iop::Int = 0,
     init::Int = 0, t::Number = NaN, mu::Number = NaN,
     l::Int = -1) where {T1 <: Number, U <: Number, AT}
+
+    Ks.wasbreakdown = false
+
     ishermitian &&
         return lanczos!(Ks, A, b; tol = tol, m = m, init = init, t = t, mu = mu, l = l)
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
@@ -317,6 +320,9 @@ function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
     opnorm = nothing,
     init::Int = 0, t::Number = NaN, mu::Number = NaN,
     l::Int = -1) where {T1 <: Number, U <: Number, B, AT}
+
+    Ks.wasbreakdown = false
+
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
     @inbounds V, H = getV(Ks), getH(Ks)
     b′, b_aug, n, p = checkdims(A, b, V)
