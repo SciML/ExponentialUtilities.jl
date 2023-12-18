@@ -73,6 +73,10 @@ Niesen & Wright is used, the relative tolerance of which can be set using the
 keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
+When encountering a happy breakdown in the Krylov subspace construction, the
+time step is set to the remainder of the time interval since time stepping is
+no longer necessary.
+
 Set `verbose=true` to print out the internal steps (for debugging). For the
 other keyword arguments, consult `arnoldi` and `phiv`, which are used
 internally.
@@ -128,9 +132,9 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         P = similar(B, T, n, p + 2)         # stores output from phiv!
         V_tmp = similar(B, T, n, m + 1)
         H_tmp = fill(zero(T), m + 1, m)
-        Ks = KrylovSubspace{T, T, real(T), typeof(V_tmp), Matrix{T}}(m, m, false,
-            zero(real(T)), V_tmp,
-            H_tmp) # stores output from arnoldi!. Here we support also GPUs
+        Ks = KrylovSubspace{T, T, real(T), typeof(V_tmp), Matrix{T}}(
+            m, m, false, zero(real(T)), false, V_tmp, H_tmp
+        ) # stores output from arnoldi!. Here we support also GPUs
         phiv_cache = nothing         # cache used by phiv!
     else
         u, W, P, Ks, phiv_cache = caches
@@ -157,6 +161,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
 
     t = 0.0       # current time
     snapshot = 1  # which snapshot to compute next
+    num_timesteps = 0
     while t < tend # time stepping loop
         if t + tau > tend # last step
             tau = tend - t
@@ -174,6 +179,9 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         end
         # Part 2: compute ϕp(tau*A)wp using Krylov, possibly with adaptation
         arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm, iop = iop)
+        if Ks.wasbreakdown
+            tau = tend - t
+        end
         _, epsilon = phiv!(P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
             errest = true)
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
@@ -230,7 +238,9 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         end
 
         t += tau
+        num_timesteps += 1
     end
+    verbose && println("Completed after $num_timesteps time step(s)")
 
     return U
 end
