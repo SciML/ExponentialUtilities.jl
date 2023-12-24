@@ -1,0 +1,22 @@
+[deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+Aqua = "0.8"
+ForwardDiff = "0.10.13"
+LinearAlgebra = "1.9"
+Pkg = "1"
+Random = "1"
+SafeTestsets = "0.1"
+SparseArrays = "1.9"
+StaticArrays = "1.2"
+Test = "1"
+julia = "1.9"
