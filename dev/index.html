@@ -15,8 +15,8 @@ expv(t, A, v)</code></pre><h2 id="Matrix-phi-vector-product"><a class="docs-head
 ϕ_(k+1)(z) = (ϕ_k(z) - 1) / z</code></pre><p>In exponential algorithms, products in the form of <code>ϕ_m(tA)b</code> are frequently encountered. Instead of computing the matrix function first and then computing the matrix-vector product, the common alternative is to construct a <a href="https://en.wikipedia.org/wiki/Krylov_subspace">Krylov subspace</a> <code>K_m(A,b)</code> and then approximate the matrix-phi-vector product.</p><h3 id="expv-and-phiv"><a class="docs-heading-anchor" href="#expv-and-phiv"><code>expv</code> and <code>phiv</code></a><a id="expv-and-phiv-1"></a><a class="docs-heading-anchor-permalink" href="#expv-and-phiv" title="Permalink"></a></h3><pre><code class="nohighlight hljs">expv(t,A,b;kwargs) -&gt; exp(tA)b
 phiv(t,A,b,k;kwargs) -&gt; [ϕ_0(tA)b ϕ_1(tA)b ... ϕ_k(tA)b][, errest]</code></pre><p>For <code>phiv</code>, <em>all</em> <code>ϕ_m(tA)b</code> products up to order <code>k</code> are returned as a matrix. This is because it&#39;s more economical to produce all the results at once than individually. A second output is returned if <code>errest=true</code> in <code>kwargs</code>. The error estimate is given for the second-to-last product, using the last product as an estimator. If <code>correct=true</code>, then <code>ϕ_0</code> through <code>ϕ_(k-1)</code> are updated using the last Arnoldi vector. The correction algorithm is described in [1].</p><p>You can adjust how the Krylov subspace is constructed by setting various keyword arguments. See the Arnoldi iteration section for more details.</p><h2 id="Contributing"><a class="docs-heading-anchor" href="#Contributing">Contributing</a><a id="Contributing-1"></a><a class="docs-heading-anchor-permalink" href="#Contributing" title="Permalink"></a></h2><ul><li><p>Please refer to the <a href="https://github.com/SciML/ColPrac/blob/master/README.md">SciML ColPrac: Contributor&#39;s Guide on Collaborative Practices for Community Packages</a> for guidance on PRs, issues, and other matters relating to contributing to SciML.</p></li><li><p>See the <a href="https://github.com/SciML/SciMLStyle">SciML Style Guide</a> for common coding practices and other style decisions.</p></li><li><p>There are a few community forums:</p><ul><li>The #diffeq-bridged and #sciml-bridged channels in the <a href="https://julialang.org/slack/">Julia Slack</a></li><li>The #diffeq-bridged and #sciml-bridged channels in the <a href="https://julialang.zulipchat.com/#narrow/stream/279055-sciml-bridged">Julia Zulip</a></li><li>On the <a href="https://discourse.julialang.org">Julia Discourse forums</a></li><li>See also <a href="https://sciml.ai/community/">SciML Community page</a></li></ul></li></ul><h2 id="Reproducibility"><a class="docs-heading-anchor" href="#Reproducibility">Reproducibility</a><a id="Reproducibility-1"></a><a class="docs-heading-anchor-permalink" href="#Reproducibility" title="Permalink"></a></h2><details><summary>The documentation of this SciML package was built using these direct dependencies,</summary><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Status `~/work/ExponentialUtilities.jl/ExponentialUtilities.jl/docs/Project.toml`
   [e30172f5] Documenter v1.2.1
-  [d4d017d3] ExponentialUtilities v1.25.0 `~/work/ExponentialUtilities.jl/ExponentialUtilities.jl`</code></pre></details><details><summary>and using this machine and Julia version.</summary><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Julia Version 1.9.4
-Commit 8e5136fa297 (2023-11-14 08:46 UTC)
+  [d4d017d3] ExponentialUtilities v1.25.0 `~/work/ExponentialUtilities.jl/ExponentialUtilities.jl`</code></pre></details><details><summary>and using this machine and Julia version.</summary><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Julia Version 1.10.0
+Commit 3120989f39b (2023-12-25 18:01 UTC)
 Build Info:
   Official https://julialang.org/ release
 Platform Info:
@@ -24,7 +24,7 @@ Platform Info:
   CPU: 4 × AMD EPYC 7763 64-Core Processor
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-14.0.6 (ORCJIT, znver3)
+  LLVM: libLLVM-15.0.7 (ORCJIT, znver3)
   Threads: 1 on 4 virtual cores</code></pre></details><details><summary>A more complete overview of all dependencies and their versions is also provided.</summary><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Status `~/work/ExponentialUtilities.jl/ExponentialUtilities.jl/docs/Manifest.toml`
   [a4c015fc] ANSIColoredPrinters v0.0.1
   [1520ce14] AbstractTrees v0.4.4
@@ -65,29 +65,30 @@ Platform Info:
   [d6f4376e] Markdown
   [a63ad114] Mmap
   [ca575930] NetworkOptions v1.2.0
-  [44cfe95a] Pkg v1.9.2
+  [44cfe95a] Pkg v1.10.0
   [de0858da] Printf
   [3fa0cd96] REPL
   [9a3f8284] Random
   [ea8e919c] SHA v0.7.0
   [9e88b42a] Serialization
   [6462fe0b] Sockets
-  [2f01184e] SparseArrays
+  [2f01184e] SparseArrays v1.10.0
   [4607b0f0] SuiteSparse
   [fa267f1f] TOML v1.0.3
   [a4e569a6] Tar v1.10.0
   [8dfed614] Test
   [cf7118a7] UUIDs
   [4ec0a83e] Unicode
-  [e66e0078] CompilerSupportLibraries_jll v1.0.5+0
+  [e66e0078] CompilerSupportLibraries_jll v1.0.5+1
   [deac9b47] LibCURL_jll v8.4.0+0
+  [e37daf67] LibGit2_jll v1.6.4+0
   [29816b5a] LibSSH2_jll v1.11.0+1
-  [c8ffd9c3] MbedTLS_jll v2.28.2+0
-  [14a3606d] MozillaCACerts_jll v2022.10.11
-  [4536629a] OpenBLAS_jll v0.3.21+4
-  [efcefdf7] PCRE2_jll v10.42.0+0
-  [bea87d4a] SuiteSparse_jll v5.10.1+6
-  [83775a58] Zlib_jll v1.2.13+0
-  [8e850b90] libblastrampoline_jll v5.8.0+0
+  [c8ffd9c3] MbedTLS_jll v2.28.2+1
+  [14a3606d] MozillaCACerts_jll v2023.1.10
+  [4536629a] OpenBLAS_jll v0.3.23+2
+  [efcefdf7] PCRE2_jll v10.42.0+1
+  [bea87d4a] SuiteSparse_jll v7.2.1+1
+  [83775a58] Zlib_jll v1.2.13+1
+  [8e850b90] libblastrampoline_jll v5.8.0+1
   [8e850ede] nghttp2_jll v1.52.0+1
-  [3f19e933] p7zip_jll v17.4.0+0</code></pre></details><p>You can also download the <a href="https://github.com/SciML/ExponentialUtilities.jl/tree/gh-pages/v1.25.0/assets/Manifest.toml">manifest</a> file and the <a href="https://github.com/SciML/ExponentialUtilities.jl/tree/gh-pages/v1.25.0/assets/Project.toml">project</a> file.</p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="matrix_exponentials/">Matrix Exponentials »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Friday 22 December 2023 16:02">Friday 22 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+  [3f19e933] p7zip_jll v17.4.0+2</code></pre></details><p>You can also download the <a href="https://github.com/SciML/ExponentialUtilities.jl/tree/gh-pages/v1.25.0/assets/Manifest.toml">manifest</a> file and the <a href="https://github.com/SciML/ExponentialUtilities.jl/tree/gh-pages/v1.25.0/assets/Project.toml">project</a> file.</p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="matrix_exponentials/">Matrix Exponentials »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Thursday 28 December 2023 21:31">Thursday 28 December 2023</span>. Using Julia version 1.10.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
