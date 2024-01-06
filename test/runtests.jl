@@ -12,18 +12,12 @@ end
 
 @time begin
     if GROUP == "All" || GROUP == "Core"
-        @time @safetestset "Quality Assurance" begin
-            include("qa.jl")
-        end
-        @time @safetestset "Basic Tests" begin
-            include("basictests.jl")
-        end
+        @time @safetestset "Quality Assurance" include("qa.jl")
+        @time @safetestset "Basic Tests" include("basictests.jl")
     end
 
     if GROUP == "GPU"
         activate_gpu_env()
-        @time @safetestset "GPU Tests" begin
-            include("gpu/gputests.jl")
-        end
+        @time @safetestset "GPU Tests" include("gpu/gputests.jl")
     end
 end
