@@ -25,7 +25,7 @@ subspace matrix `T` with `α` on the diagonal and `β` on the
 super-/subdiagonal, diagonalizing via `stegr!`.
 """
 function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
-    cache::StegrCache{T, R}) where {T, R <: Real}
+        cache::StegrCache{T, R}) where {T, R <: Real}
     LAPACK.stegr!(α, β, cache.sw)
     sel = 1:length(α)
     @inbounds for i in sel
@@ -55,12 +55,19 @@ exact type decides which algorithm is used to compute the subspace
 exponential.
 """
 function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
-    Ks::KrylovSubspace{T, B, B}, cache::HSC;
-    atol::B = 1.0e-8, rtol::B = 1.0e-4,
-    m = min(Ks.maxiter, size(A, 1)),
-    verbose::Bool = false,
-    expmethod = ExpMethodHigham2005Base()) where {B, T <: Number,
-    HSC <: HermitianSubspaceCache}
+        Ks::KrylovSubspace{T, B, B}, cache::HSC;
+        atol::B = 1.0e-8, rtol::B = 1.0e-4,
+        m = min(Ks.maxiter, size(A, 1)),
+        ishermitian::Bool = LinearAlgebra.ishermitian(A),
+        verbose::Bool = false,
+        expmethod = ExpMethodHigham2005Base()) where {B, T <: Number,
+        HSC <: HermitianSubspaceCache}
+    # TODO: this only implements the Lanczos algorithm for Hermitian matrices
+    # ks.H is tridiagonal, required for the expT! function above to call stegr!()
+    if !ishermitian
+        error("Error estimation not yet available for non-Hermitian matrices.")
+    end
+
     if m > Ks.maxiter
         resize!(Ks, m)
     else
@@ -77,7 +84,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     @. V[:, 1] = b / Ks.beta
 
     ε = atol + rtol * Ks.beta
-    verbose && @printf("Initial norm: β₀ %e, stopping threshold: %e\n", Ks.beta, ε)
+    verbose && @printf("Initial norm: β₀ %e, stopping threshold: %e\n", Ks.beta,ε)
 
     α = @diagview(H)
     β = @diagview(H, -1)
@@ -92,7 +99,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
         #   Saad, Y. (1992). Analysis of some Krylov subspace
         #   approximations. SIAM Journal on Numerical Analysis.
         σ = β[j] * Ks.beta * abs(cache.v[j])
-        verbose && @printf("iter %d, α[%d] %e, β[%d] %e, σ %e\n", j, j, α[j], j, β[j], σ)
+        verbose && @printf("iter %d, α[%d] %e, β[%d] %e, σ %e\n", j, j, α[j], j, β[j],σ)
         if σ < ε
             Ks.m = j
             break

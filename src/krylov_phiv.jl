@@ -43,16 +43,16 @@ function expv(t, A, b; mode = :happy_breakdown, kwargs...)
     end
 end
 function _expv_hb(t::Tt, A, b;
-    expmethod = ExpMethodHigham2005Base(),
-    cache = nothing, kwargs_arnoldi...) where {Tt}
+        expmethod = ExpMethodHigham2005Base(),
+        cache = nothing, kwargs_arnoldi...) where {Tt}
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, Ks; cache = cache, expmethod = expmethod)
 end
 function _expv_ee(t::Tt, A, b; m = min(30, size(A, 1)), tol = 1e-7, rtol = √(tol),
-    ishermitian::Bool = LinearAlgebra.ishermitian(A),
-    expmethod = ExpMethodHigham2005Base()) where {Tt}
+        ishermitian::Bool = LinearAlgebra.ishermitian(A),
+        expmethod = ExpMethodHigham2005Base()) where {Tt}
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A, 1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
@@ -60,10 +60,10 @@ function _expv_ee(t::Tt, A, b; m = min(30, size(A, 1)), tol = 1e-7, rtol = √(t
     Ks = KrylovSubspace{T, U}(n, m)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol = tol, rtol = rtol,
-        expmethod = expmethod)
+        ishermitian = ishermitian, expmethod = expmethod)
 end
 function expv(t::Tt, Ks::KrylovSubspace{T, U}; expmethod = ExpMethodHigham2005(),
-    kwargs...) where {Tt, T, U}
+        kwargs...) where {Tt, T, U}
     n = size(getV(Ks), 1)
     w = Vector{promote_type(Tt, T)}(undef, n)
     expv!(w, t, Ks; kwargs...)
@@ -74,7 +74,7 @@ end
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
 function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
-    cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+        cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache == nothing
@@ -102,7 +102,7 @@ end
 #       or Tw can be Float64, while t is ComplexF32 and T is Float64
 #       thus they can not share the same TypeVar.
 function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
-    cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
+        cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache === nothing
@@ -130,9 +130,9 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
 end
 
 function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
-    t::Real, Ks::KrylovSubspace{T, U};
-    cache = nothing,
-    expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+        t::Real, Ks::KrylovSubspace{T, U};
+        cache = nothing,
+        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if cache === nothing
@@ -238,7 +238,7 @@ Compute the matrix-phi-vector products using a pre-constructed Krylov subspace.
     Formula (10).
 """
 function phiv(t, A, b, k; cache = nothing, correct = false, errest = false,
-    kwargs_arnoldi...)
+        kwargs_arnoldi...)
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = Matrix{eltype(b)}(undef, length(b), k + 1)
     phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
@@ -254,8 +254,8 @@ end
 Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
 """
 function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
-    cache = nothing, correct = false,
-    errest = false) where {T <: Number, U <: Number}
+        cache = nothing, correct = false,
+        errest = false) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1)==size(V, 1) "Dimension mismatch"
     @assert size(w, 2)==k + 1 "Dimension mismatch"
