@@ -39,11 +39,11 @@ Example
 ```julia-repl
 julia> A = randn(50, 50);
 
-julia> Acopy = B * 2;
+julia> B = A * 2;
 
 julia> method = ExpMethodHigham2005();
 
-julia> cache = alloc_mem(A, method); # Main allocation done here
+julia> cache = ExponentialUtilities.alloc_mem(A, method); # Main allocation done here
 
 julia> E1 = exponential!(A, method, cache) # Very little allocation here
 
