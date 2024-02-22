@@ -3,7 +3,7 @@ intlog2(x::T) where {T <: Integer} = T(8 * sizeof(T) - leading_zeros(x - one(T))
 intlog2(x) = x > typemax(UInt) ? ceil(Int, log2(x)) : intlog2(ceil(UInt, x)) % Int
 
 function naivemul!(C::StridedMatrix{T}, A::StridedMatrix{T},
-    B::StridedMatrix{T}) where {T <: LinearAlgebra.BlasFloat}
+        B::StridedMatrix{T}) where {T <: LinearAlgebra.BlasFloat}
     mul!(C, A, B)
 end
 function naivemul!(C, A, B)
@@ -37,7 +37,7 @@ _const(A) = A
 _const(A::Array) = Base.Experimental.Const(A)
 # Separated to make it easier to test.
 @generated function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis, ::Val{MU},
-    ::Val{NU}) where {T, MU, NU}
+        ::Val{NU}) where {T, MU, NU}
     nrem_body = quote
         m = first(Maxis) - 1
         while m < M - $(MU - 1)
@@ -124,7 +124,7 @@ struct ExpMethodGeneric{T} end
 ExpMethodGeneric() = ExpMethodGeneric{Val(13)}();
 
 function exponential!(x, method::ExpMethodGeneric{Vk},
-    cache = alloc_mem(x, method)) where {Vk}
+        cache = alloc_mem(x, method)) where {Vk}
     nx = opnorm(x, 1)
     if isnan(nx) || nx > 4611686018427387904 # i.e. 2^62 since it would cause overflow in 2^s
         # This should (hopefully) ensure that the result is Inf or NaN depending on
@@ -197,7 +197,7 @@ function exp_generic_core!(y1, y2, y3, x, ::Val{13})
 end
 
 function exp_pade_p!(y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMatrix,
-    ::Val{13}, ::Val{13}) where {T}
+        ::Val{13}, ::Val{13}) where {T}
     N = size(x, 1) # check square is in `exp_generic`
     y1 .= x .* 1.5440497506703088e-17
     for c in (2.8101705462199623e-15, 2.529153491597966e-13, 1.48377004840414e-11,

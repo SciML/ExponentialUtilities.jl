@@ -32,11 +32,11 @@
     end
 
     precomp_ms = [
-        #ExpMethodHigham2005(),
-        ExpMethodHigham2005Base(),
-        #ExpMethodGeneric(),
-        #ExpMethodNative(),
-        #ExpMethodDiagonalization(),
+    #ExpMethodHigham2005(),
+        ExpMethodHigham2005Base()
+    #ExpMethodGeneric(),
+    #ExpMethodNative(),
+    #ExpMethodDiagonalization(),
     ]
 
     Txs = [Float64]

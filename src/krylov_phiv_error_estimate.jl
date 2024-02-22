@@ -84,7 +84,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     @. V[:, 1] = b / Ks.beta
 
     ε = atol + rtol * Ks.beta
-    verbose && @printf("Initial norm: β₀ %e, stopping threshold: %e\n", Ks.beta,ε)
+    verbose && @printf("Initial norm: β₀ %e, stopping threshold: %e\n", Ks.beta, ε)
 
     α = @diagview(H)
     β = @diagview(H, -1)
@@ -99,7 +99,7 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
         #   Saad, Y. (1992). Analysis of some Krylov subspace
         #   approximations. SIAM Journal on Numerical Analysis.
         σ = β[j] * Ks.beta * abs(cache.v[j])
-        verbose && @printf("iter %d, α[%d] %e, β[%d] %e, σ %e\n", j, j, α[j], j, β[j],σ)
+        verbose && @printf("iter %d, α[%d] %e, β[%d] %e, σ %e\n", j, j, α[j], j, β[j], σ)
         if σ < ε
             Ks.m = j
             break

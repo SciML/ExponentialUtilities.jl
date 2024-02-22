@@ -35,7 +35,7 @@ mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T},
 end
 
 function KrylovSubspace{T, U}(n::Integer, maxiter::Integer = 30,
-    augmented::Integer = false) where {T, U}
+        augmented::Integer = false) where {T, U}
     V = Matrix{T}(undef, n + augmented, maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
     return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented,
@@ -101,7 +101,7 @@ the dimension of `Ks` is smaller than `m`.
     Springer, Cham.
 """
 function arnoldi(A, b; m = min(30, size(A, 1)), ishermitian = LinearAlgebra.ishermitian(A),
-    kwargs...)
+        kwargs...)
     TA, Tb = eltype(A), eltype(b)
     T = promote_type(TA, Tb)
     n = length(b)
@@ -112,7 +112,8 @@ function arnoldi(A, b; m = min(30, size(A, 1)), ishermitian = LinearAlgebra.ishe
     # H is a small dense array in tridiagonal form
     H = zeros(U, (m + 1, m))
 
-    Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(m, m, false, zero(real(T)), false, V, H)
+    Ks = KrylovSubspace{T, U, real(T), typeof(V), typeof(H)}(
+        m, m, false, zero(real(T)), false, V, H)
 
     arnoldi!(Ks, A, b; m = m, ishermitian = ishermitian, kwargs...)
 end
@@ -211,8 +212,8 @@ end
 Take the `j` 'th step of the Lanczos iteration.
 """
 function arnoldi_step!(j::Integer, iop::Integer, A::AT,
-    V::AbstractMatrix{T}, H::AbstractMatrix{U},
-    n::Int = -1, p::Int = -1) where {AT, T, U}
+        V::AbstractMatrix{T}, H::AbstractMatrix{U},
+        n::Int = -1, p::Int = -1) where {AT, T, U}
     x, y = @view(V[:, j]), @view(V[:, j + 1])
     applyA!(y, A, x, V, j, n, p)
 
@@ -235,12 +236,11 @@ end
 Non-allocating version of `arnoldi`.
 """
 function arnoldi!(Ks::KrylovSubspace{T1, U}, A::AT, b;
-    tol::Real = 1e-7, m::Int = min(Ks.maxiter, size(A, 1)),
-    ishermitian::Bool = LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
-    opnorm = nothing, iop::Int = 0,
-    init::Int = 0, t::Number = NaN, mu::Number = NaN,
-    l::Int = -1) where {T1 <: Number, U <: Number, AT}
-
+        tol::Real = 1e-7, m::Int = min(Ks.maxiter, size(A, 1)),
+        ishermitian::Bool = LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
+        opnorm = nothing, iop::Int = 0,
+        init::Int = 0, t::Number = NaN, mu::Number = NaN,
+        l::Int = -1) where {T1 <: Number, U <: Number, AT}
     Ks.wasbreakdown = false
 
     ishermitian &&
@@ -277,10 +277,10 @@ end
 Take the `j`'th step of the Lanczos iteration.
 """
 function lanczos_step!(j::Integer, A,
-    V::AbstractMatrix{T},
-    u::AbstractVector{U},
-    v::AbstractVector{B},
-    n::Int = -1, p::Int = -1) where {B, T, U}
+        V::AbstractMatrix{T},
+        u::AbstractVector{U},
+        v::AbstractVector{B},
+        n::Int = -1, p::Int = -1) where {B, T, U}
     x, y = @view(V[:, j]), @view(V[:, j + 1])
     applyA!(y, A, x, V, j, n, p)
     α = u[j] = coeff(U, dot(x, y))
@@ -316,11 +316,10 @@ A variation of `arnoldi!` that uses the Lanczos algorithm for
 Hermitian matrices.
 """
 function lanczos!(Ks::KrylovSubspace{T1, U, B}, A::AT, b;
-    tol = 1e-7, m = min(Ks.maxiter, size(A, 1)),
-    opnorm = nothing,
-    init::Int = 0, t::Number = NaN, mu::Number = NaN,
-    l::Int = -1) where {T1 <: Number, U <: Number, B, AT}
-
+        tol = 1e-7, m = min(Ks.maxiter, size(A, 1)),
+        opnorm = nothing,
+        init::Int = 0, t::Number = NaN, mu::Number = NaN,
+        l::Int = -1) where {T1 <: Number, U <: Number, B, AT}
     Ks.wasbreakdown = false
 
     m > Ks.maxiter ? resize!(Ks, m) : Ks.m = m # might change if happy-breakdown occurs
