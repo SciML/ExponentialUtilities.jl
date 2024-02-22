@@ -44,12 +44,12 @@ end
 Non-allocating version of `expv_timestep`.
 """
 function expv_timestep!(u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
-    kwargs...) where {T <: Number, tType <: Real}
+        kwargs...) where {T <: Number, tType <: Real}
     expv_timestep!(reshape(u, length(u), 1), [t], A, b; kwargs...)
     return u
 end
 function expv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, b::AbstractVector{T};
-    kwargs...) where {T <: Number, tType <: Real}
+        kwargs...) where {T <: Number, tType <: Real}
     B = reshape(b, length(b), 1)
     phiv_timestep!(U, ts, A, B; kwargs...)
 end
@@ -95,19 +95,19 @@ end
 Non-allocating version of `phiv_timestep`.
 """
 function phiv_timestep!(u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};
-    kwargs...) where {T <: Number, tType <: Real}
+        kwargs...) where {T <: Number, tType <: Real}
     phiv_timestep!(reshape(u, length(u), 1), [t], A, B; kwargs...)
     return u
 end
 function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T};
-    tau::Real = 0.0,
-    m::Int = min(10, size(A, 1)), tol::Real = 1e-7,
-    opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 0,
-    correct::Bool = false, caches = nothing, adaptive = false,
-    delta::Real = 1.2,
-    ishermitian::Bool = LinearAlgebra.ishermitian(A),
-    gamma::Real = 0.8, NA::Int = 0,
-    verbose = false) where {T <: Number, tType <: Real}
+        tau::Real = 0.0,
+        m::Int = min(10, size(A, 1)), tol::Real = 1e-7,
+        opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 0,
+        correct::Bool = false, caches = nothing, adaptive = false,
+        delta::Real = 1.2,
+        ishermitian::Bool = LinearAlgebra.ishermitian(A),
+        gamma::Real = 0.8, NA::Int = 0,
+        verbose = false) where {T <: Number, tType <: Real}
     # Choose initial timestep
     opnorm = opnorm isa Number ? opnorm : opnorm(A, Inf) # backward compatibility
     abstol = tol * opnorm
@@ -246,7 +246,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
 end
 # Helper functions for phiv_timestep!
 function _phiv_timestep_adapt(m, tau, epsilon, m_old, tau_old, epsilon_old, q, kappa,
-    gamma, omega, maxtau, n, p, NA, iop, Hnorm, verbose)
+        gamma, omega, maxtau, n, p, NA, iop, Hnorm, verbose)
     # Compute new m and tau (Algorithm 4)
     if tau_old > tau
         q = log(tau / tau_old) / log(epsilon / epsilon_old) - 1

@@ -5,7 +5,7 @@ The same as `ExpMethodHigham2005` but follows `Base.exp` closer.
 """
 struct ExpMethodHigham2005Base end
 function alloc_mem(A::StridedMatrix{T},
-    method::ExpMethodHigham2005Base) where {T <: LinearAlgebra.BlasFloat}
+        method::ExpMethodHigham2005Base) where {T <: LinearAlgebra.BlasFloat}
     n = LinearAlgebra.checksquare(A)
     A2 = Matrix{T}(undef, n, n)
     P = Matrix{T}(undef, n, n)
@@ -21,7 +21,7 @@ end
 ## Non-allocating version of `LinearAlgebra.exp!`. Modifies `A` to
 ## become (approximately) `exp(A)`.
 function exponential!(A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
-    cache = alloc_mem(A, method)) where {T <: LinearAlgebra.BlasFloat}
+        cache = alloc_mem(A, method)) where {T <: LinearAlgebra.BlasFloat}
     X = A
     n = LinearAlgebra.checksquare(A)
     # if ishermitian(A)
