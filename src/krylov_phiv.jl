@@ -12,7 +12,7 @@ function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
 end
 function get_cache(C::ExpvCache, m::Int)
     m^2 > length(C.mem) && resize!(C, m) # resize the cache if needed
-    reshape(@view(C.mem[1:(m^2)]), m, m)
+    reshape(@view(C.mem[1:(m^2)]), m,m)
 end
 
 ############################
