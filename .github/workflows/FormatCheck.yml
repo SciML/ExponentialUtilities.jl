@@ -1,11 +1,6 @@
 name: format-check
 
 on:
-  push:
-    branches:
-      - 'master'
-      - 'release-'
-    tags: '*'
   pull_request:
 
 jobs:
@@ -40,3 +35,8 @@ jobs:
               write(stdout, out)
               exit(1)
           end'
+      - uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: JuliaFormatter
+          fail_on_error: true
+          filter_mode: added
