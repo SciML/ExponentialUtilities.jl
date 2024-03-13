@@ -30,7 +30,8 @@ intuitive interface (vector `b` instead of a n-by-1 matrix `B`).
     evaluating the φ-functions in exponential integrators. arXiv preprint
     arXiv:0907.4631.
 """
-function expv_timestep(ts::Vector{tType}, A, b; kwargs...) where {tType <: Real}
+function expv_timestep(ts::Vector{tType},
+A, b; kwargs...) where {tType <: Real}
     U = similar(b, size(A, 1), length(ts))
     expv_timestep!(U, ts, A, b; kwargs...)
 end
