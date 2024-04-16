@@ -11,7 +11,6 @@ on:
 
 
 
-    
 jobs:
   format-check:
     name: "Format Checks"
