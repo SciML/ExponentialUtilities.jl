@@ -5,10 +5,11 @@ on:
     branches:
       - 'master'
       - 'release-'
+      - 'at/test-concurrency'
     tags: '*'
   pull_request:
 
 jobs:
   format-check:
     name: "Format Checks"
-    uses: "SciML/.github/.github/workflows/format-suggestions-on-pr.yml@014c98428fa1165dbf01478156359253f984fb0a"
+    uses: "SciML/.github/.github/workflows/format-check.yml@at/test-concurrency"
