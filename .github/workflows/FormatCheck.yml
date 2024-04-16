@@ -10,7 +10,6 @@ on:
   pull_request:
 
 
-    
 jobs:
   format-check:
     name: "Format Checks"
