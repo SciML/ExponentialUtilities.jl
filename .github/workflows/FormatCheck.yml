@@ -10,8 +10,9 @@ on:
   pull_request:
 
 
-
 jobs:
   format-check:
     name: "Format Checks"
     uses: "SciML/.github/.github/workflows/format-check.yml@at/test-concurrency"
+    with:
+      enable-concurrent-jobs: true
