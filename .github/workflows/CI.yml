@@ -17,3 +17,4 @@ jobs:
     uses: "SciML/.github/.github/workflows/CI.yml@at/reusable-ci-workflow"
     with:
       group: 'Core'
+    secrets: "inherit"
