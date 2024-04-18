@@ -8,7 +8,7 @@ on:
   push:
     branches:
       - master
-      - 'at/test-ci-reusable'
+      # - 'at/test-ci-reusable'
     paths-ignore:
       - 'docs/**'
 jobs:
@@ -17,4 +17,6 @@ jobs:
     uses: "SciML/.github/.github/workflows/CI.yml@at/reusable-ci-workflow"
     with:
       group: 'Core'
+      checkout-ref: "c7d22a663e0097173a847051ad1bdc14bd07ea40"
     secrets: "inherit"
+
