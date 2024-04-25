@@ -13,3 +13,4 @@ jobs:
   build-and-deploy-docs:
     name: "Documentation - Build and Deploy"
     uses: "SciML/.github/.github/workflows/documentation.yml@test"
+    secrets: "inherit"
