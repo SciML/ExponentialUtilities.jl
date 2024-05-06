@@ -43,7 +43,7 @@ jobs:
         with:
           repository: ${{ matrix.package.user }}/${{ matrix.package.repo }}
           path: downstream
-      - uses: julia-actions/cache@v1
+      - uses: julia-actions/cache@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Load this and run the downstream tests
