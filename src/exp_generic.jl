@@ -6,6 +6,10 @@ function naivemul!(C::StridedMatrix{T}, A::StridedMatrix{T},
         B::StridedMatrix{T}) where {T <: LinearAlgebra.BlasFloat}
     mul!(C, A, B)
 end
+function naivemul!(C::AbstractSparseMatrix, A::AbstractSparseMatrix,
+        B::AbstractSparseMatrix)
+    mul!(C, A, B)
+end
 function naivemul!(C, A, B)
     Maxis, Naxis = axes(C)
     # TODO: heuristically pick `Nunroll` and `Munroll` using `sizeof(T)`, and maybe based on size of register file as well.
@@ -136,7 +140,7 @@ function exponential!(x, method::ExpMethodGeneric{Vk},
     (Vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) &&
         return exp_generic_mutable(x, s, Val{13}())
     if s >= 1
-        return exponential!(x / (2^s), method)^(2^s)
+        return exponential!(x / (2^s), method, cache)^(2^s)
     else
         return exp_pade_p(x, Vk, Vk) / exp_pade_q(x, Vk, Vk)
     end
