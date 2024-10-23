@@ -77,7 +77,7 @@ function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
         cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
-    if cache == nothing
+    if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
         cache = get_cache(cache, m)
@@ -105,7 +105,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
-    if cache === nothing
+    if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
         cache = get_cache(cache, m)
@@ -135,7 +135,7 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
-    if cache === nothing
+    if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
         cache = get_cache(cache, m)
@@ -259,7 +259,7 @@ function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Intege
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1)==size(V, 1) "Dimension mismatch"
     @assert size(w, 2)==k + 1 "Dimension mismatch"
-    if cache === nothing
+    if isnothing(cache)
         cache = PhivCache(w, m, k)
     elseif !isa(cache, PhivCache)
         throw(ArgumentError("Cache must be a PhivCache"))

@@ -20,7 +20,7 @@ Software (TOMS), 24(1), 130-156. Theorem 1).
 function phi(z::T, k::Integer; cache = nothing,
         expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     # Construct the matrix
-    if cache == nothing
+    if isnothing(cache)
         cache = fill(zero(T), k + 1, k + 1)
     else
         fill!(cache, zero(T))
@@ -66,7 +66,7 @@ function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
     @assert size(w, 2)==k + 1 "Dimension mismatch"
     m = length(v)
     # Construct the extended matrix
-    if cache == nothing
+    if isnothing(cache)
         cache = fill(zero(T), m + k, m + k)
     else
         @assert size(cache)==(m + k, m + k) "Dimension mismatch"
@@ -121,7 +121,7 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches =
         expmethod = ExpMethodHigham2005Base()) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1&&all(P -> size(P) == (m, m), out) "Dimension mismatch"
-    if caches == nothing
+    if isnothing(caches)
         e = Vector{T}(undef, m)
         W = Matrix{T}(undef, m, k + 1)
         C = Matrix{T}(undef, m + k, m + k)
@@ -143,7 +143,7 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches =
 end
 function phi!(out::Vector{Diagonal{T, V}}, A::Diagonal{T, V}, k::Integer;
         caches = nothing) where {T <: Number, V <: AbstractVector{T}}
-    for i in 1:size(A, 1)
+    for i in axes(A,1)
         phiz = phi(A[i, i], k; cache = caches)
         for j in 1:(k + 1)
             out[j][i, i] = phiz[j]

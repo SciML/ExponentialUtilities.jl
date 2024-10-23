@@ -1,7 +1,7 @@
 name = "ExponentialUtilities"
-uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
-authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>"]
-version = "1.26.1"
+uuid = "3927d2ad-0af0-4d29-8d72-bf799b39c66b"
+authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>", "José E. Cruz Serrallés <Jose.CruzSerralles@nyulangone.org>"]
+version = "1.27.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -13,6 +13,12 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 libblastrampoline_jll = "8e850b90-86db-534c-a0d3-1478176c7d93"
+
+[weakdeps]
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[extensions]
+ExponentialUtilitiesStaticArraysExt = "StaticArrays"
 
 [compat]
 Adapt = "3.4.0, 4"
