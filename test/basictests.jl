@@ -219,6 +219,15 @@ end
     end
 end
 
+@testset "Static Arrays" begin
+    Random.seed!(0)
+    for N in (3,4,6,8),t in (0.1,1.0,10.0)
+        A = I+randn(SMatrix{N,N,Float64})/3
+        b = randn(SVector{N,Float64})
+        @test expv(t,A,b) ≈ exp(t*A)*b
+    end
+end
+
 @testset "Arnoldi & Krylov" begin
     Random.seed!(0)
     n = 20
