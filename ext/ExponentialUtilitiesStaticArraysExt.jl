@@ -1,8 +1,3 @@
-#=
-Based on
-Al-Mohy, A. H., & Higham, N. J. (2011). "Computing the action of the matrix exponential, with 
-an application to exponential integrators". SIAM journal on scientific computing, 33(2), 488-511.
-=#
 module ExponentialUtilitiesStaticArraysExt
 
 export default_tolerance,theta,THETA32,THETA64
