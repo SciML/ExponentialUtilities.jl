@@ -1,5 +1,5 @@
 name = "ExponentialUtilities"
-uuid = "3927d2ad-0af0-4d29-8d72-bf799b39c66b"
+uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>", "José E. Cruz Serrallés <Jose.CruzSerralles@nyulangone.org>"]
 version = "1.27.0"
 
