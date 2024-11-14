@@ -33,6 +33,7 @@ ExpMethodDiagonalization() = ExpMethodDiagonalization(true);
 
 Computes the matrix exponential with the method specified in `method`. The contents of `A` are modified, allowing for fewer allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. [`ExpMethodNative`](@ref), [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), [`ExpMethodHigham2005`](@ref). Memory
 needed can be preallocated and provided in the parameter `cache` such that the memory can be recycled when calling `exponential!` several times. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
+A may not be sparse matrix type, since exp(A) is likely to be dense.
 
 Example
 
@@ -71,7 +72,7 @@ function exponential!(A, method::ExpMethodNative, cache = nothing)
     return exp(A)
 end
 
-function exponential!(A::AbstractSparseArray,method=nothing, cache=nothing)
+function exponential!(A::AbstractSparseArray, method=nothing, cache=nothing)
     throw("exp(A) on a sparse matrix is generally dense. This operation is "*
     "not allowed with exponential. If you wished to compute exp(At)*v, see expv. "*
     "Otherwise to override this error, densify the matrix before calling, "*
