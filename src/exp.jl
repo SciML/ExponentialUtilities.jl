@@ -70,3 +70,10 @@ struct ExpMethodNative end
 function exponential!(A, method::ExpMethodNative, cache = nothing)
     return exp(A)
 end
+
+function exponential!(A::AbstractSparseArray,method=nothing, cache=nothing)
+    throw("exp(A) on a sparse matrix is generally dense. This operation is "*
+    "not allowed with exponential. If you wished to compute exp(At)*v, see expv. "*
+    "Otherwise to override this error, densify the matrix before calling, "*
+    "i.e. exponential!(Matrix(A))")
+end
