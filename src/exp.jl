@@ -73,8 +73,8 @@ function exponential!(A, method::ExpMethodNative, cache = nothing)
 end
 
 function exponential!(A::AbstractSparseArray, method=nothing, cache=nothing)
-    throw("exp(A) on a sparse matrix is generally dense. This operation is "*
+    throw(ErrorException("exp(A) on a sparse matrix is generally dense. This operation is "*
     "not allowed with exponential. If you wished to compute exp(At)*v, see expv. "*
     "Otherwise to override this error, densify the matrix before calling, "*
-    "i.e. exponential!(Matrix(A))")
+    "i.e. exponential!(Matrix(A))"))
 end
