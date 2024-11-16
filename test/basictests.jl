@@ -99,7 +99,7 @@ end
 if VERSION >= v"1.9"
     @testset "exponential! sparse" begin
         A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
-        exponential!(copy(A), ExpMethodGeneric()) ≈ exp(Array(A))
+        @test_throws ErrorException exponential!(A)
     end
 end
 
