@@ -11,11 +11,15 @@ Constructs an uninitialized Krylov subspace, which can be filled by `arnoldi!`.
 The dimension of the subspace, `Ks.m`, can be dynamically altered but should
 be smaller than `maxiter`, the maximum allowed arnoldi iterations.
 
+The type of the (extended) orthonormal basis vector matrix `V` may be specified
+as `VType`. This is required e. g. for `GPUArray`s. 
+
+`U` determines`eltype(H)`.
+
+
     getV(Ks) -> V
     getH(Ks) -> H
 
-The type of the basis vector matrix `V` may be specified as `VType`. This is required
-e. g. for `GPUArray`s. `U` determines`eltype(H)`.
 
 Access methods for the (extended) orthonormal basis `V` and the (extended)
 Gram-Schmidt coefficients `H`. Both methods return a view into the storage
