@@ -47,7 +47,7 @@ function KrylovSubspace{T, U, VType}(n::Integer, maxiter::Integer = 30,
     V = VType(undef, n + augmented, maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
     return KrylovSubspace{T, U, real(T), VType, Matrix{U}}(maxiter, maxiter, augmented,
-    zero(real(T)), false, V, H)
+        zero(real(T)), false, V, H)
 end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T, T}(args...)
