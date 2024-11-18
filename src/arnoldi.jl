@@ -14,7 +14,7 @@ be smaller than `maxiter`, the maximum allowed arnoldi iterations.
 The type of the (extended) orthonormal basis vector matrix `V` may be specified
 as `VType`. This is required e. g. for `GPUArray`s. 
 
-`U` determines`eltype(H)`.
+`U` determines `eltype(H)`.
 
 
     getV(Ks) -> V
