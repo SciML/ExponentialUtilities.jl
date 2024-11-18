@@ -4,6 +4,7 @@
 # Output type/cache
 """
     KrylovSubspace{T}(n,[maxiter=30]) -> Ks
+    KrylovSubspace{T,U, VType}(n,[maxiter=30]) -> Ks
 
 Constructs an uninitialized Krylov subspace, which can be filled by `arnoldi!`.
 
@@ -12,6 +13,9 @@ be smaller than `maxiter`, the maximum allowed arnoldi iterations.
 
     getV(Ks) -> V
     getH(Ks) -> H
+
+The type of the basis vector matrix `V` may be specified as `VType`. This is required
+e. g. for `GPUArray`s. `U` determines`eltype(H)`.
 
 Access methods for the (extended) orthonormal basis `V` and the (extended)
 Gram-Schmidt coefficients `H`. Both methods return a view into the storage
