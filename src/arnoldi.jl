@@ -19,8 +19,7 @@ as `VType`. This is required e. g. for `GPUArray`s.
 
     getV(Ks) -> V
     getH(Ks) -> H
-
-
+    
 Access methods for the (extended) orthonormal basis `V` and the (extended)
 Gram-Schmidt coefficients `H`. Both methods return a view into the storage
 arrays and has the correct dimensions as indicated by `Ks.m`.
