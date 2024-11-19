@@ -4,7 +4,7 @@
 # Output type/cache
 """
     KrylovSubspace{T}(n,[maxiter=30]) -> Ks
-    KrylovSubspace{T,U, VType}(n,[maxiter=30]) -> Ks
+    KrylovSubspace{T, U, VType}(n,[maxiter=30]) -> Ks
 
 Constructs an uninitialized Krylov subspace, which can be filled by `arnoldi!`.
 
