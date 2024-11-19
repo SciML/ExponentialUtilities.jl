@@ -4,11 +4,18 @@
 # Output type/cache
 """
     KrylovSubspace{T}(n,[maxiter=30]) -> Ks
+    KrylovSubspace{T, U, VType}(n,[maxiter=30]) -> Ks
 
 Constructs an uninitialized Krylov subspace, which can be filled by `arnoldi!`.
 
 The dimension of the subspace, `Ks.m`, can be dynamically altered but should
 be smaller than `maxiter`, the maximum allowed arnoldi iterations.
+
+The type of the (extended) orthonormal basis vector matrix `V` may be specified
+as `VType`. This is required e. g. for `GPUArray`s. 
+
+`U` determines `eltype(H)`.
+
 
     getV(Ks) -> V
     getH(Ks) -> H
@@ -34,15 +41,16 @@ mutable struct KrylovSubspace{T, U, B, VType <: AbstractMatrix{T},
     H::HType  # Gram-Schmidt coefficients (real for Hermitian matrices)
 end
 
-function KrylovSubspace{T, U}(n::Integer, maxiter::Integer = 30,
-        augmented::Integer = false) where {T, U}
-    V = Matrix{T}(undef, n + augmented, maxiter + 1)
+function KrylovSubspace{T, U, VType}(n::Integer, maxiter::Integer = 30,
+        augmented::Integer = false) where {T, U, VType <: AbstractMatrix{T}}
+    V = VType(undef, n + augmented, maxiter + 1)
     H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
-    return KrylovSubspace{T, U, real(T), Matrix{T}, Matrix{U}}(maxiter, maxiter, augmented,
+    return KrylovSubspace{T, U, real(T), VType, Matrix{U}}(maxiter, maxiter, augmented,
         zero(real(T)), false, V, H)
 end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T, T}(args...)
+KrylovSubspace{T,U}(args...) where {T,U} = KrylovSubspace{T, U, Matrix{T}}(args...)
 
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:(Ks.m + 1)])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:(Ks.m + 1), 1:(Ks.m + !iszero(Ks.augmented))])
