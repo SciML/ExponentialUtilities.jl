@@ -74,7 +74,7 @@ Niesen & Wright is used, the relative tolerance of which can be set using the
 keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
-When encountering a happy breakdown in the Krylov subspace construction, the
+When encountering a happy breakdown in the Krylov subspace construction and `adaptive=true`, the
 time step is set to the remainder of the time interval since time stepping is
 no longer necessary.
 
@@ -180,7 +180,7 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         end
         # Part 2: compute ϕp(tau*A)wp using Krylov, possibly with adaptation
         arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm, iop = iop)
-        if Ks.wasbreakdown
+        if adaptive && Ks.wasbreakdown
             tau = tend - t
         end
         _, epsilon = phiv!(P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
