@@ -119,13 +119,13 @@ end
     if VERSION >= v"1.7"
         out = Pipe()
         res = redirect_stdout(out) do
-            expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true)
+            expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true, adaptive = true)
         end
         close(Base.pipe_writer(out))
 
         @test occursin("Completed after 1 time step(s)", read(out, String))
     else
-        res = expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true)
+        res = expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true, adaptive = true)
     end
 
     @test vec(res) ≈ exp.(ts)
