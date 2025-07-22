@@ -27,7 +27,7 @@ jobs:
           - "1"
         os:
           - "ubuntu-latest"
-    uses: "lkdvos/SCIMLactions/.github/workflows/tests.yml@master"
+    uses: "SciML/.github/.github/workflows/tests.yml@test"
     with:
       julia-version: "${{ matrix.version }}"
       os: "${{ matrix.os }}"
