@@ -38,7 +38,7 @@ end
 const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4, 10.8, 21.6, 43.2, 86.4, 172.8, 345.6, 691.2)
 
 # From LinearAlgebra
-const LIBLAPACK = VERSION >= v"1.7" ? BLAS.libblastrampoline : LAPACK.liblapack
+const LIBLAPACK = BLAS.libblastrampoline
 using LinearAlgebra: BlasInt, checksquare
 for (gebal, gebak, elty, relty) in ((:dgebal_, :dgebak_, :Float64, :Float64),
     (:sgebal_, :sgebak_, :Float32, :Float32),
