@@ -96,11 +96,9 @@ exp_generic(A) = exponential!(copy(A), ExpMethodGeneric())
     end
 end
 
-if VERSION >= v"1.9"
-    @testset "exponential! sparse" begin
-        A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
-        @test_throws ErrorException exponential!(A)
-    end
+@testset "exponential! sparse" begin
+    A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
+    @test_throws ErrorException exponential!(A)
 end
 
 @testset "Issue 41" begin
@@ -116,17 +114,13 @@ end
 @testset "Issue 143" begin
     ts = collect(0:0.1:1)
 
-    if VERSION >= v"1.7"
-        out = Pipe()
-        res = redirect_stdout(out) do
-            expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true)
-        end
-        close(Base.pipe_writer(out))
-
-        @test occursin("Completed after 1 time step(s)", read(out, String))
-    else
-        res = expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true)
+    out = Pipe()
+    res = redirect_stdout(out) do
+        expv_timestep(ts, reshape([1], (1, 1)), [1.0]; verbose = true)
     end
+    close(Base.pipe_writer(out))
+
+    @test occursin("Completed after 1 time step(s)", read(out, String))
 
     @test vec(res) ≈ exp.(ts)
 end
