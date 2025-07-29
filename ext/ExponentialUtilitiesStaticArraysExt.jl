@@ -63,7 +63,8 @@ const THETA64 = Tuple(calc_thetas(M_MAX, Float64))
 @propagate_inbounds theta(::Type{Float64}, m::Integer) = THETA64[m]
 @propagate_inbounds theta(::Type{Float32}, m::Integer) = THETA32[m]
 @propagate_inbounds theta(::Type{Complex{T}}, m::Integer) where {T} = theta(T, m)
-@propagate_inbounds theta(::Type{T}, ::Integer) where {T} = throw(DomainError(
+@propagate_inbounds theta(::Type{T},
+    ::Integer) where {T} = throw(DomainError(
     T, "type must be either Float32 or Float64"))
 @propagate_inbounds theta(x::Number, m::Integer) = theta(typeof(x), m)
 
@@ -95,7 +96,8 @@ end
             η = opnorm(Aᵐ, 1)^inv(p + 1)
             α = max(pη, η)
             pη = η
-            (Cmp::Int, mp::Int) = findmin(
+            (Cmp::Int,
+                mp::Int) = findmin(
                 Base.Fix1(parameter_search, α), (p * (p - 1) - 1):M_MAX)
             (Cmo, mo) = min((Cmp, mp), (Cmo, mo))
         end

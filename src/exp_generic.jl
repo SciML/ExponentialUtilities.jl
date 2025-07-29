@@ -89,7 +89,8 @@ _const(A::Array) = Base.Experimental.Const(A)
                                     Cmn_i_j)
                             end
                         end
-                        Base.Cartesian.@nexprs $NU j->Base.Cartesian.@nexprs $MU i->C[m + i, n + j] = Cmn_i_j
+                        Base.Cartesian.@nexprs $NU j->Base.Cartesian.@nexprs $MU i->C[
+                            m + i, n + j] = Cmn_i_j
                         m += $MU
                     end
                     for mm in (1 + m):M

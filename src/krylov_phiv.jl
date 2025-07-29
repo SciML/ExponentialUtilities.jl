@@ -12,7 +12,7 @@ function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
 end
 function get_cache(C::ExpvCache, m::Int)
     m^2 > length(C.mem) && resize!(C, m) # resize the cache if needed
-    reshape(@view(C.mem[1:(m^2)]), m, m)
+    reshape(@view(C.mem[1:(m ^ 2)]), m, m)
 end
 
 ############################
@@ -195,15 +195,15 @@ function get_caches(C::PhivCache{useview, T}, m::Int, p::Int) where {useview, T}
     offset = m
 
     if useview
-        Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
+        Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m ^ 2)]), m, m)
         offset += m^2
-        C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
+        C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p) ^ 2)]), m + p, m + p)
         offset += (m + p)^2
         C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
     else
-        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
+        Hcopy = reshape(C.mem[(offset + 1):(offset + m ^ 2)], m, m)
         offset += m^2
-        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
+        C1 = reshape(C.mem[(offset + 1):(offset + (m + p) ^ 2)], m + p, m + p)
         offset += (m + p)^2
         C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
     end
