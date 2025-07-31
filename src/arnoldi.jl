@@ -12,9 +12,10 @@ The dimension of the subspace, `Ks.m`, can be dynamically altered but should
 be smaller than `maxiter`, the maximum allowed arnoldi iterations.
 
 The type of the (extended) orthonormal basis vector matrix `V` may be specified
-as `VType`. This is required e. g. for `GPUArray`s.
+as `VType`. This is required e. g. for `GPUArray`s. 
 
 `U` determines `eltype(H)`.
+
 
     getV(Ks) -> V
     getH(Ks) -> H
@@ -49,7 +50,7 @@ function KrylovSubspace{T, U, VType}(n::Integer, maxiter::Integer = 30,
 end
 
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T, T}(args...)
-KrylovSubspace{T, U}(args...) where {T, U} = KrylovSubspace{T, U, Matrix{T}}(args...)
+KrylovSubspace{T,U}(args...) where {T,U} = KrylovSubspace{T, U, Matrix{T}}(args...)
 
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:(Ks.m + 1)])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:(Ks.m + 1), 1:(Ks.m + !iszero(Ks.augmented))])
