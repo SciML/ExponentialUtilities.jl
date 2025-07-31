@@ -97,7 +97,7 @@ _const(A::Array) = Base.Experimental.Const(A)
                         for k in Kaxis
                             Base.Cartesian.@nexprs $NU j->Cmn_j = muladd(_const(A)[mm, k],
                                 _const(B)[k,
-                                    n + j],
+                                n + j],
                                 Cmn_j)
                         end
                         Base.Cartesian.@nexprs $NU j->C[mm, n + j] = Cmn_j

@@ -210,7 +210,11 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int = min(mmin
 
         # Check error against target
         if omega <= delta
-            tau_now, l, j, reject, ireject, step = kiops_update_solution!(tau_now, tau,
+            tau_now, l,
+            j,
+            reject,
+            ireject,
+            step = kiops_update_solution!(tau_now, tau,
                 tau_out, w, l, V,
                 F, H, beta, j, n,
                 step, numSteps,
