@@ -143,7 +143,7 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches =
 end
 function phi!(out::Vector{Diagonal{T, V}}, A::Diagonal{T, V}, k::Integer;
         caches = nothing) where {T <: Number, V <: AbstractVector{T}}
-    for i in axes(A,1)
+    for i in axes(A, 1)
         phiz = phi(A[i, i], k; cache = caches)
         for j in 1:(k + 1)
             out[j][i, i] = phiz[j]

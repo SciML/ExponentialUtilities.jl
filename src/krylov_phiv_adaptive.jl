@@ -183,7 +183,8 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
         if Ks.wasbreakdown
             tau = tend - t
         end
-        _, epsilon = phiv!(P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
+        _,
+        epsilon = phiv!(P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
             errest = true)
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
         if adaptive
@@ -195,7 +196,9 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
             kappa = 2.0
             maxtau = tend - t
             while omega > delta # inner loop of Algorithm 3
-                m_new, tau_new, q, kappa = _phiv_timestep_adapt(m, tau, epsilon, m_old,
+                m_new, tau_new,
+                q,
+                kappa = _phiv_timestep_adapt(m, tau, epsilon, m_old,
                     tau_old, epsilon_old, q,
                     kappa,
                     gamma, omega, maxtau, n, p,
@@ -208,7 +211,8 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
                 # Compute ϕp(tau*A)wp using the new parameters
                 arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm,
                     iop = iop)
-                _, epsilon_new = phiv!(P, tau, Ks, p + 1; cache = phiv_cache,
+                _,
+                epsilon_new = phiv!(P, tau, Ks, p + 1; cache = phiv_cache,
                     correct = correct, errest = true)
                 epsilon, epsilon_old = epsilon_new, epsilon
                 omega = (tend / tau) * (epsilon / abstol)

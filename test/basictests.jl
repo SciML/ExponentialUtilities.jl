@@ -126,7 +126,7 @@ end
 end
 
 @testset "naive_matmul" begin
-    A = Matrix(reshape((1.0:(23.0^2)) ./ 700, (23, 23)))
+    A = Matrix(reshape((1.0:(23.0 ^ 2)) ./ 700, (23, 23)))
     @test exp_generic(A) ≈ exp(A)
     # FiniteDiff.finite_difference_gradient(sum ∘ exp, A)
     @test ForwardDiff.gradient(sum ∘ exp_generic, A) ≈
@@ -215,10 +215,11 @@ end
 
 @testset "Static Arrays" begin
     Random.seed!(0)
-    for N in (3,4,6,8),t in (0.1,1.0,10.0)
-        A = I+randn(SMatrix{N,N,Float64})/3
-        b = randn(SVector{N,Float64})
-        @test expv(t,A,b) ≈ exp(t*A)*b
+    for N in (3, 4, 6, 8), t in (0.1, 1.0, 10.0)
+
+        A = I+randn(SMatrix{N, N, Float64})/3
+        b = randn(SVector{N, Float64})
+        @test expv(t, A, b) ≈ exp(t*A)*b
     end
 end
 
@@ -293,6 +294,7 @@ end
         rand(n, n)
     ]
         for b in [rand(ComplexF64, n), rand(n)], t in [1e-2, 1e-2im, 1e-2 + 1e-2im]
+
             @test exp(t * A) * b ≈ expv(t, A, b; m = m)
         end
     end
