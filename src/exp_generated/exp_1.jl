@@ -1,5 +1,30 @@
 using LinearAlgebra
 
+"""
+    exp_gen!(cache, A, ::Val{s})
+
+Internal function implementing the matrix exponential using Padé approximation of order `s`.
+
+This is part of the Higham (2005) scaling and squaring algorithm implementation. Each
+`exp_gen!` function (for s=1 to 13) implements a different order Padé approximation for
+computing the matrix exponential. The function modifies `A` in-place to contain exp(A).
+
+# Arguments
+
+  - `cache`: Pre-allocated workspace arrays for intermediate computations
+  - `A`: Input matrix that will be overwritten with exp(A)
+  - `::Val{s}`: Order of the Padé approximation (s ∈ {1,2,...,13})
+
+# Notes
+
+  - This is an internal implementation detail and should not be called directly
+  - Higher orders provide better accuracy but require more computation
+  - The choice of order is made automatically by the ExpMethodHigham2005 algorithm
+  - Generated code from the algorithm in: Higham, N. J. (2005). "The scaling and squaring
+    method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl. 26(4), 1179-1193.
+
+See also: [`exponential!`](@ref), [`ExpMethodHigham2005`](@ref)
+"""
 function exp_gen!(cache, A, ::Val{1})
     T = promote_type(eltype(A), Float64) # Make it work for many 'bigger' types (matrices and scalars)
     # max_memslots=4

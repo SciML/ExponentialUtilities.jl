@@ -1,5 +1,7 @@
 using LinearAlgebra
 
+# See exp_gen!(cache, A, ::Val{1}) for documentation
+# This implements the Padé approximation of order 4
 function exp_gen!(cache, A, ::Val{4})
     T = promote_type(eltype(A), Float64) # Make it work for many 'bigger' types (matrices and scalars)
     # max_memslots=6
