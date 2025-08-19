@@ -42,6 +42,7 @@ function expv(t, A, b; mode = :happy_breakdown, kwargs...)
         throw(ArgumentError("Unknown Krylov iteration termination mode, $(mode)"))
     end
 end
+# Internal helper function for happy-breakdown mode
 function _expv_hb(t::Tt, A, b;
         expmethod = ExpMethodHigham2005Base(),
         cache = nothing, kwargs_arnoldi...) where {Tt}
@@ -50,6 +51,8 @@ function _expv_hb(t::Tt, A, b;
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     expv!(w, t, Ks; cache = cache, expmethod = expmethod)
 end
+
+# Internal helper function for error-estimate mode
 function _expv_ee(t::Tt, A, b; m = min(30, size(A, 1)), tol = 1e-7, rtol = √(tol),
         ishermitian::Bool = LinearAlgebra.ishermitian(A),
         expmethod = ExpMethodHigham2005Base()) where {Tt}
@@ -62,6 +65,19 @@ function _expv_ee(t::Tt, A, b; m = min(30, size(A, 1)), tol = 1e-7, rtol = √(t
     expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol = tol, rtol = rtol,
         ishermitian = ishermitian, expmethod = expmethod)
 end
+"""
+    expv(t, Ks::KrylovSubspace; expmethod=ExpMethodHigham2005(), kwargs...) -> exp(tA)b
+
+Compute the matrix-exponential-vector product using a precomputed Krylov subspace `Ks`.
+
+# Arguments
+
+  - `t`: Time parameter for the exponential
+  - `Ks`: Precomputed Krylov subspace containing the approximation data
+  - `expmethod`: Method for computing the matrix exponential (default: ExpMethodHigham2005())
+
+See also: [`expv!`](@ref), [`arnoldi`](@ref)
+"""
 function expv(t::Tt, Ks::KrylovSubspace{T, U}; expmethod = ExpMethodHigham2005(),
         kwargs...) where {Tt, T, U}
     n = size(getV(Ks), 1)
@@ -98,9 +114,28 @@ function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
     lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-# NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
-#       or Tw can be Float64, while t is ComplexF32 and T is Float64
-#       thus they can not share the same TypeVar.
+"""
+    expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U}; 
+          cache=nothing, expmethod=ExpMethodHigham2005Base()) -> w
+
+Non-allocating version of `expv` for complex time parameter `t` and complex output vector `w`.
+
+# Arguments
+
+  - `w`: Pre-allocated output vector for the result
+  - `t`: Complex time parameter for the exponential
+  - `Ks`: Precomputed Krylov subspace containing the approximation data
+  - `cache`: Optional pre-allocated workspace matrix
+  - `expmethod`: Method for computing the matrix exponential
+
+# Notes
+
+  - Tw can be Float64, while t is ComplexF64 and T is Float32
+  - or Tw can be Float64, while t is ComplexF32 and T is Float64
+  - thus they can not share the same TypeVar.
+
+See also: [`expv`](@ref)
+"""
 function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
         cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
@@ -129,6 +164,22 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
+"""
+    expv!(w::GPUArraysCore.AbstractGPUVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
+          cache=nothing, expmethod=ExpMethodHigham2005Base()) -> w
+
+Non-allocating GPU-optimized version of `expv` that uses precomputed Krylov subspace `Ks`.
+
+# Arguments
+
+  - `w`: Pre-allocated GPU output vector for the result
+  - `t`: Time parameter for the exponential
+  - `Ks`: Precomputed Krylov subspace containing the approximation data
+  - `cache`: Optional pre-allocated workspace matrix
+  - `expmethod`: Method for computing the matrix exponential
+
+See also: [`expv`](@ref), [`expv!`](@ref)
+"""
 function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         t::Real, Ks::KrylovSubspace{T, U};
         cache = nothing,
@@ -243,6 +294,19 @@ function phiv(t, A, b, k; cache = nothing, correct = false, errest = false,
     w = Matrix{eltype(b)}(undef, length(b), k + 1)
     phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
 end
+"""
+    phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) -> [phi_0(tA)b phi_1(tA)b ... phi_k(tA)b]
+
+Compute the matrix-phi-vector products using a precomputed Krylov subspace `Ks`.
+
+# Arguments
+
+  - `t`: Time parameter for the phi functions
+  - `Ks`: Precomputed Krylov subspace containing the approximation data
+  - `k`: Order of phi functions to compute (k >= 1)
+
+See also: [`phiv!`](@ref), [`arnoldi`](@ref)
+"""
 function phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) where {T, U}
     n = size(getV(Ks), 1)
     w = Matrix{T}(undef, n, k + 1)

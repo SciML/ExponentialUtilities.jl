@@ -19,13 +19,20 @@ function alloc_mem(A, ::ExpMethodHigham2005)
 end
 
 # Import the generated code
+# exp_gen! functions are internal implementation details of the ExpMethodHigham2005 algorithm.
+# They implement different Padé approximation orders (1-13) for computing matrix exponentials.
+# These functions are automatically generated and should not be called directly by users.
 for i in 1:13
     include("exp_generated/exp_$i.jl")
 end
 
+# Internal helper function for accessing cache memory slots (used by generated code)
 function getmem(cache, k) # Called from generated code
     return cache[k - 1]
 end
+
+# Internal helper function for in-place left division (used by generated code)
+# Computes C = A\B, storing result in C
 function ldiv_for_generated!(C, A, B) # C=A\B. Called from generated code
     F = lu!(A) # This allocation is unavoidable, due to the interface of LinearAlgebra
     ldiv!(F, B) # Result stored in B
