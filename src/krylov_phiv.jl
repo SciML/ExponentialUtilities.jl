@@ -126,8 +126,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         expHe = @view(expH[:, 1])
     end
     # `ArrayInterfaceCore.restructure` will convert the `expHe` to the target matrix type that can interact with `V`.
-    # lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe)))
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
@@ -161,6 +160,35 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
     end
 
     lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+end
+
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Complex{Tw}},
+        t::Complex{Tt}, Ks::KrylovSubspace{T, U};
+        cache = nothing,
+        expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
+    m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
+    @assert length(w)==size(V, 1) "Dimension mismatch"
+    if isnothing(cache)
+        cache = Matrix{U}(undef, m, m)
+    elseif isa(cache, ExpvCache)
+        cache = get_cache(cache, m)
+    else
+        throw(ArgumentError("Cache must be an ExpvCache"))
+    end
+    if iszero(Ks.beta)
+        w .= false
+        return w
+    end
+    copyto!(cache, @view(H[1:m, :]))
+    if ishermitian(cache)
+        # Optimize the case for symtridiagonal H
+        F = eigen!(SymTridiagonal(real(cache)))
+        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+    else
+        expH = exponential!(t * cache, expmethod)
+        expHe = @view(expH[:, 1])
+    end
+    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe)))
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source

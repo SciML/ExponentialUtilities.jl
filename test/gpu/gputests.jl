@@ -37,21 +37,23 @@ end
     end
 end
 
-n = 1000
-A = sprand(ComplexF64, n, n, 10 / n)
-A = triu(A, 1) + sprand(ComplexF64, n, n, 1 / n)
-b = rand(ComplexF64, n)
+for t in [0.1, 0.1im]
+    n = 1000
+    A = sprand(ComplexF64, n, n, 10 / n)
+    A = triu(A, 1) + sprand(ComplexF64, n, n, 1 / n)
+    b = rand(ComplexF64, n)
 
-A_gpu = CuSparseMatrixCSR(A)
-b_gpu = CuArray(b)
+    A_gpu = CuSparseMatrixCSR(A)
+    b_gpu = CuArray(b)
 
-t = 0.1
-ts = Array(LinRange(0, 1, 300))
+    t = 0.1
+    ts = Array(LinRange(0, 1, 300))
 
-E1 = expv(t, A, b)
-E2 = Array(expv(t, A_gpu, b_gpu))
-@show size(E1), size(E2)
-@test E1 ≈ E2
-E1 = expv_timestep(ts, A, b)
-E2 = Array(expv_timestep(ts, A_gpu, b_gpu))
-@test E1 ≈ E2
+    E1 = expv(t, A, b)
+    E2 = Array(expv(t, A_gpu, b_gpu))
+    @show size(E1), size(E2)
+    @test E1 ≈ E2
+    E1 = expv_timestep(ts, A, b)
+    E2 = Array(expv_timestep(ts, A_gpu, b_gpu))
+    @test E1 ≈ E2
+end
