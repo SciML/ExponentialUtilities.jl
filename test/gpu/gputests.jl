@@ -46,7 +46,6 @@ for t in [0.1, 0.1im]
     A_gpu = CuSparseMatrixCSR(A)
     b_gpu = CuArray(b)
 
-    t = 0.1
     ts = Array(LinRange(0, 1, 300))
 
     E1 = expv(t, A, b)
