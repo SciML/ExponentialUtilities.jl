@@ -55,3 +55,20 @@ E2 = Array(expv(t, A_gpu, b_gpu))
 E1 = expv_timestep(ts, A, b)
 E2 = Array(expv_timestep(ts, A_gpu, b_gpu))
 @test E1 ≈ E2
+
+@testset "GPU expv! with complex t" begin
+    T = ComplexF64
+    v0 = randn(T, 4)
+    cuv0 = cu(v0)
+    A = randn(T, 4, 4)
+    cuA = cu(A)
+
+    Ks = ExponentialUtilities.arnoldi(A, v0; tol = 1e-7, ishermitian = false, opnorm = 1.0)
+    cuKs = ExponentialUtilities.arnoldi(cuA, cuv0; tol = 1e-7, ishermitian = false,
+        opnorm = 1.0)
+
+    dt = 0.01im
+    ExponentialUtilities.expv!(v0, dt, Ks)
+    ExponentialUtilities.expv!(cuv0, dt, cuKs)
+    @test v0 ≈ collect(cuv0)
+end
