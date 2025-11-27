@@ -129,10 +129,8 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
-        t::Real, Ks::KrylovSubspace{T, U};
-        cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+function _expv_gpu_impl!(w::GPUArraysCore.AbstractGPUVector, t, Ks::KrylovSubspace{T, U},
+        cache, expmethod) where {T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
     if isnothing(cache)
@@ -149,17 +147,28 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(cache))
-        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        F = eigen!(SymTridiagonal(t isa Complex ? real(cache) : cache))
+        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
     else
-        #lmul!(t, cache)
-        #expH = exponential!(cache, expmethod)
-        #expHe = @view(expH[:, 1])
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
     end
 
     lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+end
+
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
+        t::Real, Ks::KrylovSubspace{T, U};
+        cache = nothing,
+        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+    _expv_gpu_impl!(w, t, Ks, cache, expmethod)
+end
+
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
+        t::Complex, Ks::KrylovSubspace{T, U};
+        cache = nothing,
+        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+    _expv_gpu_impl!(w, t, Ks, cache, expmethod)
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
