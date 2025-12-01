@@ -129,7 +129,7 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-function _expv_gpu_impl!(w::GPUArraysCore.AbstractGPUVector, t, Ks::KrylovSubspace{T, U},
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector, t, Ks::KrylovSubspace{T, U},
         cache, expmethod) where {T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
