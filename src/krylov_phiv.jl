@@ -157,20 +157,6 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector, t, Ks::K
     lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
-        t::Real, Ks::KrylovSubspace{T, U};
-        cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
-    _expv_gpu_impl!(w, t, Ks, cache, expmethod)
-end
-
-function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
-        t::Complex, Ks::KrylovSubspace{T, U};
-        cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
-    _expv_gpu_impl!(w, t, Ks, cache, expmethod)
-end
-
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
 
 ############################
