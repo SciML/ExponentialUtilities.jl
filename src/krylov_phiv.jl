@@ -147,8 +147,8 @@ function _expv_gpu_impl!(w::GPUArraysCore.AbstractGPUVector, t, Ks::KrylovSubspa
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(t isa Complex ? real(cache) : cache))
-        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+        F = eigen!(SymTridiagonal(cache))
+        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
     else
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
