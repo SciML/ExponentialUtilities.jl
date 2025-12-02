@@ -3,7 +3,7 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ExponentialUtilities = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 
 [sources]
-ExponentialUtilities = {path = "/home/chrisrackauckas/github-runners/demeter4-3/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"}
+ExponentialUtilities = {path = "/home/chrisrackauckas/github-runners/deepsea4-27/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"}
 
 [compat]
 Documenter = "1"

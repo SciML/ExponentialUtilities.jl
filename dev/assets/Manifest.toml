@@ -114,7 +114,7 @@ version = "2.7.3+0"
 
 [[deps.ExponentialUtilities]]
 deps = ["Adapt", "ArrayInterface", "GPUArraysCore", "GenericSchur", "LinearAlgebra", "PrecompileTools", "Printf", "SparseArrays", "libblastrampoline_jll"]
-path = "/home/chrisrackauckas/github-runners/demeter4-3/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"
+path = "/home/chrisrackauckas/github-runners/deepsea4-27/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 version = "1.28.0"
 
@@ -154,9 +154,9 @@ version = "3.7.0+0"
 
 [[deps.Git_jll]]
 deps = ["Artifacts", "Expat_jll", "JLLWrappers", "LibCURL_jll", "Libdl", "Libiconv_jll", "OpenSSL_jll", "PCRE2_jll", "Zlib_jll"]
-git-tree-sha1 = "b6a684587ebe896d9f68ae777f648205940f0f70"
+git-tree-sha1 = "46bd50c245fe49ed87377c014a928a549b9ef7ed"
 uuid = "f8c6e375-362e-5223-8a59-34ff63f689eb"
-version = "2.51.3+0"
+version = "2.52.0+0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
