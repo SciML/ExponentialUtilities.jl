@@ -129,7 +129,8 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
     lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
-function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector, t, Ks::KrylovSubspace{T, U},
+# Internal GPU implementation shared by Real and Complex t methods
+function _expv_gpu_impl!(w::GPUArraysCore.AbstractGPUVector, t, Ks::KrylovSubspace{T, U},
         cache, expmethod) where {T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w)==size(V, 1) "Dimension mismatch"
@@ -148,13 +149,29 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector, t, Ks::K
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
         F = eigen!(SymTridiagonal(cache))
-        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
     else
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
     end
 
     lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+end
+
+# GPU expv! for Real t
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
+        t::Real, Ks::KrylovSubspace{T, U};
+        cache = nothing,
+        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+    _expv_gpu_impl!(w, t, Ks, cache, expmethod)
+end
+
+# GPU expv! for Complex t
+function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Complex{Tw}},
+        t::Complex{Tt}, Ks::KrylovSubspace{T, U};
+        cache = nothing,
+        expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
+    _expv_gpu_impl!(w, t, Ks, cache, expmethod)
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
