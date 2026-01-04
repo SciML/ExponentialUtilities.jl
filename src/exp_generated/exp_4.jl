@@ -10,7 +10,7 @@ function exp_gen!(cache, A, ::Val{4})
     memslots4 = getmem(cache, 4)
     memslots5 = getmem(cache, 5)
     memslots6 = getmem(cache, 6)
-    # Assign precomputed nodes memslots 
+    # Assign precomputed nodes memslots
     memslots1 = A # overwrite A
     # Uniform scaling is exploited.
     # No matrix I explicitly allocated.
@@ -30,7 +30,7 @@ function exp_gen!(cache, A, ::Val{4})
     coeff4 = 110880.0
     coeff5 = 90.0
     memslots6 .= coeff2 .* memslots2 .+ coeff3 .* memslots3 .+ coeff4 .* memslots4 .+
-                 coeff5 .* memslots5
+        coeff5 .* memslots5
     inplace_add!(memslots6, I * coeff1)
     # Computing Ua = x*I+x*A2+x*A4+x*A6+x*A8
     coeff1 = 8.8216128e9
@@ -40,7 +40,7 @@ function exp_gen!(cache, A, ::Val{4})
     coeff5 = 1.0
     # Smart lincomb recycle A2
     memslots2 .= coeff2 .* memslots2 .+ coeff3 .* memslots3 .+ coeff4 .* memslots4 .+
-                 coeff5 .* memslots5
+        coeff5 .* memslots5
     inplace_add!(memslots2, I * coeff1)
     # Deallocating A4 in slot 3
     # Deallocating A6 in slot 4
@@ -63,5 +63,5 @@ function exp_gen!(cache, A, ::Val{4})
     ldiv_for_generated!(memslots2, memslots1, memslots6)
     # Deallocating Z in slot 1
     # Deallocating X in slot 6
-    copyto!(A, memslots2) # Returning P
+    return copyto!(A, memslots2) # Returning P
 end

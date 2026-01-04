@@ -14,9 +14,11 @@
         exm = exponential!(mx, method, cache)
 
         # exp v
-        [expv(ts, f(m), v)
-         for ts in (1.0, 1.0im)
-         for f in (copy, Hermitian)]
+        [
+            expv(ts, f(m), v)
+                for ts in (1.0, 1.0im)
+                for f in (copy, Hermitian)
+        ]
 
         # Subspace exponential caches not yet available for non-Hermitian matrices
         (Tx <: Real) && expv(1.0, Hermitian(m), v; mode = :error_estimate)
@@ -24,26 +26,30 @@
         # phi v
         # Subspace exponential caches not yet available for non-Hermitian matrices
         if Tx <: Complex
-            [phiv(ts, Hermitian(m), v, 1)
-             for ts in (1.0, 1.0im)]
+            [
+                phiv(ts, Hermitian(m), v, 1)
+                    for ts in (1.0, 1.0im)
+            ]
         else
             phiv(1.0, m, v, 1)
         end
     end
 
     precomp_ms = [
-    #ExpMethodHigham2005(),
-        ExpMethodHigham2005Base()
-    #ExpMethodGeneric(),
-    #ExpMethodNative(),
-    #ExpMethodDiagonalization(),
+        #ExpMethodHigham2005(),
+        ExpMethodHigham2005Base(),
+        #ExpMethodGeneric(),
+        #ExpMethodNative(),
+        #ExpMethodDiagonalization(),
     ]
 
     Txs = [Float64]
     #Txs = [Float64, ComplexF64]
 
     @compile_workload begin
-        [precomp_fx(; method, Tx) for method in precomp_ms
-         for Tx in Txs]
+        [
+            precomp_fx(; method, Tx) for method in precomp_ms
+                for Tx in Txs
+        ]
     end
 end
