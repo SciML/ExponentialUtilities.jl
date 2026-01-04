@@ -12,8 +12,10 @@ mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
     w::Vector{T}
     sw::Stegr.StegrWork{R}
     function StegrCache(::Type{T}, n::Integer) where {T}
-        new{T, real(T)}(Vector{T}(undef, n), Vector{T}(undef, n),
-            Stegr.StegrWork(real(T), n))
+        return new{T, real(T)}(
+            Vector{T}(undef, n), Vector{T}(undef, n),
+            Stegr.StegrWork(real(T), n)
+        )
     end
 end
 
@@ -24,21 +26,23 @@ Calculate the subspace exponential `exp(t*T)` for a tridiagonal
 subspace matrix `T` with `α` on the diagonal and `β` on the
 super-/subdiagonal, diagonalizing via `stegr!`.
 """
-function expT!(α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
-        cache::StegrCache{T, R}) where {T, R <: Real}
+function expT!(
+        α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
+        cache::StegrCache{T, R}
+    ) where {T, R <: Real}
     LAPACK.stegr!(α, β, cache.sw)
     sel = 1:length(α)
     @inbounds for i in sel
         cache.w[i] = exp(t * cache.sw.w[i]) * cache.sw.Z[1, i]
     end
-    mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel, sel]), @view(cache.w[sel]))
+    return mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel, sel]), @view(cache.w[sel]))
 end
 
 function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Complex}
     error("Subspace exponential caches not yet available for non-Hermitian matrices.")
 end
 function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Real}
-    StegrCache(T, Ks.maxiter)
+    return StegrCache(T, Ks.maxiter)
 end
 
 ########################################
@@ -54,14 +58,18 @@ generated subspace is below the requested tolerance. `Ks` is a
 exact type decides which algorithm is used to compute the subspace
 exponential.
 """
-function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
+function expv!(
+        w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
         Ks::KrylovSubspace{T, B, B}, cache::HSC;
         atol::B = 1.0e-8, rtol::B = 1.0e-4,
         m = min(Ks.maxiter, size(A, 1)),
         ishermitian::Bool = LinearAlgebra.ishermitian(A),
         verbose::Bool = false,
-        expmethod = ExpMethodHigham2005Base()) where {B, T <: Number,
-        HSC <: HermitianSubspaceCache}
+        expmethod = ExpMethodHigham2005Base()
+    ) where {
+        B, T <: Number,
+        HSC <: HermitianSubspaceCache,
+    }
     # TODO: this only implements the Lanczos algorithm for Hermitian matrices
     # ks.H is tridiagonal, required for the expT! function above to call stegr!()
     if !ishermitian
@@ -107,5 +115,5 @@ function expv!(w::AbstractVector{T}, t::Number, A, b::AbstractVector{T},
     end
     verbose && println("Krylov subspace size: ", Ks.m)
 
-    lmul!(Ks.beta, mul!(w, @view(Ks.V[:, 1:(Ks.m)]), @view(cache.v[1:(Ks.m)])))
+    return lmul!(Ks.beta, mul!(w, @view(Ks.V[:, 1:(Ks.m)]), @view(cache.v[1:(Ks.m)])))
 end

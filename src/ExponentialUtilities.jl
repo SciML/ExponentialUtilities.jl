@@ -17,7 +17,7 @@ parameterless_type(::Type{T}) where {T} = __parameterless_type(T)
 """
 macro diagview(A, d::Integer = 0)
     s = d <= 0 ? 1 + abs(d) : :(m + $d)
-    quote
+    return quote
         m = size($(esc(A)), 1)
         @view($(esc(A))[($s):(m + 1):end])
     end
@@ -39,11 +39,11 @@ include("krylov_phiv_error_estimate.jl")
 include("precompile.jl")
 
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
-       expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep,
-       phiv_timestep!,
-       StegrCache, get_subspace_cache, exponential!
+    expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep,
+    phiv_timestep!,
+    StegrCache, get_subspace_cache, exponential!
 export ExpMethodHigham2005,
-       ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative,
-       ExpMethodDiagonalization
+    ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative,
+    ExpMethodDiagonalization
 
 end

@@ -4,5 +4,5 @@ pages = [
     "Home" => "index.md",
     "matrix_exponentials.md",
     "expv.md",
-    "arnoldi.md"
+    "arnoldi.md",
 ]
