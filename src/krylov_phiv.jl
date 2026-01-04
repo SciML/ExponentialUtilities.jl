@@ -12,7 +12,7 @@ function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
 end
 function get_cache(C::ExpvCache, m::Int)
     m^2 > length(C.mem) && resize!(C, m) # resize the cache if needed
-    reshape(@view(C.mem[1:(m ^ 2)]), m, m)
+    return reshape(@view(C.mem[1:(m^2)]), m, m)
 end
 
 ############################
@@ -34,7 +34,7 @@ Compute the expv product using a pre-constructed Krylov subspace.
 """
 function expv(t, A, b; mode = :happy_breakdown, kwargs...)
     # Master dispatch function
-    if mode == :happy_breakdown
+    return if mode == :happy_breakdown
         _expv_hb(t, A, b; kwargs...)
     elseif mode == :error_estimate
         _expv_ee(t, A, b; kwargs...)
@@ -42,41 +42,51 @@ function expv(t, A, b; mode = :happy_breakdown, kwargs...)
         throw(ArgumentError("Unknown Krylov iteration termination mode, $(mode)"))
     end
 end
-function _expv_hb(t::Tt, A, b;
+function _expv_hb(
+        t::Tt, A, b;
         expmethod = ExpMethodHigham2005Base(),
-        cache = nothing, kwargs_arnoldi...) where {Tt}
+        cache = nothing, kwargs_arnoldi...
+    ) where {Tt}
     # Happy-breakdown mode: first construct Krylov subspace then expv!
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
-    expv!(w, t, Ks; cache = cache, expmethod = expmethod)
+    return expv!(w, t, Ks; cache = cache, expmethod = expmethod)
 end
-function _expv_ee(t::Tt, A, b; m = min(30, size(A, 1)), tol = 1e-7, rtol = √(tol),
+function _expv_ee(
+        t::Tt, A, b; m = min(30, size(A, 1)), tol = 1.0e-7, rtol = √(tol),
         ishermitian::Bool = LinearAlgebra.ishermitian(A),
-        expmethod = ExpMethodHigham2005Base()) where {Tt}
+        expmethod = ExpMethodHigham2005Base()
+    ) where {Tt}
     # Error-estimate mode: construction of Krylov subspace and expv! at the same time
     n = size(A, 1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
     Ks = KrylovSubspace{T, U}(n, m)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
-    expv!(w, t, A, b, Ks, get_subspace_cache(Ks); atol = tol, rtol = rtol,
-        ishermitian = ishermitian, expmethod = expmethod)
+    return expv!(
+        w, t, A, b, Ks, get_subspace_cache(Ks); atol = tol, rtol = rtol,
+        ishermitian = ishermitian, expmethod = expmethod
+    )
 end
-function expv(t::Tt, Ks::KrylovSubspace{T, U}; expmethod = ExpMethodHigham2005(),
-        kwargs...) where {Tt, T, U}
+function expv(
+        t::Tt, Ks::KrylovSubspace{T, U}; expmethod = ExpMethodHigham2005(),
+        kwargs...
+    ) where {Tt, T, U}
     n = size(getV(Ks), 1)
     w = Vector{promote_type(Tt, T)}(undef, n)
-    expv!(w, t, Ks; kwargs...)
+    return expv!(w, t, Ks; kwargs...)
 end
 """
     expv!(w,t,Ks[;cache]) -> w
 
 Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
 """
-function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
-        cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+function expv!(
+        w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
+        cache = nothing, expmethod = ExpMethodHigham2005Base()
+    ) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w)==size(V, 1) "Dimension mismatch"
+    @assert length(w) == size(V, 1) "Dimension mismatch"
     if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -95,16 +105,18 @@ function expv!(w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
         exponential!(expH, expmethod)
         expHe = @view(expH[:, 1])
     end
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
 #       or Tw can be Float64, while t is ComplexF32 and T is Float64
 #       thus they can not share the same TypeVar.
-function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
-        cache = nothing, expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
+function expv!(
+        w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspace{T, U};
+        cache = nothing, expmethod = ExpMethodHigham2005Base()
+    ) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w)==size(V, 1) "Dimension mismatch"
+    @assert length(w) == size(V, 1) "Dimension mismatch"
     if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -126,16 +138,18 @@ function expv!(w::AbstractVector{Complex{Tw}}, t::Complex{Tt}, Ks::KrylovSubspac
         expHe = @view(expH[:, 1])
     end
     # `ArrayInterfaceCore.restructure` will convert the `expHe` to the target matrix type that can interact with `V`.
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(V, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # GPU expv! for Real t (non-allocating in hermitian branch)
-function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
+function ExponentialUtilities.expv!(
+        w::GPUArraysCore.AbstractGPUVector{Tw},
         t::Real, Ks::KrylovSubspace{T, U};
         cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {Tw, T, U}
+        expmethod = ExpMethodHigham2005Base()
+    ) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w)==size(V, 1) "Dimension mismatch"
+    @assert length(w) == size(V, 1) "Dimension mismatch"
     if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -159,16 +173,18 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Tw},
         expHe = @view(expH[:, 1])
     end
 
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # GPU expv! for Complex t (allocates in hermitian branch due to Real->Complex conversion)
-function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Complex{Tw}},
+function ExponentialUtilities.expv!(
+        w::GPUArraysCore.AbstractGPUVector{Complex{Tw}},
         t::Complex{Tt}, Ks::KrylovSubspace{T, U};
         cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {Tw, Tt, T, U}
+        expmethod = ExpMethodHigham2005Base()
+    ) where {Tw, Tt, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert length(w)==size(V, 1) "Dimension mismatch"
+    @assert length(w) == size(V, 1) "Dimension mismatch"
     if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
@@ -191,7 +207,7 @@ function ExponentialUtilities.expv!(w::GPUArraysCore.AbstractGPUVector{Complex{T
         expHe = @view(expH[:, 1])
     end
 
-    lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
@@ -206,14 +222,14 @@ end
 function PhivCache{T}(maxiter::Int, p::Int) where {T}
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     mem = Vector{T}(undef, numelems)
-    PhivCache{true, T}(mem)
+    return PhivCache{true, T}(mem)
 end
 
 function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
     mem = Vector{T}(undef, numelems)
-    PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T}(mem)
+    return PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T}(mem)
 end
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
@@ -227,15 +243,15 @@ function get_caches(C::PhivCache{useview, T}, m::Int, p::Int) where {useview, T}
     offset = m
 
     if useview
-        Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m ^ 2)]), m, m)
+        Hcopy = reshape(@view(C.mem[(offset + 1):(offset + m^2)]), m, m)
         offset += m^2
-        C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p) ^ 2)]), m + p, m + p)
+        C1 = reshape(@view(C.mem[(offset + 1):(offset + (m + p)^2)]), m + p, m + p)
         offset += (m + p)^2
         C2 = reshape(@view(C.mem[(offset + 1):(offset + m * (p + 1))]), m, p + 1)
     else
-        Hcopy = reshape(C.mem[(offset + 1):(offset + m ^ 2)], m, m)
+        Hcopy = reshape(C.mem[(offset + 1):(offset + m^2)], m, m)
         offset += m^2
-        C1 = reshape(C.mem[(offset + 1):(offset + (m + p) ^ 2)], m + p, m + p)
+        C1 = reshape(C.mem[(offset + 1):(offset + (m + p)^2)], m + p, m + p)
         offset += (m + p)^2
         C2 = reshape(C.mem[(offset + 1):(offset + m * (p + 1))], m, p + 1)
     end
@@ -269,28 +285,32 @@ Compute the matrix-phi-vector products using a pre-constructed Krylov subspace.
     the φ-functions in exponential integrators. arXiv preprint arXiv:0907.4631.
     Formula (10).
 """
-function phiv(t, A, b, k; cache = nothing, correct = false, errest = false,
-        kwargs_arnoldi...)
+function phiv(
+        t, A, b, k; cache = nothing, correct = false, errest = false,
+        kwargs_arnoldi...
+    )
     Ks = arnoldi(A, b; kwargs_arnoldi...)
     w = Matrix{eltype(b)}(undef, length(b), k + 1)
-    phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
+    return phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
 end
 function phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) where {T, U}
     n = size(getV(Ks), 1)
     w = Matrix{T}(undef, n, k + 1)
-    phiv!(w, t, Ks, k; kwargs...)
+    return phiv!(w, t, Ks, k; kwargs...)
 end
 """
     phiv!(w,t,Ks,k[;cache,correct,errest]) -> w[,errest]
 
 Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
 """
-function phiv!(w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
+function phiv!(
+        w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
         cache = nothing, correct = false,
-        errest = false) where {T <: Number, U <: Number}
+        errest = false
+    ) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
-    @assert size(w, 1)==size(V, 1) "Dimension mismatch"
-    @assert size(w, 2)==k + 1 "Dimension mismatch"
+    @assert size(w, 1) == size(V, 1) "Dimension mismatch"
+    @assert size(w, 2) == k + 1 "Dimension mismatch"
     if isnothing(cache)
         cache = PhivCache(w, m, k)
     elseif !isa(cache, PhivCache)

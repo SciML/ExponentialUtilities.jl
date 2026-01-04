@@ -1,14 +1,17 @@
-
 intlog2(x::T) where {T <: Integer} = T(8 * sizeof(T) - leading_zeros(x - one(T)))
 intlog2(x) = x > typemax(UInt) ? ceil(Int, log2(x)) : intlog2(ceil(UInt, x)) % Int
 
-function naivemul!(C::StridedMatrix{T}, A::StridedMatrix{T},
-        B::StridedMatrix{T}) where {T <: LinearAlgebra.BlasFloat}
-    mul!(C, A, B)
+function naivemul!(
+        C::StridedMatrix{T}, A::StridedMatrix{T},
+        B::StridedMatrix{T}
+    ) where {T <: LinearAlgebra.BlasFloat}
+    return mul!(C, A, B)
 end
-function naivemul!(C::AbstractSparseMatrix, A::AbstractSparseMatrix,
-        B::AbstractSparseMatrix)
-    mul!(C, A, B)
+function naivemul!(
+        C::AbstractSparseMatrix, A::AbstractSparseMatrix,
+        B::AbstractSparseMatrix
+    )
+    return mul!(C, A, B)
 end
 function naivemul!(C, A, B)
     Maxis, Naxis = axes(C)
@@ -21,7 +24,7 @@ function naivemul!(C, A, B)
     nstep = step(Naxis)
     mstep = step(Maxis)
     # I don't want to deal with axes having non-unit step
-    if nstep == mstep == 1
+    return if nstep == mstep == 1
         if sizeof(eltype(C)) > 256
             naivemul!(C, A, B, Maxis, Naxis, Val(1), Val(1))
         elseif sizeof(eltype(C)) > 128
@@ -40,17 +43,21 @@ end
 _const(A) = A
 _const(A::Array) = Base.Experimental.Const(A)
 # Separated to make it easier to test.
-@generated function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis, ::Val{MU},
-        ::Val{NU}) where {T, MU, NU}
+@generated function naivemul!(
+        C::AbstractMatrix{T}, A, B, Maxis, Naxis, ::Val{MU},
+        ::Val{NU}
+    ) where {T, MU, NU}
     nrem_body = quote
         m = first(Maxis) - 1
         while m < M - $(MU - 1)
-            Base.Cartesian.@nexprs $MU i->Cmn_i = zero(T)
+            Base.Cartesian.@nexprs $MU i -> Cmn_i = zero(T)
             for k in Kaxis
-                Base.Cartesian.@nexprs $MU i->Cmn_i = muladd(_const(A)[m + i, k],
-                    _const(B)[k, nn], Cmn_i)
+                Base.Cartesian.@nexprs $MU i -> Cmn_i = muladd(
+                    _const(A)[m + i, k],
+                    _const(B)[k, nn], Cmn_i
+                )
             end
-            Base.Cartesian.@nexprs $MU i->C[m + i, nn] = Cmn_i
+            Base.Cartesian.@nexprs $MU i -> C[m + i, nn] = Cmn_i
             m += $MU
         end
         for mm in (1 + m):M
@@ -62,15 +69,19 @@ _const(A::Array) = Base.Experimental.Const(A)
         end
     end
     nrem_quote = if NU > 2
-        :(for nn in (1 + n):N
-            $nrem_body
-        end)
+        :(
+            for nn in (1 + n):N
+                $nrem_body
+            end
+        )
     else
-        :(let nn = N
-            $nrem_body
-        end)
+        :(
+            let nn = N
+                $nrem_body
+            end
+        )
     end
-    quote
+    return quote
         N = last(Naxis)
         M = last(Maxis)
         Kaxis = axes(B, 1)
@@ -80,27 +91,33 @@ _const(A::Array) = Base.Experimental.Const(A)
                 while n < N - $(NU - 1)
                     m = first(Maxis) - 1
                     while m < M - $(MU - 1)
-                        Base.Cartesian.@nexprs $NU j->Base.Cartesian.@nexprs $MU i->Cmn_i_j = zero(T)
+                        Base.Cartesian.@nexprs $NU j -> Base.Cartesian.@nexprs $MU i -> Cmn_i_j = zero(T)
                         for k in Kaxis
-                            Base.Cartesian.@nexprs $MU i->Ak_i = _const(A)[m + i, k]
-                            Base.Cartesian.@nexprs $NU j->begin
+                            Base.Cartesian.@nexprs $MU i -> Ak_i = _const(A)[m + i, k]
+                            Base.Cartesian.@nexprs $NU j -> begin
                                 Bk_j = _const(B)[k, n + j]
-                                Base.Cartesian.@nexprs $MU i->Cmn_i_j = muladd(Ak_i, Bk_j,
-                                    Cmn_i_j)
+                                Base.Cartesian.@nexprs $MU i -> Cmn_i_j = muladd(
+                                    Ak_i, Bk_j,
+                                    Cmn_i_j
+                                )
                             end
                         end
-                        Base.Cartesian.@nexprs $NU j->Base.Cartesian.@nexprs $MU i->C[m + i, n + j] = Cmn_i_j
+                        Base.Cartesian.@nexprs $NU j -> Base.Cartesian.@nexprs $MU i -> C[m + i, n + j] = Cmn_i_j
                         m += $MU
                     end
                     for mm in (1 + m):M
-                        Base.Cartesian.@nexprs $NU j->Cmn_j = zero(T)
+                        Base.Cartesian.@nexprs $NU j -> Cmn_j = zero(T)
                         for k in Kaxis
-                            Base.Cartesian.@nexprs $NU j->Cmn_j = muladd(_const(A)[mm, k],
-                                _const(B)[k,
-                                n + j],
-                                Cmn_j)
+                            Base.Cartesian.@nexprs $NU j -> Cmn_j = muladd(
+                                _const(A)[mm, k],
+                                _const(B)[
+                                    k,
+                                    n + j,
+                                ],
+                                Cmn_j
+                            )
                         end
-                        Base.Cartesian.@nexprs $NU j->C[mm, n + j] = Cmn_j
+                        Base.Cartesian.@nexprs $NU j -> C[mm, n + j] = Cmn_j
                     end
                     n += $NU
                 end
@@ -127,8 +144,10 @@ by Higham, Nicholas J. in 2005 for algorithm details.
 struct ExpMethodGeneric{T} end
 ExpMethodGeneric() = ExpMethodGeneric{Val(13)}();
 
-function exponential!(x, method::ExpMethodGeneric{Vk},
-        cache = alloc_mem(x, method)) where {Vk}
+function exponential!(
+        x, method::ExpMethodGeneric{Vk},
+        cache = alloc_mem(x, method)
+    ) where {Vk}
     nx = opnorm(x, 1)
     if isnan(nx) || nx > 4611686018427387904 # i.e. 2^62 since it would cause overflow in 2^s
         # This should (hopefully) ensure that the result is Inf or NaN depending on
@@ -147,7 +166,8 @@ function exponential!(x, method::ExpMethodGeneric{Vk},
 end
 
 function exp_pade_p(x, ::Val{13}, ::Val{13})
-    @evalpoly(x, LinearAlgebra.UniformScaling{Float64}(1.0),
+    return @evalpoly(
+        x, LinearAlgebra.UniformScaling{Float64}(1.0),
         LinearAlgebra.UniformScaling{Float64}(0.5),
         LinearAlgebra.UniformScaling{Float64}(0.12),
         LinearAlgebra.UniformScaling{Float64}(0.018333333333333333),
@@ -160,14 +180,15 @@ function exp_pade_p(x, ::Val{13}, ::Val{13})
         LinearAlgebra.UniformScaling{Float64}(1.48377004840414e-11),
         LinearAlgebra.UniformScaling{Float64}(2.529153491597966e-13),
         LinearAlgebra.UniformScaling{Float64}(2.8101705462199623e-15),
-        LinearAlgebra.UniformScaling{Float64}(1.5440497506703088e-17))
+        LinearAlgebra.UniformScaling{Float64}(1.5440497506703088e-17)
+    )
 end
 
 function exp_generic_mutable(x::AbstractMatrix{T}, s, ::Val{13}) where {T}
     y1 = similar(x, promote_type(T, Float64))
     y2 = similar(y1)
     y3 = similar(y1)
-    exp_generic!(y1, y2, y3, x, s, Val{13}())
+    return exp_generic!(y1, y2, y3, x, s, Val{13}())
 end
 function exp_generic!(y1, y2, y3, x, s, ::Val{13})
     if s > 0
@@ -200,15 +221,19 @@ function exp_generic_core!(y1, y2, y3, x, ::Val{13})
     return _rdiv!(y3, y1)
 end
 
-function exp_pade_p!(y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMatrix,
-        ::Val{13}, ::Val{13}) where {T}
+function exp_pade_p!(
+        y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMatrix,
+        ::Val{13}, ::Val{13}
+    ) where {T}
     N = size(x, 1) # check square is in `exp_generic`
     y1 .= x .* 1.5440497506703088e-17
-    for c in (2.8101705462199623e-15, 2.529153491597966e-13, 1.48377004840414e-11,
-        6.306022705717595e-10,
-        2.0431513566525008e-8, 5.175983436853002e-7, 1.0351966873706003e-5,
-        0.00016304347826086958,
-        0.0019927536231884057, 0.018333333333333333, 0.12, 0.5)
+    for c in (
+            2.8101705462199623e-15, 2.529153491597966e-13, 1.48377004840414e-11,
+            6.306022705717595e-10,
+            2.0431513566525008e-8, 5.175983436853002e-7, 1.0351966873706003e-5,
+            0.00016304347826086958,
+            0.0019927536231884057, 0.018333333333333333, 0.12, 0.5,
+        )
         @inbounds for n in 1:N
             y1[n, n] += c
         end
@@ -222,10 +247,12 @@ function exp_pade_p!(y1::AbstractMatrix{T}, y2::AbstractMatrix{T}, x::AbstractMa
 end
 
 function exp_pade_p(x::Number, ::Val{13}, ::Val{13})
-    @evalpoly(x, 1.0, 0.5, 0.12, 0.018333333333333333, 0.0019927536231884057,
+    return @evalpoly(
+        x, 1.0, 0.5, 0.12, 0.018333333333333333, 0.0019927536231884057,
         0.00016304347826086958, 1.0351966873706003e-5, 5.175983436853002e-7,
         2.0431513566525008e-8, 6.306022705717595e-10, 1.48377004840414e-11,
-        2.529153491597966e-13, 2.8101705462199623e-15, 1.5440497506703088e-17)
+        2.529153491597966e-13, 2.8101705462199623e-15, 1.5440497506703088e-17
+    )
 end
 
 @generated function exp_pade_p(x, ::Val{k}, ::Val{m}) where {k, m}
@@ -235,7 +262,7 @@ end
         den = factorial(k + m) * factorial(k - j) * factorial(j)
         (float ∘ eltype)(x)(num // den) * (x <: Number ? 1 : I)
     end
-    :(@evalpoly(x, $(p...)))
+    return :(@evalpoly(x, $(p...)))
 end
 
 exp_pade_q(x, k, m) = exp_pade_p(-x, m, k)

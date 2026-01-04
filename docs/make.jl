@@ -5,15 +5,21 @@ cp("./docs/Project.toml", "./docs/src/assets/Project.toml", force = true)
 
 include("pages.jl")
 
-makedocs(sitename = "ExponentialUtilities.jl",
+makedocs(
+    sitename = "ExponentialUtilities.jl",
     authors = "Chris Rackauckas",
     modules = [ExponentialUtilities],
     clean = true, doctest = false, linkcheck = true,
     warnonly = [:missing_docs, :docs_block],
-    format = Documenter.HTML(analytics = "UA-90474609-3",
+    format = Documenter.HTML(
+        analytics = "UA-90474609-3",
         assets = ["assets/favicon.ico"],
-        canonical = "https://docs.sciml.ai/ExponentialUtilities/stable/"),
-    pages = pages)
+        canonical = "https://docs.sciml.ai/ExponentialUtilities/stable/"
+    ),
+    pages = pages
+)
 
-deploydocs(repo = "github.com/SciML/ExponentialUtilities.jl.git";
-    push_preview = true)
+deploydocs(
+    repo = "github.com/SciML/ExponentialUtilities.jl.git";
+    push_preview = true
+)

@@ -47,9 +47,11 @@ References:
   - Niesen, J. and Wright, W.M., 2011. A Krylov subspace method for option pricing. SSRN 1799124
   - Niesen, J. and Wright, W.M., 2012. Algorithm 919: A Krylov subspace algorithm for evaluating the ``φ``-functions appearing in exponential integrators. ACM Transactions on Mathematical Software (TOMS), 38(3), p.22
 """
-function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int = min(mmin, mmax),
-        tol::Real = 1e-7, opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 2,
-        ishermitian::Bool = LinearAlgebra.ishermitian(A), task1::Bool = false)
+function kiops(
+        tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int = min(mmin, mmax),
+        tol::Real = 1.0e-7, opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 2,
+        ishermitian::Bool = LinearAlgebra.ishermitian(A), task1::Bool = false
+    )
     n, ppo = size(u, 1), size(u, 2)
     p = ppo - 1
 
@@ -121,8 +123,10 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int = min(mmin
     local beta, kest
     while tau_now < tau_end
         oldj = Ks.m
-        arnoldi!(Ks, (A, u_flip), (w, w_aug); opnorm = opnorm, ishermitian = ishermitian,
-            iop = iop, init = j, t = tau_now, mu = mu, l = l, m = m)
+        arnoldi!(
+            Ks, (A, u_flip), (w, w_aug); opnorm = opnorm, ishermitian = ishermitian,
+            iop = iop, init = j, t = tau_now, mu = mu, l = l, m = m
+        )
         V = getfield(Ks, :V)
         H = getfield(Ks, :H)
         j = Ks.m
@@ -211,14 +215,16 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int = min(mmin
         # Check error against target
         if omega <= delta
             tau_now, l,
-            j,
-            reject,
-            ireject,
-            step = kiops_update_solution!(tau_now, tau,
+                j,
+                reject,
+                ireject,
+                step = kiops_update_solution!(
+                tau_now, tau,
                 tau_out, w, l, V,
                 F, H, beta, j, n,
                 step, numSteps,
-                reject, ireject)
+                reject, ireject
+            )
         else
             # Nope, try again
             ireject = ireject + 1
@@ -262,9 +268,11 @@ function kiops(tau_out, A, u; mmin::Int = 10, mmax::Int = 128, m::Int = min(mmin
     return w, stats
 end
 
-Base.@propagate_inbounds function kiops_update_solution!(tau_now, tau, tau_out, w, l, V, F,
+Base.@propagate_inbounds function kiops_update_solution!(
+        tau_now, tau, tau_out, w, l, V, F,
         H, beta, j, n, step, numSteps,
-        reject, ireject)
+        reject, ireject
+    )
     # Yep, got the required tolerance update
     reject = reject + ireject
     step = step + 1
