@@ -30,29 +30,35 @@ intuitive interface (vector `b` instead of a n-by-1 matrix `B`).
     evaluating the φ-functions in exponential integrators. arXiv preprint
     arXiv:0907.4631.
 """
-function expv_timestep(ts::Vector{tType},
-        A, b; kwargs...) where {tType <: Real}
+function expv_timestep(
+        ts::Vector{tType},
+        A, b; kwargs...
+    ) where {tType <: Real}
     U = similar(b, size(A, 1), length(ts))
-    expv_timestep!(U, ts, A, b; kwargs...)
+    return expv_timestep!(U, ts, A, b; kwargs...)
 end
 function expv_timestep(t::tType, A, b; kwargs...) where {tType <: Real}
     u = similar(b, size(A, 1))
-    expv_timestep!(u, t, A, b; kwargs...)
+    return expv_timestep!(u, t, A, b; kwargs...)
 end
 """
     expv_timestep!(u,t,A,b[;kwargs]) -> u
 
 Non-allocating version of `expv_timestep`.
 """
-function expv_timestep!(u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
-        kwargs...) where {T <: Number, tType <: Real}
+function expv_timestep!(
+        u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
+        kwargs...
+    ) where {T <: Number, tType <: Real}
     expv_timestep!(reshape(u, length(u), 1), [t], A, b; kwargs...)
     return u
 end
-function expv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, b::AbstractVector{T};
-        kwargs...) where {T <: Number, tType <: Real}
+function expv_timestep!(
+        U::AbstractMatrix{T}, ts::Vector{tType}, A, b::AbstractVector{T};
+        kwargs...
+    ) where {T <: Number, tType <: Real}
     B = reshape(b, length(b), 1)
-    phiv_timestep!(U, ts, A, B; kwargs...)
+    return phiv_timestep!(U, ts, A, B; kwargs...)
 end
 """
     phiv_timestep(ts,A,B[;adaptive,tol,kwargs...]) -> U
@@ -84,31 +90,35 @@ internally.
 """
 function phiv_timestep(ts::Vector{tType}, A, B; kwargs...) where {tType <: Real}
     U = Matrix{eltype(B)}(undef, size(A, 1), length(ts))
-    phiv_timestep!(U, ts, A, B; kwargs...)
+    return phiv_timestep!(U, ts, A, B; kwargs...)
 end
 function phiv_timestep(t::tType, A, B; kwargs...) where {tType <: Real}
     u = Vector{eltype(B)}(undef, size(A, 1))
-    phiv_timestep!(u, t, A, B; kwargs...)
+    return phiv_timestep!(u, t, A, B; kwargs...)
 end
 """
     phiv_timestep!(U,ts,A,B[;kwargs]) -> U
 
 Non-allocating version of `phiv_timestep`.
 """
-function phiv_timestep!(u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};
-        kwargs...) where {T <: Number, tType <: Real}
+function phiv_timestep!(
+        u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};
+        kwargs...
+    ) where {T <: Number, tType <: Real}
     phiv_timestep!(reshape(u, length(u), 1), [t], A, B; kwargs...)
     return u
 end
-function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T};
+function phiv_timestep!(
+        U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T};
         tau::Real = 0.0,
-        m::Int = min(10, size(A, 1)), tol::Real = 1e-7,
+        m::Int = min(10, size(A, 1)), tol::Real = 1.0e-7,
         opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 0,
         correct::Bool = false, caches = nothing, adaptive = false,
         delta::Real = 1.2,
         ishermitian::Bool = LinearAlgebra.ishermitian(A),
         gamma::Real = 0.8, NA::Int = 0,
-        verbose = false) where {T <: Number, tType <: Real}
+        verbose = false
+    ) where {T <: Number, tType <: Real}
     # Choose initial timestep
     opnorm = opnorm isa Number ? opnorm : opnorm(A, Inf) # backward compatibility
     abstol = tol * opnorm
@@ -116,8 +126,10 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
     if iszero(tau)
         b0norm = norm(@view(B[:, 1]), Inf)
         tau = 10 / opnorm *
-              (abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
-               (4 * opnorm * b0norm))^(1 / m)
+            (
+            abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
+                (4 * opnorm * b0norm)
+        )^(1 / m)
         verbose && println("Initial time step unspecified, chosen to be $tau")
     end
     # Initialization
@@ -125,8 +137,8 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
     sort!(ts)
     tend = ts[end]
     p = size(B, 2) - 1
-    @assert length(ts)==size(U, 2) "Dimension mismatch"
-    @assert n==size(A, 1)==size(A, 2)==size(B, 1) "Dimension mismatch"
+    @assert length(ts) == size(U, 2) "Dimension mismatch"
+    @assert n == size(A, 1) == size(A, 2) == size(B, 1) "Dimension mismatch"
     if caches == nothing
         u = similar(B, T, n)              # stores the current state
         W = similar(B, T, n, p + 1)         # stores the w vectors
@@ -184,8 +196,10 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
             tau = tend - t
         end
         _,
-        epsilon = phiv!(P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
-            errest = true)
+            epsilon = phiv!(
+            P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
+            errest = true
+        )
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
         if adaptive
             omega = (tend / tau) * (epsilon / abstol)
@@ -197,23 +211,31 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
             maxtau = tend - t
             while omega > delta # inner loop of Algorithm 3
                 m_new, tau_new,
-                q,
-                kappa = _phiv_timestep_adapt(m, tau, epsilon, m_old,
+                    q,
+                    kappa = _phiv_timestep_adapt(
+                    m, tau, epsilon, m_old,
                     tau_old, epsilon_old, q,
                     kappa,
                     gamma, omega, maxtau, n, p,
                     NA, iop,
-                    LinearAlgebra.opnorm(getH(Ks),
-                        1),
-                    verbose)
+                    LinearAlgebra.opnorm(
+                        getH(Ks),
+                        1
+                    ),
+                    verbose
+                )
                 m, m_old = m_new, m
                 tau, tau_old = tau_new, tau
                 # Compute ϕp(tau*A)wp using the new parameters
-                arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm,
-                    iop = iop)
+                arnoldi!(
+                    Ks, A, @view(W[:, end]); tol = tol, m = m, opnorm = opnorm,
+                    iop = iop
+                )
                 _,
-                epsilon_new = phiv!(P, tau, Ks, p + 1; cache = phiv_cache,
-                    correct = correct, errest = true)
+                    epsilon_new = phiv!(
+                    P, tau, Ks, p + 1; cache = phiv_cache,
+                    correct = correct, errest = true
+                )
                 epsilon, epsilon_old = epsilon_new, epsilon
                 omega = (tend / tau) * (epsilon / abstol)
                 verbose && println("  * m = $m, tau = $tau, error estimate = $epsilon")
@@ -250,8 +272,10 @@ function phiv_timestep!(U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractM
     return U
 end
 # Helper functions for phiv_timestep!
-function _phiv_timestep_adapt(m, tau, epsilon, m_old, tau_old, epsilon_old, q, kappa,
-        gamma, omega, maxtau, n, p, NA, iop, Hnorm, verbose)
+function _phiv_timestep_adapt(
+        m, tau, epsilon, m_old, tau_old, epsilon_old, q, kappa,
+        gamma, omega, maxtau, n, p, NA, iop, Hnorm, verbose
+    )
     # Compute new m and tau (Algorithm 4)
     if tau_old > tau
         q = log(tau / tau_old) / log(epsilon / epsilon_old) - 1

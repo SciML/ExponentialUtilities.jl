@@ -10,7 +10,7 @@ function exp_gen!(cache, A, ::Val{3})
     memslots4 = getmem(cache, 4)
     memslots5 = getmem(cache, 5)
     memslots6 = getmem(cache, 6)
-    # Assign precomputed nodes memslots 
+    # Assign precomputed nodes memslots
     memslots1 = A # overwrite A
     # Uniform scaling is exploited.
     # No matrix I explicitly allocated.
@@ -56,5 +56,5 @@ function exp_gen!(cache, A, ::Val{3})
     ldiv_for_generated!(memslots3, memslots1, memslots2)
     # Deallocating Z in slot 1
     # Deallocating X in slot 2
-    copyto!(A, memslots3) # Returning P
+    return copyto!(A, memslots3) # Returning P
 end

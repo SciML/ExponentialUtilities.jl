@@ -17,8 +17,10 @@ formula given by Sidje is used (Sidje, R. B. (1998). Expokit: a software
 package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
 """
-function phi(z::T, k::Integer; cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {T <: Number}
+function phi(
+        z::T, k::Integer; cache = nothing,
+        expmethod = ExpMethodHigham2005Base()
+    ) where {T <: Number}
     # Construct the matrix
     if isnothing(cache)
         cache = fill(zero(T), k + 1, k + 1)
@@ -51,25 +53,27 @@ Software (TOMS), 24(1), 130-156. Theorem 1).
 """
 function phiv_dense(A, v, k; kwargs...)
     w = Matrix{eltype(A)}(undef, length(v), k + 1)
-    phiv_dense!(w, A, v, k; kwargs...)
+    return phiv_dense!(w, A, v, k; kwargs...)
 end
 """
     phiv_dense!(w,A,v,k[;cache]) -> w
 
 Non-allocating version of `phiv_dense`.
 """
-function phiv_dense!(w::AbstractMatrix{T}, A::AbstractMatrix{T},
+function phiv_dense!(
+        w::AbstractMatrix{T}, A::AbstractMatrix{T},
         v::AbstractVector{T}, k::Integer;
         cache = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {T <: Number}
-    @assert size(w, 1)==size(A, 1)==size(A, 2)==length(v) "Dimension mismatch"
-    @assert size(w, 2)==k + 1 "Dimension mismatch"
+        expmethod = ExpMethodHigham2005Base()
+    ) where {T <: Number}
+    @assert size(w, 1) == size(A, 1) == size(A, 2) == length(v) "Dimension mismatch"
+    @assert size(w, 2) == k + 1 "Dimension mismatch"
     m = length(v)
     # Construct the extended matrix
     if isnothing(cache)
         cache = fill(zero(T), m + k, m + k)
     else
-        @assert size(cache)==(m + k, m + k) "Dimension mismatch"
+        @assert size(cache) == (m + k, m + k) "Dimension mismatch"
         fill!(cache, zero(T))
     end
     cache[1:m, 1:m] = A
@@ -110,15 +114,17 @@ function phi(A::AbstractMatrix{T}, k; kwargs...) where {T <: Number}
     else
         out = [Matrix{T}(undef, m, m) for i in 1:(k + 1)]
     end
-    phi!(out, A, k; kwargs...)
+    return phi!(out, A, k; kwargs...)
 end
 """
     phi!(out,A,k[;caches]) -> out
 
 Non-allocating version of `phi` for non-diagonal matrix inputs.
 """
-function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches = nothing,
-        expmethod = ExpMethodHigham2005Base()) where {T <: Number}
+function phi!(
+        out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches = nothing,
+        expmethod = ExpMethodHigham2005Base()
+    ) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1&&all(P -> size(P) == (m, m), out) "Dimension mismatch"
     if isnothing(caches)
@@ -141,8 +147,10 @@ function phi!(out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches =
     end
     return out
 end
-function phi!(out::Vector{Diagonal{T, V}}, A::Diagonal{T, V}, k::Integer;
-        caches = nothing) where {T <: Number, V <: AbstractVector{T}}
+function phi!(
+        out::Vector{Diagonal{T, V}}, A::Diagonal{T, V}, k::Integer;
+        caches = nothing
+    ) where {T <: Number, V <: AbstractVector{T}}
     for i in axes(A, 1)
         phiz = phi(A[i, i], k; cache = caches)
         for j in 1:(k + 1)

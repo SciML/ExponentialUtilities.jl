@@ -4,8 +4,8 @@ using CUDA
 using CUDA.CUSPARSE
 using ExponentialUtilities
 using ExponentialUtilities: inplace_add!,
-                            exponential!, ExpMethodHigham2005, expv,
-                            expv_timestep
+    exponential!, ExpMethodHigham2005, expv,
+    expv_timestep
 
 using Random: Xoshiro
 
@@ -64,9 +64,11 @@ E2 = Array(expv_timestep(ts, A_gpu, b_gpu))
     A = randn(T, 4, 4)
     cuA = cu(A)
 
-    Ks = ExponentialUtilities.arnoldi(A, v0; tol = 1e-7, ishermitian = false, opnorm = 1.0)
-    cuKs = ExponentialUtilities.arnoldi(cuA, cuv0; tol = 1e-7, ishermitian = false,
-        opnorm = 1.0)
+    Ks = ExponentialUtilities.arnoldi(A, v0; tol = 1.0e-7, ishermitian = false, opnorm = 1.0)
+    cuKs = ExponentialUtilities.arnoldi(
+        cuA, cuv0; tol = 1.0e-7, ishermitian = false,
+        opnorm = 1.0
+    )
 
     dt = 0.01im
     ExponentialUtilities.expv!(v0, dt, Ks)

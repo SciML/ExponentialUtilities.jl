@@ -14,7 +14,7 @@ end
 @deprecate exp_generic exponential!
 exponential!(A) = exponential!(A, ExpMethodHigham2005(A));
 function exponential!(A::GPUArraysCore.AbstractGPUArray)
-    exponential!(A, ExpMethodHigham2005(false))
+    return exponential!(A, ExpMethodHigham2005(false))
 end;
 
 ## The diagonalization based
