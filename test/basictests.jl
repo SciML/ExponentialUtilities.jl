@@ -126,6 +126,34 @@ end
     @test vec(res) ≈ exp.(ts)
 end
 
+@testset "Issue 44 - BigFloat precision" begin
+    using ExponentialUtilities: pade_order_for_type
+
+    # Test that pade_order_for_type returns reasonable values
+    @test pade_order_for_type(Float64) == 13
+    @test pade_order_for_type(BigFloat) >= 24  # depends on precision
+
+    # Test scalar BigFloat accuracy
+    _x = range(-10, stop = 10, length = 50)
+    bigfloat_x = big.(_x)
+    max_err = maximum(
+        abs,
+        (x -> exp_generic(x) / exp(x) - 1).(bigfloat_x)
+    ) / eps(BigFloat)
+    @test max_err < 100  # Should be within ~100 eps
+
+    # Test with different precisions
+    for bits in [128, 256, 512]
+        setprecision(bits) do
+            x = big"0.5"
+            result = exp_generic(x)
+            exact = exp(x)
+            rel_err = abs(result - exact) / exact
+            @test rel_err < 100 * eps(BigFloat)
+        end
+    end
+end
+
 @testset "naive_matmul" begin
     A = Matrix(reshape((1.0:(23.0^2)) ./ 700, (23, 23)))
     @test exp_generic(A) ≈ exp(A)
