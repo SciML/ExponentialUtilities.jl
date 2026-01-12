@@ -1,7 +1,7 @@
 name = "ExponentialUtilities"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>", "José E. Cruz Serrallés <Jose.CruzSerralles@nyulangone.org>"]
-version = "1.29.0"
+version = "1.30.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
