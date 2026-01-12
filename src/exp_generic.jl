@@ -130,7 +130,9 @@ end
 
 """
     struct ExpMethodGeneric{T}
-    ExpMethodGeneric()=ExpMethodGeneric{Val{13}}();
+    ExpMethodGeneric()=ExpMethodGeneric{Val{13}}()
+    ExpMethodGeneric(k::Integer)=ExpMethodGeneric{Val{k}}()
+    ExpMethodGeneric(::Type{T}) where T = ExpMethodGeneric{Val{pade_order_for_type(T)}}()
 
 Generic exponential implementation of the method `ExpMethodHigham2005`,
 for any exp argument `x`  for which the functions
@@ -138,16 +140,73 @@ for any exp argument `x`  for which the functions
 UniformScaling objects) are defined. The type `T` is used to adjust the
 number of terms used in the Pade approximants at compile time.
 
+For high-precision types like `BigFloat`, the Padé order is automatically
+selected based on the precision to achieve machine-precision accuracy.
+You can also manually specify the order: `ExpMethodGeneric(k)` uses a
+`(k,k)` Padé approximant. To automatically select based on element type,
+use `ExpMethodGeneric(T)` where `T` is the element type.
+
 See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
 by Higham, Nicholas J. in 2005 for algorithm details.
 """
 struct ExpMethodGeneric{T} end
-ExpMethodGeneric() = ExpMethodGeneric{Val(13)}();
+ExpMethodGeneric() = ExpMethodGeneric{Val(13)}()
+ExpMethodGeneric(k::Integer) = ExpMethodGeneric{Val{k}()}()
+
+"""
+    pade_order_for_type(::Type{T}) where T
+
+Compute the minimum Padé order k required for machine-precision accuracy
+for a given floating-point type T. The (k,k) Padé approximant for exp(x)
+has error bounded by (x/2)^(2k+1) / (2k+1)! for |x| ≤ 1.
+"""
+function pade_order_for_type(::Type{T}) where {T}
+    # Get precision in bits
+    p = _precision_bits(T)
+    # For standard Float64, use the optimized k=13
+    p <= 64 && return 13
+    # For higher precision, compute required k
+    # We need: (1/2)^(2k+1) / (2k+1)! < 2^(-p)
+    # Adding a small buffer for safety
+    target = big(1) // big(2)^(p + 10)
+    for k in 13:500
+        bound = (big(1) // 2)^(2k + 1) / factorial(big(2k + 1))
+        if bound < target
+            return k
+        end
+    end
+    return 500  # fallback for extremely high precision
+end
+
+_precision_bits(::Type{Float16}) = 11
+_precision_bits(::Type{Float32}) = 24
+_precision_bits(::Type{Float64}) = 53
+_precision_bits(::Type{BigFloat}) = precision(BigFloat)
+_precision_bits(::Type{Complex{T}}) where {T} = _precision_bits(T)
+_precision_bits(::Type{T}) where {T <: AbstractFloat} = precision(T)
+# Fallback for other numeric types (integers, etc.)
+_precision_bits(::Type{T}) where {T <: Number} = 53
+
+ExpMethodGeneric(::Type{T}) where {T} = ExpMethodGeneric{Val{pade_order_for_type(T)}()}()
+
+# Extract the element type from various input types
+_eltype(x::Number) = typeof(x)
+_eltype(x::AbstractArray{T}) where {T} = T
+
+# Determine if the default k=13 is sufficient for the given element type
+_needs_higher_order(::Type{T}) where {T} = _precision_bits(T) > 64
 
 function exponential!(
         x, method::ExpMethodGeneric{Vk},
         cache = alloc_mem(x, method)
     ) where {Vk}
+    # For high-precision types with default k=13, automatically use higher order
+    T = _eltype(x)
+    if Vk === Val{13}() && _needs_higher_order(T)
+        k = pade_order_for_type(T)
+        return exponential!(x, ExpMethodGeneric{Val{k}()}(), cache)
+    end
+
     nx = opnorm(x, 1)
     if isnan(nx) || nx > 4611686018427387904 # i.e. 2^62 since it would cause overflow in 2^s
         # This should (hopefully) ensure that the result is Inf or NaN depending on
