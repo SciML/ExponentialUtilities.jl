@@ -204,7 +204,11 @@ function exponential!(
     T = _eltype(x)
     if Vk === Val{13}() && _needs_higher_order(T)
         k = pade_order_for_type(T)
-        return exponential!(x, ExpMethodGeneric{Val{k}()}(), cache)
+        # Only recurse if we actually need a higher order than 13
+        # Otherwise we'd get infinite recursion (fixes #206)
+        if k > 13
+            return exponential!(x, ExpMethodGeneric{Val{k}()}(), cache)
+        end
     end
 
     nx = opnorm(x, 1)
