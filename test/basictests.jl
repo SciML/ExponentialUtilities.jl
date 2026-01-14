@@ -2,7 +2,7 @@ using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
 using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
-using ForwardDiff, StaticArrays
+using ForwardDiff, StaticArrays, DoubleFloats
 
 @testset "exp!" begin
     n = 100
@@ -450,4 +450,31 @@ struct OpnormFunctor end
 
         @test pv ≈ pv′ atol = 1.0e-12
     end
+end
+
+@testset "Issue 206 - Double64 with pade order 13" begin
+    using ExponentialUtilities: pade_order_for_type, _needs_higher_order
+
+    # Double64 has ~106 bits precision, which is > 64 so _needs_higher_order returns true,
+    # but pade_order_for_type returns 13, which previously caused infinite recursion
+    @test _needs_higher_order(Double64) == true
+    @test pade_order_for_type(Double64) == 13
+
+    # Test that exponential! doesn't cause infinite recursion with matrices
+    # (The original issue used vectors which have additional opnorm issues)
+    A = Double64[1.0 0.5; 0.5 1.0]
+    A_float = [Float64(A[i, j]) for i in 1:2, j in 1:2]
+    result_matrix = exponential!(copy(A), ExpMethodGeneric{Val{13}()}())
+    expected = exp(A_float)
+    result_float = [Float64(result_matrix[i, j]) for i in 1:2, j in 1:2]
+    @test result_float ≈ expected rtol = 1.0e-14
+
+    # Test with default ExpMethodGeneric() as well
+    result_default = exponential!(copy(A), ExpMethodGeneric())
+    result_default_float = [Float64(result_default[i, j]) for i in 1:2, j in 1:2]
+    @test result_default_float ≈ expected rtol = 1.0e-14
+
+    # Test scalar case (which doesn't need opnorm)
+    scalar_result = exponential!(Double64(1.0), ExpMethodGeneric{Val{13}()}())
+    @test Float64(scalar_result) ≈ exp(1.0) rtol = 1.0e-14
 end
