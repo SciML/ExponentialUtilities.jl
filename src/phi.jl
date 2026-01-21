@@ -9,7 +9,7 @@ Compute the scalar phi functions for all orders up to k.
 The phi functions are defined as
 
 ```math
-\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - 1}{z}
+\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - \\varphi_k(0)}{z}
 ```
 
 Instead of using the recurrence relation, which is numerically unstable, a
@@ -43,7 +43,7 @@ Compute the matrix-phi-vector products for small, dense `A`. `k`` >= 1.
 The phi functions are defined as
 
 ```math
-\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - 1}{z}
+\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - \\varphi_k(0)}{z}
 ```
 
 Instead of using the recurrence relation, which is numerically unstable, a
@@ -100,7 +100,7 @@ Compute the matrix phi functions for all orders up to k. `k` >= 1.
 The phi functions are defined as
 
 ```math
-\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - 1}{z}
+\\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - \\varphi_k(0)}{z}
 ```
 
 Calls `phiv_dense` on each of the basis vectors to obtain the answer. If A
