@@ -10,8 +10,6 @@ function alloc_mem(A, method)
     return nothing
 end
 
-@deprecate _exp! exponential!
-@deprecate exp_generic exponential!
 exponential!(A) = exponential!(A, ExpMethodHigham2005(A));
 function exponential!(A::GPUArraysCore.AbstractGPUArray)
     return exponential!(A, ExpMethodHigham2005(false))
