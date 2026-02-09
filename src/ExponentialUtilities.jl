@@ -8,7 +8,7 @@ import Adapt
 
 using Base: typename
 
-Base.@pure __parameterless_type(T) = typename(T).wrapper
+Base.@assume_effects :foldable __parameterless_type(T) = typename(T).wrapper
 parameterless_type(x) = __parameterless_type(typeof(x))
 parameterless_type(::Type{T}) where {T} = __parameterless_type(T)
 
