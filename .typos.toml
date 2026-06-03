@@ -1,4 +1,7 @@
 [default.extend-words]
+# Algorithm cost/order variables (matrix exponential scaling-and-squaring)
+Cmo = "Cmo"
+Cmp = "Cmp"
 # Julia-specific functions
 indexin = "indexin"
 findfirst = "findfirst"
