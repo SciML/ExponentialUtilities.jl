@@ -12,7 +12,6 @@ on:
       - 'docs/**'
 jobs:
   downgrade:
-    if: false  # Disabled pending fix - see #208 for tracking re-enablement
     name: "Downgrade"
     strategy:
       matrix:
