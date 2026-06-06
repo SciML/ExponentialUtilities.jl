@@ -1,5 +1,9 @@
 intlog2(x::T) where {T <: Integer} = T(8 * sizeof(T) - leading_zeros(x - one(T)))
-intlog2(x) = x > typemax(UInt) ? ceil(Int, log2(x)) : intlog2(ceil(UInt, x)) % Int
+# `ceil(Int, x)` rather than `ceil(UInt, x)` so the integer-conversion path only needs
+# `trunc(::Type{Int}, ::AbstractFloat)`, which extended-precision types such as
+# DoubleFloats.Double64 define, whereas `trunc(::Type{<:Unsigned}, ::AbstractFloat)` is
+# unavailable on Julia 1.10. `x` here is a positive norm, so the signed conversion matches.
+intlog2(x) = x > typemax(Int) ? ceil(Int, log2(x)) : intlog2(ceil(Int, x))
 
 function naivemul!(
         C::StridedMatrix{T}, A::StridedMatrix{T},
