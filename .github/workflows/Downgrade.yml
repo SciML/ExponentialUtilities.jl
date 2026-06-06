@@ -22,5 +22,5 @@ jobs:
       julia-version: "1.10"
       group: "${{ matrix.group }}"
       skip: "Pkg,TOML"
-      allow-reresolve: true
+      allow-reresolve: false
     secrets: "inherit"
