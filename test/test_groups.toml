@@ -1,0 +1,14 @@
+# Test-group matrix for ExponentialUtilities (consumed by the reusable
+# SciML/.github grouped-tests.yml@v1 workflow via
+# scripts/compute_affected_sublibraries.jl --root-matrix).
+#
+# Core runs the functional suite (basictests.jl) on every Julia version and OS.
+# QA runs the metadata/static-analysis checks (Aqua + JET) in the isolated
+# test/qa environment.
+
+[Core]
+versions = ["lts", "1", "pre"]
+os = ["ubuntu-latest", "macos-latest", "windows-latest"]
+
+[QA]
+versions = ["lts", "1"]
