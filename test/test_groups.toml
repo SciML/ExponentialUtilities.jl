@@ -5,6 +5,8 @@
 # Core runs the functional suite (basictests.jl) on every Julia version and OS.
 # QA runs the metadata/static-analysis checks (Aqua + JET) in the isolated
 # test/qa environment.
+# GPU runs the CUDA tests in the isolated test/gpu environment on a self-hosted
+# GPU runner (matching the pre-conversion GPU.yml workflow).
 
 [Core]
 versions = ["lts", "1", "pre"]
@@ -12,3 +14,8 @@ os = ["ubuntu-latest", "macos-latest", "windows-latest"]
 
 [QA]
 versions = ["lts", "1"]
+
+[GPU]
+versions = ["1"]
+runner = ["self-hosted", "Linux", "X64", "gpu"]
+timeout = 60
