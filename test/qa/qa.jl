@@ -1,9 +1,20 @@
-using ExponentialUtilities, JET, Test
+using ExponentialUtilities, Aqua, JET, Test
+
+@testset "Aqua" begin
+    Aqua.find_persistent_tasks_deps(ExponentialUtilities)
+    Aqua.test_ambiguities(ExponentialUtilities, recursive = false)
+    Aqua.test_deps_compat(
+        ExponentialUtilities,
+        ignore = [:libblastrampoline_jll]
+    )
+    Aqua.test_piracies(ExponentialUtilities)
+    Aqua.test_project_extras(ExponentialUtilities)
+    Aqua.test_stale_deps(ExponentialUtilities)
+    Aqua.test_unbound_args(ExponentialUtilities)
+    Aqua.test_undefined_exports(ExponentialUtilities)
+end
 
 @testset "JET static analysis" begin
-    # Test key entry points for type stability and correctness
-    # Using report_call to check for runtime errors
-
     @testset "expv" begin
         rep = JET.report_call(expv, (Float64, Matrix{Float64}, Vector{Float64}))
         @test length(JET.get_reports(rep)) == 0
