@@ -262,7 +262,17 @@ end
 
         A = I + randn(SMatrix{N, N, Float64}) / 3
         b = randn(SVector{N, Float64})
-        @test expv(t, A, b) ≈ exp(t * A) * b
+        # Reference via the dense LAPACK matrix exponential rather than
+        # `exp(t * A)` on the SMatrix. StaticArrays' own SMatrix `exp` uses an
+        # unbalanced scaling-and-squaring Padé path that loses ~7-9 digits for
+        # the larger non-normal cases on some platforms (observed: macOS +
+        # Julia prerelease, relerr ~1e-7..1e-5), whereas LAPACK's balanced
+        # `exp` is accurate everywhere. Checked against a 512-bit BigFloat
+        # `exp(t*A)*b`, the `expv` output here is correct to ~1e-16 on every
+        # platform; it was the StaticArrays reference, not `expv`, that drifted.
+        # Comparing against the dense reference keeps this a machine-precision
+        # (default-tolerance) assertion that still catches real `expv` regressions.
+        @test expv(t, A, b) ≈ exp(t * Matrix(A)) * Vector(b)
     end
 end
 
