@@ -18,9 +18,19 @@ function alloc_mem(A, ::ExpMethodHigham2005)
 end
 
 # Import the generated code
-for i in 1:13
-    include("exp_generated/exp_$i.jl")
-end
+include("exp_generated/exp_1.jl")
+include("exp_generated/exp_2.jl")
+include("exp_generated/exp_3.jl")
+include("exp_generated/exp_4.jl")
+include("exp_generated/exp_5.jl")
+include("exp_generated/exp_6.jl")
+include("exp_generated/exp_7.jl")
+include("exp_generated/exp_8.jl")
+include("exp_generated/exp_9.jl")
+include("exp_generated/exp_10.jl")
+include("exp_generated/exp_11.jl")
+include("exp_generated/exp_12.jl")
+include("exp_generated/exp_13.jl")
 
 function getmem(cache, k) # Called from generated code
     return cache[k - 1]
