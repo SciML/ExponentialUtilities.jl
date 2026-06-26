@@ -83,6 +83,7 @@ function exponential!(
         LAPACK.gesv!(temp, X)
     else
         s = log2(nA / 5.4)               # power of 2 later reversed by squaring
+        si = 0                           # always defined so the s > 0 squaring loop is type-stable
         if s > 0
             si = ceil(Int, s)
             A ./= convert(T, 2^si)

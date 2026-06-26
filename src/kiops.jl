@@ -117,10 +117,15 @@ function kiops(
     omega = NaN
     orderold = true
     kestold = true
+    # `order`/`kest` carry their previous value across iterations (the `orderold`/
+    # `kestold` flags select "reuse"); seed them with the first-iteration defaults so
+    # they are always defined before use rather than only conditionally assigned.
+    order = 0.0
+    kest = 2
 
     l = 1
 
-    local beta, kest
+    local beta
     while tau_now < tau_end
         oldj = Ks.m
         arnoldi!(

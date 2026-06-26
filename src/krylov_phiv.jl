@@ -87,6 +87,14 @@ function expv!(
     ) where {Tw, T, U}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
+    if iszero(beta)
+        # Zero input: the Krylov basis V was never initialized (firststep! skips
+        # the fill when beta == 0), so `beta * V * expHe` would be `0 * garbage`,
+        # which is NaN whenever V holds uninitialized memory. The result is exactly
+        # zero, matching the complex `expv!` method's guard below.
+        w .= false
+        return w
+    end
     if isnothing(cache)
         cache = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)

@@ -6,7 +6,10 @@
 # QA runs the metadata/static-analysis checks (Aqua + JET) in the isolated
 # test/qa environment.
 # GPU runs the CUDA tests in the isolated test/gpu environment on a self-hosted
-# GPU runner (matching the pre-conversion GPU.yml workflow).
+# GPU runner (matching the pre-conversion GPU.yml workflow). It is `in_all = false`
+# so it only ever runs under an explicit GROUP=GPU on the CUDA-equipped runner and
+# is never pulled into the "All" aggregate (which a non-GPU job can fall back to),
+# where `using CUDA` errors with "CUDA driver not functional".
 
 [Core]
 versions = ["lts", "1", "pre"]
@@ -19,3 +22,4 @@ versions = ["lts", "1"]
 versions = ["1"]
 runner = ["self-hosted", "Linux", "X64", "gpu"]
 timeout = 60
+in_all = false
