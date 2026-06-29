@@ -99,13 +99,22 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
     n = LinearAlgebra.checksquare(A)
     nA = opnorm(A, 1)
 
-    # Maybe to balancing
+    # Maybe to balancing. `ilo`/`ihi`/`scale` are seeded with no-op defaults so they are
+    # always defined before the symmetric undo block below; the two `do_balancing`
+    # branches are not provably correlated to the compiler, so without these seeds the
+    # undo block reads possibly-undefined locals (flagged by JET typo-mode).
+    ilo = 1
+    ihi = n
+    scale = _scale
+    prow = nothing  # row/col permutations from the GenericSchur (non-BLAS) balancing path
+    pcol = nothing
     if method.do_balancing
         if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
             ilo, ihi, scale = gebal_noalloc!('B', A, _scale)    # modifies A and _scale
         else
             A, bal = GenericSchur.balance!(A)
             ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
+            prow, pcol = bal.prow, bal.pcol
         end
     end
 
@@ -144,12 +153,12 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
         else
             if ilo > 1       # apply lower permutations in reverse order
                 for j in (ilo - 1):-1:1
-                    LinearAlgebra.rcswap!(j, bal.prow[j], X)
+                    LinearAlgebra.rcswap!(j, prow[j], X)
                 end
             end
             if ihi < n       # apply upper permutations in forward order
                 for j in (ihi + 1):n
-                    LinearAlgebra.rcswap!(j, bal.pcol[j - ihi], X)
+                    LinearAlgebra.rcswap!(j, pcol[j - ihi], X)
                 end
             end
         end
