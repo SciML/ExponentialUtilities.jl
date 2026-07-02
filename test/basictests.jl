@@ -256,6 +256,68 @@ end
     end
 end
 
+@testset "Phi (Al-Mohy--Liu vs reference)" begin
+    # Independent reference: phi_0..phi_p are the first block row of exp(W) for
+    # the augmented block matrix W = [A E; 0 J] (Al-Mohy--Liu, Theorem 2.1), with
+    # E = [I 0 ... 0] and J the nilpotent shift. This is unrelated to the
+    # scaling-and-recovering algorithm under test.
+    function phi_block_reference(A, p)
+        n = size(A, 1)
+        T = eltype(A)
+        W = zeros(T, n * (p + 1), n * (p + 1))
+        W[1:n, 1:n] .= A
+        for j in 0:(p - 1)
+            rb = j * n
+            W[(rb + 1):(rb + n), (rb + n + 1):(rb + 2n)] .= Matrix{T}(I, n, n)
+        end
+        eW = exp(W)
+        return [eW[1:n, (j * n + 1):((j + 1) * n)] for j in 0:p]
+    end
+
+    # Force the legacy basis-vector path (Sidje/`phiv_dense`) for cross-checking.
+    function phi_legacy(A, p)
+        n = size(A, 1)
+        T = eltype(A)
+        caches = (
+            Vector{T}(undef, n), Matrix{T}(undef, n, p + 1),
+            Matrix{T}(undef, n + p, n + p),
+        )
+        out = [Matrix{T}(undef, n, n) for _ in 1:(p + 1)]
+        return phi!(out, A, p; caches = caches)
+    end
+
+    Random.seed!(20250701)
+    testmats = Dict(
+        "small 2x2" => [0.1 0.2; 0.3 0.4],
+        "random 8x8" => randn(8, 8) ./ 4,
+        "nonnormal 10x10" => 3 * (triu(randn(10, 10), 1) + Diagonal(randn(10))),
+        "large-norm 6x6" => 6 * randn(6, 6),
+        "complex 5x5" => randn(ComplexF64, 5, 5),
+        "hessenberg 12x12" => Matrix(hessenberg(randn(12, 12)).H),
+        "zero 4x4" => zeros(4, 4),
+    )
+    for (name, A) in testmats, p in (1, 2, 3, 5)
+        ref = phi_block_reference(A, p)
+        new = phi(A, p)                 # default path == Al-Mohy--Liu
+        leg = phi_legacy(A, p)
+        for j in 1:(p + 1)
+            @test new[j] ≈ ref[j] rtol = 1.0e-8 atol = 1.0e-12
+            @test new[j] ≈ leg[j] rtol = 1.0e-7 atol = 1.0e-10
+        end
+    end
+
+    # phi_0 must equal the matrix exponential.
+    A = randn(9, 9) ./ 3
+    @test phi(A, 4)[1] ≈ exp(A)
+
+    # Preallocated in-place entry point returns phi_j in out[j+1].
+    n = 7
+    A = randn(n, n) ./ 3
+    out = [Matrix{Float64}(undef, n, n) for _ in 1:4]
+    phi!(out, A, 3)
+    @test out ≈ phi_block_reference(A, 3)
+end
+
 @testset "Static Arrays" begin
     Random.seed!(0)
     for N in (3, 4, 6, 8), t in (0.1, 1.0, 10.0)

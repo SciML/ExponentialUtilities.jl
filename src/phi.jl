@@ -103,9 +103,12 @@ The phi functions are defined as
 \\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - \\varphi_k(0)}{z}
 ```
 
-Calls `phiv_dense` on each of the basis vectors to obtain the answer. If A
-is `Diagonal`, instead calls the scalar `phi` on each diagonal element and the
-return values are also `Diagonal`s
+For `Float64`/`ComplexF64` matrices this uses the scaling-and-recovering
+algorithm of Al-Mohy and Liu (arXiv:2506.01193), which computes all of
+`phi_0(A), ..., phi_k(A)` simultaneously in `O(k m^3)` operations. Other element
+types fall back to calling `phiv_dense` on each basis vector (`O(m (m+k)^3)`). If
+`A` is `Diagonal`, the scalar `phi` is instead applied to each diagonal element
+and the return values are also `Diagonal`s.
 """
 function phi(A::AbstractMatrix{T}, k; kwargs...) where {T <: Number}
     m = size(A, 1)
@@ -127,6 +130,14 @@ function phi!(
     ) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1&&all(P -> size(P) == (m, m), out) "Dimension mismatch"
+    # The scaling-and-recovering algorithm of Al-Mohy and Liu (arXiv:2506.01193)
+    # computes phi_0..phi_k simultaneously in O(k m^3), versus O(m (m+k)^3) for
+    # the basis-vector approach below. Its Pade tables are tuned for double
+    # precision, so it is used only for Float64/ComplexF64 and only when the
+    # caller has not supplied the legacy `caches` bundle.
+    if k >= 1 && isnothing(caches) && T <: Union{Float64, ComplexF64}
+        return _phi_almohy!(out, A, k)
+    end
     if isnothing(caches)
         e = Vector{T}(undef, m)
         W = Matrix{T}(undef, m, k + 1)
