@@ -84,17 +84,23 @@ Reusable workspace for the in-place phi-function evaluator [`phi!`](@ref) on
 strided `Float64`/`ComplexF64` matrices. Allocate once for a given size and `p`,
 then pass it as the `caches` keyword to `phi!` to reuse across calls without
 further allocation.
+
+After each `phi!` call, `cache.info[]` holds a return code: `0` means success;
+a positive value is the LAPACK `getrf` info of a numerically singular Padé
+denominator; `-1` means the result was non-finite (`NaN`/`Inf` input). Both
+failures only occur for pathological inputs, and no error is thrown — the
+outputs are filled with `NaN` so that adaptive integrators can detect the
+failed evaluation via `cache.info[] != 0` (or an `isfinite` check) and reject
+the step rather than abort.
 """
 struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
     As::MT
-    Id::MT
     Apow::Vector{MT}
-    Atau::MT
     Nm::MT
     Dm::MT
     Dfact::MT
-    blkN::MT
-    blkD::MT
+    Naux::MT
+    Daux::MT
     tmp::MT
     pow1::MT
     pow2::MT
@@ -109,11 +115,17 @@ struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
     alpha::Vector{Float64}
     tvals::Vector{Int}
     Cost::Matrix{Float64}
+    info::typeof(Ref(zero(BlasInt)))
 end
+
+# Largest r for which alpha_r may be probed (Eq. (3.10) with phat = p; theta_{12,p}
+# >= 1 for all p, so phat = p always applies at m = _PHI_M_MAX).
+_phi_rmax(p::Integer) = floor(Int, (1 + sqrt(1 + 4 * (2 * _PHI_M_MAX + p + 1))) / 2)
 
 function PhiPadeCache(A::AbstractMatrix{T}, p::Integer) where {T}
     n = size(A, 1)
     RT = real(T)
+    r_max = _phi_rmax(p)
     mk() = Matrix{T}(undef, n, n)
     Apow = Vector{Matrix{T}}(undef, _PHI_NPOW)
     Apow[1] = Matrix{T}(I, n, n)
@@ -121,16 +133,31 @@ function PhiPadeCache(A::AbstractMatrix{T}, p::Integer) where {T}
         Apow[i] = mk()
     end
     return PhiPadeCache{T, RT, Matrix{T}, Matrix{RT}}(
-        mk(), Apow[1], Apow, mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(),
+        mk(), Apow, mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(),
         Matrix{RT}(undef, n, n),
         Vector{BlasInt}(undef, n),
         Vector{RT}(undef, n), Vector{RT}(undef, n),
         Vector{Float64}(undef, _PHI_M_MAX + 1), Vector{Float64}(undef, _PHI_M_MAX + 1),
         Matrix{Float64}(undef, _PHI_M_MAX + 1, _PHI_M_MAX + 1),
-        Vector{Float64}(undef, _PHI_IMAX + 2), Vector{Float64}(undef, _PHI_IMAX + 2),
+        Vector{Float64}(undef, r_max), Vector{Float64}(undef, r_max),
         Vector{Int}(undef, _PHI_IMAX + 1),
-        Matrix{Float64}(undef, _PHI_IMAX + 1, _PHI_IMAX + 2),
+        Matrix{Float64}(undef, _PHI_IMAX + 1, r_max - 1),
+        Ref(zero(BlasInt)),
     )
+end
+
+@noinline function _phi_cache_check(cache::PhiPadeCache, n::Integer, r_max::Integer)
+    size(cache.As, 1) == n || throw(
+        DimensionMismatch(
+            "PhiPadeCache was constructed for size $(size(cache.As, 1)) but A has size $n"
+        )
+    )
+    length(cache.eta) >= r_max || throw(
+        ArgumentError(
+            "PhiPadeCache was constructed for a smaller p; construct it with PhiPadeCache(A, p) for the p in use"
+        )
+    )
+    return nothing
 end
 
 # Renormalized [m/m] Pade coefficients (numerator and denominator, low order
@@ -240,9 +267,9 @@ function _normpow_nonneg!(cache::PhiPadeCache, B, k::Integer)
 end
 
 # Scaling parameter `t` from the first term of the backward-error series
-# (Eq. (3.12)); `ell` subfunction of the reference, in-place.
-function _phi_ell!(cache::PhiPadeCache, A, m::Integer, p::Integer, phat::Integer)
-    normT = opnorm(A, 1)
+# (Eq. (3.12)); `ell` subfunction of the reference, in-place. `normT` is the
+# caller-computed `opnorm(A, 1)` (hoisted out of the per-degree loop).
+function _phi_ell!(cache::PhiPadeCache, A, normT, m::Integer, p::Integer, phat::Integer)
     normT == 0 && return 0
     t0 = normT > 1 ? log2(normT) : 0.0
     scalefac = exp2(t0)
@@ -254,12 +281,16 @@ function _phi_ell!(cache::PhiPadeCache, A, m::Integer, p::Integer, phat::Integer
     @. absA = c * abs(A) / scalefac
     alpha = _normpow_nonneg!(cache, absA, K)
     t = log2(2alpha / eps(Float64)) / (K - delta) + t0
+    # NaN/Inf inputs make t non-finite; return 0 (never throw) and let the NaN
+    # propagate to the output, where step-rejection logic can see it.
+    isfinite(t) || return 0
     return max(ceil(Int, t), 0)
 end
 
 function _select_parameters_phi!(cache::PhiPadeCache, A, p::Integer)
     phat = _phi_theta(_PHI_M_MAX, p) < 1 ? 0 : p
     r_max = floor(Int, (1 + sqrt(1 + 4 * (2 * _PHI_M_MAX + phat + 1))) / 2)
+    _phi_cache_check(cache, size(A, 1), r_max)
     eta = cache.eta
     mul!(cache.pow1, A, A)
     eta[1] = opnorm(cache.pow1, 1)^(1 / 2)
@@ -273,47 +304,69 @@ function _select_parameters_phi!(cache::PhiPadeCache, A, p::Integer)
     for j in 1:(r_max - 1)
         alpha[j] = max(eta[j], eta[j + 1])
     end
+    normT = opnorm(A, 1)
     for i in 0:_PHI_IMAX
         m_i = (i + 3)^2 ÷ 8
         phat_i = _phi_theta(m_i, p) < 1 ? 0 : p
-        cache.tvals[i + 1] = _phi_ell!(cache, A, m_i, p, phat_i)
+        cache.tvals[i + 1] = _phi_ell!(cache, A, normT, m_i, p, phat_i)
     end
     return _phi_select_from_alpha(alpha, r_max - 1, p, cache.tvals, cache.Cost)
 end
 
-# Evaluate N(As) and D(As) into cache.Nm, cache.Dm via Paterson--Stockmeyer.
+# Add block i's coefficient combination, sum_l coef[i*tau + l] * As^{l-1}, to M.
+function _phi_ps_addblock!(M, coef, Apow, i::Integer, tau::Integer, m::Integer)
+    start = i * tau + 1
+    stop = min((i + 1) * tau, m + 1)
+    for l in 1:(stop - start + 1)
+        c = coef[start + l - 1]
+        P = Apow[l]
+        @. M += c * P
+    end
+    return M
+end
+
+# Evaluate N(As) and D(As) via Paterson--Stockmeyer in Horner form,
+#
+#   q(As) = ( (B_nu * Atau + B_{nu-1}) * Atau + ... ) * Atau + B_0,
+#
+# which needs nu products per polynomial -- one fewer when tau | m, since then
+# B_nu = c_m*I and the first fold is the broadcast c_m*Atau + B_{nu-1}. Together
+# with the tau-1 explicit powers, the multiplication count is exactly Fasi's
+# pi_m(tau) = tau - 1 + 2*floor(m/tau) - 2*(tau | m) that the parameter
+# selection optimizes over. Returns (N, D) as views into cache buffers.
 function _paterson_stockmeyer!(cache::PhiPadeCache, As, m::Integer, tau::Integer)
     Nc, Dc, Apow = cache.Ncoef, cache.Dcoef, cache.Apow
-    Atau, Nm, Dm = cache.Atau, cache.Nm, cache.Dm
-    blkN, blkD, tmp = cache.blkN, cache.blkD, cache.tmp
-    copyto!(Apow[2], As)               # Apow[1] === Id; Apow[i] = As^{i-1}
+    copyto!(Apow[2], As)               # Apow[1] = I (set once); Apow[i] = As^{i-1}
     for i in 3:(tau + 1)
         mul!(Apow[i], Apow[i - 1], As)
     end
-    copyto!(Atau, Apow[tau + 1])
-    fill!(Nm, 0)
-    fill!(Dm, 0)
+    Atau = Apow[tau + 1]
+    N, Naux = cache.Nm, cache.Naux
+    D, Daux = cache.Dm, cache.Daux
     nu = m ÷ tau
-    for i in 0:nu
-        start = i * tau + 1
-        stop = min((i + 1) * tau, m + 1)
-        fill!(blkN, 0)
-        fill!(blkD, 0)
-        for l in 1:(stop - start + 1)
-            @. blkN += Nc[start + l - 1] * Apow[l]
-            @. blkD += Dc[start + l - 1] * Apow[l]
-        end
-        if i == 0
-            Nm .+= blkN
-            Dm .+= blkD
-        else
-            mul!(Nm, blkN, Atau, true, true)
-            mul!(Dm, blkD, Atau, true, true)
-            mul!(tmp, Atau, Apow[tau + 1])
-            copyto!(Atau, tmp)
-        end
+    if m % tau == 0
+        cN, cD = Nc[m + 1], Dc[m + 1]
+        @. N = cN * Atau
+        @. D = cD * Atau
+        _phi_ps_addblock!(N, Nc, Apow, nu - 1, tau, m)
+        _phi_ps_addblock!(D, Dc, Apow, nu - 1, tau, m)
+        inext = nu - 2
+    else
+        fill!(N, 0)
+        fill!(D, 0)
+        _phi_ps_addblock!(N, Nc, Apow, nu, tau, m)
+        _phi_ps_addblock!(D, Dc, Apow, nu, tau, m)
+        inext = nu - 1
     end
-    return Nm, Dm
+    for i in inext:-1:0
+        mul!(Naux, N, Atau)
+        mul!(Daux, D, Atau)
+        _phi_ps_addblock!(Naux, Nc, Apow, i, tau, m)
+        _phi_ps_addblock!(Daux, Dc, Apow, i, tau, m)
+        N, Naux = Naux, N
+        D, Daux = Daux, D
+    end
+    return N, D
 end
 
 # LAPACK LU factor + solve with pivots written into a preallocated `ipiv`.
@@ -333,7 +386,7 @@ for (getrf, getrs, elty) in
             ),
             m, n, A, max(1, stride(A, 2)), ipiv, info
         )
-        return A
+        return info[]
     end
     @eval function _phi_getrs!(
             A::AbstractMatrix{$elty}, ipiv::Vector{BlasInt}, B::AbstractMatrix{$elty}
@@ -354,10 +407,17 @@ for (getrf, getrs, elty) in
 end
 
 # Solve Dfact * X = B in place (B overwritten by X), zero-allocation LU.
+# Returns the LAPACK getrf info code instead of throwing: 0 on success; on a
+# numerically singular Dfact (pathological input, e.g. NaN/Inf), B is filled
+# with NaN so downstream step-rejection logic can detect the failure.
 function _phi_solve!(Dfact, ipiv, B)
-    _phi_getrf!(Dfact, ipiv)
-    _phi_getrs!(Dfact, ipiv, B)
-    return B
+    info = _phi_getrf!(Dfact, ipiv)
+    if info == 0
+        _phi_getrs!(Dfact, ipiv, B)
+    else
+        fill!(B, NaN)
+    end
+    return info
 end
 
 """
@@ -381,7 +441,21 @@ function _phi_almohy!(
 
     copyto!(cache.Dfact, Dm)
     copyto!(out[p + 1], Nm)
-    _phi_solve!(cache.Dfact, cache.ipiv, out[p + 1])
+    info = _phi_solve!(cache.Dfact, cache.ipiv, out[p + 1])
+    if info == 0 && !all(isfinite, out[p + 1])
+        # NaN/Inf inputs reach here with info == 0 (LAPACK does not flag NaN
+        # pivots); report them so integrators can test cache.info[] alone.
+        info = BlasInt(-1)
+    end
+    cache.info[] = info
+    if info != 0
+        # Return code instead of an exception: fill the outputs with NaN so an
+        # adaptive integrator can reject the step rather than crash.
+        for j in 1:(p + 1)
+            fill!(out[j], NaN)
+        end
+        return out
+    end
 
     # Recurrence (2.9): R^{(j)} = As R^{(j+1)} + I/j!, j = p-1 : -1 : 0.
     for k in p:-1:1
@@ -423,8 +497,7 @@ function _normpow_nonneg(B::AbstractMatrix{<:Real}, k::Integer)
     return maximum(v)
 end
 
-function _phi_ell(A::AbstractMatrix, m::Integer, p::Integer, phat::Integer)
-    normT = opnorm(A, 1)
+function _phi_ell(A::AbstractMatrix, normT, m::Integer, p::Integer, phat::Integer)
     normT == 0 && return 0
     t0 = normT > 1 ? log2(normT) : 0.0
     scalefac = exp2(t0)
@@ -435,6 +508,7 @@ function _phi_ell(A::AbstractMatrix, m::Integer, p::Integer, phat::Integer)
     scaledT = c .* abs.(A ./ scalefac)
     alpha = _normpow_nonneg(scaledT, K)
     t = log2(2alpha / eps(Float64)) / (K - delta) + t0
+    isfinite(t) || return 0
     return max(ceil(Int, t), 0)
 end
 
@@ -450,15 +524,30 @@ function _select_parameters_phi(A::AbstractMatrix, p::Integer)
     end
     alpha = [max(eta[j], eta[j + 1]) for j in 1:(r_max - 1)]
     tvals = Vector{Int}(undef, _PHI_IMAX + 1)
+    normT = opnorm(A, 1)
     for i in 0:_PHI_IMAX
         m_i = (i + 3)^2 ÷ 8
         phat_i = _phi_theta(m_i, p) < 1 ? 0 : p
-        tvals[i + 1] = _phi_ell(A, m_i, p, phat_i)
+        tvals[i + 1] = _phi_ell(A, normT, m_i, p, phat_i)
     end
     Cost = zeros(Float64, _PHI_IMAX + 1, r_max - 1)
     return _phi_select_from_alpha(alpha, r_max - 1, p, tvals, Cost)
 end
 
+# Out-of-place counterpart of `_phi_ps_addblock!`: returns `init` plus block i's
+# coefficient combination.
+function _phi_ps_block(init, coef, Apow, i::Integer, tau::Integer, m::Integer)
+    start = i * tau + 1
+    stop = min((i + 1) * tau, m + 1)
+    M = init
+    for l in 1:(stop - start + 1)
+        M = M + coef[start + l - 1] * Apow[l]
+    end
+    return M
+end
+
+# Out-of-place Horner-form Paterson--Stockmeyer; same multiplication count as
+# the in-place version (Fasi's pi_m(tau)).
 function _paterson_stockmeyer(As, Nc, Dc, tau::Integer, m::Integer)
     MT = typeof(As)
     Apow = Vector{MT}(undef, tau + 1)
@@ -468,26 +557,20 @@ function _paterson_stockmeyer(As, Nc, Dc, tau::Integer, m::Integer)
         Apow[i] = Apow[i - 1] * As
     end
     Atau = Apow[tau + 1]
-    N = zero(As)
-    D = zero(As)
     nu = m ÷ tau
-    for i in 0:nu
-        start = i * tau + 1
-        stop = min((i + 1) * tau, m + 1)
-        blkN = zero(As)
-        blkD = zero(As)
-        for l in 1:(stop - start + 1)
-            blkN += Nc[start + l - 1] * Apow[l]
-            blkD += Dc[start + l - 1] * Apow[l]
-        end
-        if i == 0
-            N += blkN
-            D += blkD
-        else
-            N += blkN * Atau
-            D += blkD * Atau
-            Atau = Atau * Apow[tau + 1]
-        end
+    local N::MT, D::MT
+    if m % tau == 0
+        N = _phi_ps_block(Nc[m + 1] * Atau, Nc, Apow, nu - 1, tau, m)
+        D = _phi_ps_block(Dc[m + 1] * Atau, Dc, Apow, nu - 1, tau, m)
+        inext = nu - 2
+    else
+        N = _phi_ps_block(zero(As), Nc, Apow, nu, tau, m)
+        D = _phi_ps_block(zero(As), Dc, Apow, nu, tau, m)
+        inext = nu - 1
+    end
+    for i in inext:-1:0
+        N = _phi_ps_block(N * Atau, Nc, Apow, i, tau, m)
+        D = _phi_ps_block(D * Atau, Dc, Apow, i, tau, m)
     end
     return N, D
 end
@@ -511,7 +594,14 @@ function _phi_almohy_generic(A::AbstractMatrix, p::Integer)
     Nm, Dm = _paterson_stockmeyer(As, Ncoef, Dcoef, tau, m)
 
     Rm = Vector{typeof(As)}(undef, p + 1)
-    Rm[p + 1] = Dm \ Nm
+    # No-throw on a numerically singular denominator (pathological input): NaN
+    # results let adaptive integrators reject the step instead of aborting.
+    Rm[p + 1] = try
+        Dm \ Nm
+    catch e
+        e isa SingularException || rethrow()
+        zero(As) .+ eltype(As)(NaN)
+    end
     Id = one(As)
     for k in p:-1:1
         Rm[k] = As * Rm[k + 1] + Id / _factf(k - 1)

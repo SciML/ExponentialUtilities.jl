@@ -122,7 +122,27 @@ end
 """
     phi!(out,A,k[;caches]) -> out
 
-Non-allocating version of `phi` for non-diagonal matrix inputs.
+Non-allocating version of `phi` for non-diagonal matrix inputs, writing
+`phi_j(A)` into `out[j+1]`.
+
+For dense `Float64`/`ComplexF64` matrices, pass a reusable
+[`PhiPadeCache`](@ref) as `caches` to make repeated evaluations of the same
+size and order allocation-free:
+
+```julia
+cache = PhiPadeCache(A, k)
+phi!(out, A, k; caches = cache)
+```
+
+Numerical failure (a singular Padé denominator or non-finite result, only
+possible for pathological inputs such as matrices containing `NaN`/`Inf`) does
+not throw: the outputs are filled with `NaN` and, when a `PhiPadeCache` is
+used, `cache.info[]` is set to a nonzero return code (`0` on success). This
+lets adaptive integrators reject the step instead of aborting.
+
+For the legacy basis-vector algorithm, `caches` is instead the tuple
+`(Vector{T}(undef, m), Matrix{T}(undef, m, k+1), Matrix{T}(undef, m+k, m+k))`;
+supplying it forces that code path.
 """
 function phi!(
         out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches = nothing,

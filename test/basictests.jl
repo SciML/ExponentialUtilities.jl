@@ -262,8 +262,11 @@ end
     # E = [I 0 ... 0] and J the nilpotent shift. This is unrelated to the
     # scaling-and-recovering algorithm under test.
     function phi_block_reference(A, p)
-        n = size(A, 1)
-        T = eltype(A)
+        # `local`: without it these assignments capture and clobber the
+        # enclosing testset's variables of the same name (closures in a local
+        # scope assign to existing outer locals).
+        local n = size(A, 1)
+        local T = eltype(A)
         W = zeros(T, n * (p + 1), n * (p + 1))
         W[1:n, 1:n] .= A
         for j in 0:(p - 1)
@@ -276,13 +279,13 @@ end
 
     # Force the legacy basis-vector path (Sidje/`phiv_dense`) for cross-checking.
     function phi_legacy(A, p)
-        n = size(A, 1)
-        T = eltype(A)
-        caches = (
+        local n = size(A, 1)
+        local T = eltype(A)
+        local caches = (
             Vector{T}(undef, n), Matrix{T}(undef, n, p + 1),
             Matrix{T}(undef, n + p, n + p),
         )
-        out = [Matrix{T}(undef, n, n) for _ in 1:(p + 1)]
+        local out = [Matrix{T}(undef, n, n) for _ in 1:(p + 1)]
         return phi!(out, A, p; caches = caches)
     end
 
@@ -326,19 +329,47 @@ end
     run_phi!(out2, A, cache)                           # warm up / compile
     @test (@allocated run_phi!(out2, A, cache)) == 0
 
-    # Complex-matrix workspace path.
+    # Complex-matrix workspace path, also allocation-free on reuse.
     Ac = randn(ComplexF64, 6, 6) ./ 3
     cachec = PhiPadeCache(Ac, 2)
     outc = [Matrix{ComplexF64}(undef, 6, 6) for _ in 1:3]
     phi!(outc, Ac, 2; caches = cachec)
     @test outc ≈ phi_block_reference(Ac, 2)
+    @test cachec.info[] == 0
+    run_phic!(o, M, c) = phi!(o, M, 2; caches = c)
+    run_phic!(outc, Ac, cachec)
+    @test (@allocated run_phic!(outc, Ac, cachec)) == 0
+
+    # Numerical failure must not throw: NaN input yields NaN-filled outputs and
+    # a nonzero return code in cache.info[], so adaptive integrators can reject
+    # the step instead of aborting.
+    Anan = fill(NaN, 5, 5)
+    Pnan = phi(Anan, 2)
+    @test all(P -> any(!isfinite, P), Pnan)
+    cachenan = PhiPadeCache(Anan, 2)
+    outnan = [Matrix{Float64}(undef, 5, 5) for _ in 1:3]
+    phi!(outnan, Anan, 2; caches = cachenan)
+    @test cachenan.info[] != 0
+    @test all(P -> all(isnan, P), outnan)
+    # ... and a subsequent good call resets the code.
+    phi!(outnan, randn(5, 5), 2; caches = cachenan)
+    @test cachenan.info[] == 0
+
+    # Wrongly sized workspaces are programmer errors, not numerical failures,
+    # and do throw.
+    A3 = randn(3, 3)
+    out3 = [Matrix{Float64}(undef, 3, 3) for _ in 1:4]
+    @test_throws DimensionMismatch phi!(out3, A3, 3; caches = cache)
+    cache_p1 = PhiPadeCache(A, 1)
+    out11 = [Matrix{Float64}(undef, n, n) for _ in 1:11]
+    @test_throws ArgumentError phi!(out11, A, 10; caches = cache_p1)
 end
 
 @testset "Phi static arrays (container-preserving)" begin
     Random.seed!(4321)
     function phi_block_reference(A, p)
-        n = size(A, 1)
-        T = eltype(A)
+        local n = size(A, 1)
+        local T = eltype(A)
         W = zeros(T, n * (p + 1), n * (p + 1))
         W[1:n, 1:n] .= A
         for j in 0:(p - 1)
