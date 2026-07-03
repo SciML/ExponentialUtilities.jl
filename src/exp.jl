@@ -10,7 +10,15 @@ function alloc_mem(A, method)
     return nothing
 end
 
-exponential!(A) = exponential!(A, ExpMethodHigham2005(A));
+# Immutable matrices (e.g. StaticArrays' SMatrix) cannot use the in-place
+# ExpMethodHigham2005 default, so route them to the non-mutating generic method.
+function exponential!(A)
+    return if ismutable(A)
+        exponential!(A, ExpMethodHigham2005(A))
+    else
+        exponential!(A, ExpMethodGeneric())
+    end
+end
 function exponential!(A::GPUArraysCore.AbstractGPUArray)
     return exponential!(A, ExpMethodHigham2005(false))
 end;
@@ -32,6 +40,10 @@ ExpMethodDiagonalization() = ExpMethodDiagonalization(true);
 Computes the matrix exponential with the method specified in `method`. The contents of `A` are modified, allowing for fewer allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. [`ExpMethodNative`](@ref), [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), [`ExpMethodHigham2005`](@ref). Memory
 needed can be preallocated and provided in the parameter `cache` such that the memory can be recycled when calling `exponential!` several times. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
 `A` may not be sparse matrix type, since exp(A) is likely to be dense.
+
+If no `method` is given, immutable matrices (e.g. StaticArrays' `SMatrix`) are
+computed out-of-place with [`ExpMethodGeneric`](@ref) and the result is returned
+without modifying `A`.
 
 Example
 
