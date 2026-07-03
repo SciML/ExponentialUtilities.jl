@@ -14,6 +14,12 @@
 # the double-argument formula
 #
 #   phi_j(2A) = 2^{-j} ( phi_0(A) phi_j(A) + sum_{k=1}^{j} phi_k(A)/(j-k)! ).
+#
+# Two implementations share the scalar machinery below:
+#   * `_phi_almohy!`  -- fully in-place, allocation-free, using a reusable
+#                        `PhiPadeCache` workspace (for strided mutable matrices).
+#   * `_phi_almohy_generic` -- out-of-place and element-container-preserving, so
+#                        a static input (e.g. `SMatrix`) stays static.
 
 # theta[m, p] = theta_{m,p} from Table 3.1 of the paper (largest 1-norm of the
 # scaled matrix for which the [m/m] Pade approximant is backward stable to
@@ -41,6 +47,14 @@ const _PHI_THETA_MP = [
     13.269913405576162 13.738607964511967 14.20030229038679 14.655390835644507 15.104246216977073 15.547218984875734 15.984637960610213 16.41681094336813 16.84402564730148 17.266550769620974;
 ]
 
+# Largest Pade degree used; bounds cond(D_m) (Section 4). Fixes the block-size
+# and power-buffer counts used to size the workspace.
+const _PHI_M_MAX = 12
+# max tau+1 over m <= _PHI_M_MAX, tau = ceil(sqrt(2m)); ceil(sqrt(24)) = 5.
+const _PHI_NPOW = 6
+# max i (Paterson--Stockmeyer cost index) for _PHI_M_MAX.
+const _PHI_IMAX = ceil(Int, sqrt(8 * (_PHI_M_MAX + 1)) - 3) - 1
+
 # theta_{m,p} with the p>7 rule of the paper: for p>7 the p=7 column is used, and
 # indices are guarded so m outside 1:20 does not error.
 @inline function _phi_theta(m::Integer, p::Integer)
@@ -56,105 +70,78 @@ end
     return r
 end
 
-# Exact 1-norm of B^k for an entrywise-nonnegative real B, via ‖B^k‖_1 =
-# ‖(B^T)^k 𝟙‖_∞ (k matrix-vector products, no explicit power).
-function _normpow_nonneg(B::AbstractMatrix{<:Real}, k::Integer)
-    n = size(B, 1)
-    Bt = transpose(B)
-    v = ones(eltype(B), n)
-    tmp = similar(v)
-    for _ in 1:k
-        mul!(tmp, Bt, v)
-        v, tmp = tmp, v
-    end
-    return maximum(v)
+# First-factor coefficient of the backward-error series h_{m,p} (Eq. (3.4)).
+@inline function _phi_be_coeff(m::Integer, p::Integer)
+    return (_factf(m + p) / _factf(2m + p)) * (_factf(m) / _factf(2m + p + 1))
 end
 
-# Scaling parameter `t` derived from the first term of the backward-error series
-# (Eq. (3.12)); mirrors the `ell` subfunction of the reference implementation.
-function _phi_ell(A::AbstractMatrix, m::Integer, p::Integer, phat::Integer)
-    normT = opnorm(A, 1)
-    normT == 0 && return 0
-    t0 = normT > 1 ? log2(normT) : 0.0
-    scalefac = exp2(t0)
-    normTs = normT / scalefac
-    delta = (p - 1) * (p - phat) / p + 1
-    coeff = (_factf(m + p) / _factf(2m + p)) * (_factf(m) / _factf(2m + p + 1))
-    K = 2m + p + 1
-    c = (coeff / normTs^delta)^(1 / K)
-    scaledT = c .* abs.(A ./ scalefac)
-    alpha = _normpow_nonneg(scaledT, K)
-    t = log2(2alpha / eps(Float64)) / (K - delta) + t0
-    return max(ceil(Int, t), 0)
+"""
+    PhiPadeCache(A, p)
+
+Reusable workspace for the in-place phi-function evaluator [`phi!`](@ref) on
+strided `Float64`/`ComplexF64` matrices. Allocate once for a given size and `p`,
+then pass it as the `caches` keyword to `phi!` to reuse across calls without
+further allocation.
+"""
+struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
+    As::MT
+    Id::MT
+    Apow::Vector{MT}
+    Atau::MT
+    Nm::MT
+    Dm::MT
+    Dfact::MT
+    blkN::MT
+    blkD::MT
+    tmp::MT
+    pow1::MT
+    pow2::MT
+    absA::RMT
+    ipiv::Vector{LinearAlgebra.BlasInt}
+    rvec1::Vector{RT}
+    rvec2::Vector{RT}
+    Ncoef::Vector{Float64}
+    Dcoef::Vector{Float64}
+    Amat::Matrix{Float64}
+    eta::Vector{Float64}
+    alpha::Vector{Float64}
+    tvals::Vector{Int}
+    Cost::Matrix{Float64}
 end
 
-# Select the Pade degree m, scaling parameter s, and Paterson-Stockmeyer block
-# size tau that minimize the equivalent number of matrix products (Section 4).
-function _select_parameters_phi(A::AbstractMatrix, p::Integer)
-    m_max = 12
-    i_max = ceil(Int, sqrt(8 * (m_max + 1)) - 3) - 1
-    m_max = (i_max + 3)^2 ÷ 8
-    phat = _phi_theta(m_max, p) < 1 ? 0 : p
-    r_max = floor(Int, (1 + sqrt(1 + 4 * (2m_max + phat + 1))) / 2)
-
-    # eta[j] = ‖A^{j+1}‖_1^{1/(j+1)} for j = 1:r_max, forming the powers exactly.
-    # (The powers are low, j+1 ≤ r_max+1 ≲ 8; the cost is negligible next to the
-    # rest of the algorithm and never underestimates, keeping s conservative.)
-    eta = zeros(Float64, r_max)
-    P = A * A
-    eta[1] = opnorm(P, 1)^(1 / 2)
-    for j in 2:r_max
-        P = P * A
-        eta[j] = opnorm(P, 1)^(1 / (j + 1))
+function PhiPadeCache(A::AbstractMatrix{T}, p::Integer) where {T}
+    n = size(A, 1)
+    RT = real(T)
+    mk() = Matrix{T}(undef, n, n)
+    Apow = Vector{Matrix{T}}(undef, _PHI_NPOW)
+    Apow[1] = Matrix{T}(I, n, n)
+    for i in 2:_PHI_NPOW
+        Apow[i] = mk()
     end
-    alpha = [max(eta[j], eta[j + 1]) for j in 1:(r_max - 1)]
-
-    Cost = zeros(Float64, i_max + 1, r_max - 1)
-    for i in 0:i_max
-        m_i = (i + 3)^2 ÷ 8
-        θ = _phi_theta(m_i, p)
-        phat_i = θ < 1 ? 0 : p
-        t = _phi_ell(A, m_i, p, phat_i)
-        for r in 2:r_max
-            if 2m_i + phat_i + 1 >= r * (r - 1)
-                a = alpha[r - 1]
-                s0 = (a > 0 && isfinite(a)) ? max(ceil(Int, log2(a / θ)), t) : t
-                Cost[i + 1, r - 1] = i + p + s0 * (p + 1)
-            end
-        end
-    end
-
-    minval = Inf
-    for v in Cost
-        if v > 0 && v < minval
-            minval = v
-        end
-    end
-    # Match the reference's column-major "last" tie-break for reproducibility.
-    idx = 0
-    for (j, v) in enumerate(Cost)
-        v == minval && (idx = j)
-    end
-    i_star = (idx - 1) % (i_max + 1)
-    m = (i_star + 3)^2 ÷ 8
-    s = round(Int, (minval - i_star - p) / (p + 1))
-
-    tau = floor(Int, sqrt(2m))
-    if tau - 1 + 2 * (m ÷ tau) - 2 * (m % tau == 0) != i_star
-        tau = ceil(Int, sqrt(2m))
-    end
-    return m, s, tau
+    return PhiPadeCache{T, RT, Matrix{T}, Matrix{RT}}(
+        mk(), Apow[1], Apow, mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(),
+        Matrix{RT}(undef, n, n),
+        Vector{LinearAlgebra.BlasInt}(undef, n),
+        Vector{RT}(undef, n), Vector{RT}(undef, n),
+        Vector{Float64}(undef, _PHI_M_MAX + 1), Vector{Float64}(undef, _PHI_M_MAX + 1),
+        Matrix{Float64}(undef, _PHI_M_MAX + 1, _PHI_M_MAX + 1),
+        Vector{Float64}(undef, _PHI_IMAX + 2), Vector{Float64}(undef, _PHI_IMAX + 2),
+        Vector{Int}(undef, _PHI_IMAX + 1),
+        Matrix{Float64}(undef, _PHI_IMAX + 1, _PHI_IMAX + 2),
+    )
 end
 
 # Renormalized [m/m] Pade coefficients (numerator and denominator, low order
-# first) of the approximant to phi_p. Follows the recurrences of Berland,
-# Skaflestad, and Wright used in the reference `pade_coef`.
-function _phi_pade_coef(m::Integer, p::Integer)
-    n1 = prod(Float64.((m + 1):(2m + 1)))   # (2m+1)!/m!
+# first) of the approximant to phi_p, written into the preallocated `Ncoef`,
+# `Dcoef` (length >= m+1) using scratch `Amat` (size >= (m+1)^2). Follows the
+# recurrences of Berland, Skaflestad, and Wright used in the reference
+# `pade_coef`.
+function _phi_pade_coef!(Ncoef, Dcoef, Amat, m::Integer, p::Integer)
+    n1 = 1.0                                # (2m+1)!/m!
+    for i in (m + 1):(2m + 1)
+        n1 *= i
+    end
     d1 = n1
-    Ncoef = Vector{Float64}(undef, m + 1)
-    Dcoef = Vector{Float64}(undef, m + 1)
-    Amat = Matrix{Float64}(undef, m + 1, m + 1)
     for k in 1:p
         if k == p
             # First column: Amat[r,1] = n1 * prod_{l=1}^{r-1} 1/(k+l).
@@ -192,36 +179,274 @@ function _phi_pade_coef(m::Integer, p::Integer)
     return Ncoef, Dcoef
 end
 
-# Simultaneously evaluate the numerator N(A) and denominator D(A) of the Pade
-# approximant via the Paterson-Stockmeyer scheme with block size tau.
-function _paterson_stockmeyer(A::AbstractMatrix{T}, Nc, Dc, tau::Integer) where {T}
-    m = length(Nc) - 1
-    n = size(A, 1)
-    Apow = Vector{Matrix{T}}(undef, tau + 1)
-    Apow[1] = Matrix{T}(I, n, n)
-    Apow[2] = Matrix(A)
-    for i in 3:(tau + 1)
-        Apow[i] = Apow[i - 1] * A
+# Given the alpha_r sequence (first `nalpha` entries) and precomputed scaling
+# parameters `tvals[i+1] = t(m_i)`, minimize the equivalent-matrix-product cost
+# (Section 4) over the optimal degrees and return the chosen (m, s, tau). `Cost`
+# is scratch of size >= (imax+1) x (r_max-1).
+function _phi_select_from_alpha(alpha, nalpha::Integer, p::Integer, tvals, Cost)
+    i_max = _PHI_IMAX
+    r_max = nalpha + 1
+    C = @view Cost[1:(i_max + 1), 1:(r_max - 1)]
+    fill!(C, 0.0)
+    for i in 0:i_max
+        m_i = (i + 3)^2 ÷ 8
+        θ = _phi_theta(m_i, p)
+        phat_i = θ < 1 ? 0 : p
+        t = tvals[i + 1]
+        for r in 2:r_max
+            if 2m_i + phat_i + 1 >= r * (r - 1)
+                a = alpha[r - 1]
+                s0 = (a > 0 && isfinite(a)) ? max(ceil(Int, log2(a / θ)), t) : t
+                C[i + 1, r - 1] = i + p + s0 * (p + 1)
+            end
+        end
     end
-    Atau = copy(Apow[tau + 1])
-    N = zeros(T, n, n)
-    D = zeros(T, n, n)
+    nrows = i_max + 1
+    ncols = r_max - 1
+    minval = Inf
+    for v in C
+        (v > 0 && v < minval) && (minval = v)
+    end
+    # Column-major "last" tie-break (matches the reference), giving the row index.
+    i_star = 0
+    for cc in 1:ncols, rr in 1:nrows
+        C[rr, cc] == minval && (i_star = rr - 1)
+    end
+    m = (i_star + 3)^2 ÷ 8
+    s = round(Int, (minval - i_star - p) / (p + 1))
+    tau = floor(Int, sqrt(2m))
+    if tau - 1 + 2 * (m ÷ tau) - 2 * (m % tau == 0) != i_star
+        tau = ceil(Int, sqrt(2m))
+    end
+    return m, s, tau
+end
+
+## -------------------- in-place (workspace) implementation --------------------
+
+# Exact 1-norm of B^k for entrywise-nonnegative real B, ‖B^k‖_1 = ‖(B^T)^k 𝟙‖_∞,
+# via k matrix-vector products into the workspace vectors.
+function _normpow_nonneg!(cache::PhiPadeCache, B, k::Integer)
+    v = cache.rvec1
+    tmp = cache.rvec2
+    fill!(v, 1)
+    Bt = transpose(B)
+    for _ in 1:k
+        mul!(tmp, Bt, v)
+        v, tmp = tmp, v
+    end
+    return maximum(v)
+end
+
+# Scaling parameter `t` from the first term of the backward-error series
+# (Eq. (3.12)); `ell` subfunction of the reference, in-place.
+function _phi_ell!(cache::PhiPadeCache, A, m::Integer, p::Integer, phat::Integer)
+    normT = opnorm(A, 1)
+    normT == 0 && return 0
+    t0 = normT > 1 ? log2(normT) : 0.0
+    scalefac = exp2(t0)
+    normTs = normT / scalefac
+    delta = (p - 1) * (p - phat) / p + 1
+    K = 2m + p + 1
+    c = (_phi_be_coeff(m, p) / normTs^delta)^(1 / K)
+    absA = cache.absA
+    @. absA = c * abs(A) / scalefac
+    alpha = _normpow_nonneg!(cache, absA, K)
+    t = log2(2alpha / eps(Float64)) / (K - delta) + t0
+    return max(ceil(Int, t), 0)
+end
+
+function _select_parameters_phi!(cache::PhiPadeCache, A, p::Integer)
+    phat = _phi_theta(_PHI_M_MAX, p) < 1 ? 0 : p
+    r_max = floor(Int, (1 + sqrt(1 + 4 * (2 * _PHI_M_MAX + phat + 1))) / 2)
+    eta = cache.eta
+    mul!(cache.pow1, A, A)
+    eta[1] = opnorm(cache.pow1, 1)^(1 / 2)
+    cur, oth = cache.pow1, cache.pow2
+    for j in 2:r_max
+        mul!(oth, cur, A)
+        eta[j] = opnorm(oth, 1)^(1 / (j + 1))
+        cur, oth = oth, cur
+    end
+    alpha = cache.alpha
+    for j in 1:(r_max - 1)
+        alpha[j] = max(eta[j], eta[j + 1])
+    end
+    for i in 0:_PHI_IMAX
+        m_i = (i + 3)^2 ÷ 8
+        phat_i = _phi_theta(m_i, p) < 1 ? 0 : p
+        cache.tvals[i + 1] = _phi_ell!(cache, A, m_i, p, phat_i)
+    end
+    return _phi_select_from_alpha(alpha, r_max - 1, p, cache.tvals, cache.Cost)
+end
+
+# Evaluate N(As) and D(As) into cache.Nm, cache.Dm via Paterson--Stockmeyer.
+function _paterson_stockmeyer!(cache::PhiPadeCache, As, m::Integer, tau::Integer)
+    Nc, Dc, Apow = cache.Ncoef, cache.Dcoef, cache.Apow
+    Atau, Nm, Dm = cache.Atau, cache.Nm, cache.Dm
+    blkN, blkD, tmp = cache.blkN, cache.blkD, cache.tmp
+    copyto!(Apow[2], As)               # Apow[1] === Id; Apow[i] = As^{i-1}
+    for i in 3:(tau + 1)
+        mul!(Apow[i], Apow[i - 1], As)
+    end
+    copyto!(Atau, Apow[tau + 1])
+    fill!(Nm, 0)
+    fill!(Dm, 0)
     nu = m ÷ tau
     for i in 0:nu
         start = i * tau + 1
         stop = min((i + 1) * tau, m + 1)
-        blkN = zeros(T, n, n)
-        blkD = zeros(T, n, n)
+        fill!(blkN, 0)
+        fill!(blkD, 0)
         for l in 1:(stop - start + 1)
-            blkN .+= Nc[start + l - 1] .* Apow[l]
-            blkD .+= Dc[start + l - 1] .* Apow[l]
+            @. blkN += Nc[start + l - 1] * Apow[l]
+            @. blkD += Dc[start + l - 1] * Apow[l]
         end
         if i == 0
-            N .+= blkN
-            D .+= blkD
+            Nm .+= blkN
+            Dm .+= blkD
         else
-            N .+= blkN * Atau
-            D .+= blkD * Atau
+            mul!(Nm, blkN, Atau, true, true)
+            mul!(Dm, blkD, Atau, true, true)
+            mul!(tmp, Atau, Apow[tau + 1])
+            copyto!(Atau, tmp)
+        end
+    end
+    return Nm, Dm
+end
+
+# Solve Dfact * X = B in place (B overwritten by X), zero-allocation LU.
+function _phi_solve!(Dfact, ipiv, B)
+    LinearAlgebra.LAPACK.getrf!(Dfact, ipiv)
+    LinearAlgebra.LAPACK.getrs!('N', Dfact, ipiv, B)
+    return B
+end
+
+"""
+    _phi_almohy!(out, A, p, cache) -> out
+
+Allocation-free evaluation of `phi_0(A), ..., phi_p(A)` for a strided
+`Float64`/`ComplexF64` matrix `A` (`p >= 1`), writing `phi_j(A)` into `out[j+1]`
+and using the reusable [`PhiPadeCache`](@ref) `cache` for all scratch storage.
+The `out` matrices double as the recovery buffers.
+"""
+function _phi_almohy!(
+        out::AbstractVector{<:AbstractMatrix}, A::AbstractMatrix, p::Integer,
+        cache::PhiPadeCache
+    )
+    n = size(A, 1)
+    m, s, tau = _select_parameters_phi!(cache, A, p)
+    As = cache.As
+    @. As = A / exp2(s)
+    _phi_pade_coef!(cache.Ncoef, cache.Dcoef, cache.Amat, m, p)
+    Nm, Dm = _paterson_stockmeyer!(cache, As, m, tau)
+
+    copyto!(cache.Dfact, Dm)
+    copyto!(out[p + 1], Nm)
+    _phi_solve!(cache.Dfact, cache.ipiv, out[p + 1])
+
+    # Recurrence (2.9): R^{(j)} = As R^{(j+1)} + I/j!, j = p-1 : -1 : 0.
+    for k in p:-1:1
+        mul!(out[k], As, out[k + 1])
+        f = 1 / _factf(k - 1)
+        @inbounds for d in 1:n
+            out[k][d, d] += f
+        end
+    end
+
+    # Undo the scaling with the double-argument formula (2.10), s times.
+    tmp = cache.tmp
+    for _ in 1:s
+        for j in p:-1:1
+            mul!(tmp, out[1], out[j + 1])
+            for k in 1:j
+                @. tmp += (1 / _factf(j - k)) * out[k + 1]
+            end
+            tmp ./= exp2(j)
+            copyto!(out[j + 1], tmp)
+        end
+        mul!(tmp, out[1], out[1])
+        copyto!(out[1], tmp)
+    end
+    return out
+end
+
+## ----------------- generic (container-preserving) implementation -------------
+
+function _normpow_nonneg(B::AbstractMatrix{<:Real}, k::Integer)
+    n = size(B, 1)
+    Bt = transpose(B)
+    v = ones(eltype(B), n)
+    tmp = similar(v)
+    for _ in 1:k
+        mul!(tmp, Bt, v)
+        v, tmp = tmp, v
+    end
+    return maximum(v)
+end
+
+function _phi_ell(A::AbstractMatrix, m::Integer, p::Integer, phat::Integer)
+    normT = opnorm(A, 1)
+    normT == 0 && return 0
+    t0 = normT > 1 ? log2(normT) : 0.0
+    scalefac = exp2(t0)
+    normTs = normT / scalefac
+    delta = (p - 1) * (p - phat) / p + 1
+    K = 2m + p + 1
+    c = (_phi_be_coeff(m, p) / normTs^delta)^(1 / K)
+    scaledT = c .* abs.(A ./ scalefac)
+    alpha = _normpow_nonneg(scaledT, K)
+    t = log2(2alpha / eps(Float64)) / (K - delta) + t0
+    return max(ceil(Int, t), 0)
+end
+
+function _select_parameters_phi(A::AbstractMatrix, p::Integer)
+    phat = _phi_theta(_PHI_M_MAX, p) < 1 ? 0 : p
+    r_max = floor(Int, (1 + sqrt(1 + 4 * (2 * _PHI_M_MAX + phat + 1))) / 2)
+    eta = Vector{Float64}(undef, r_max)
+    P = A * A
+    eta[1] = opnorm(P, 1)^(1 / 2)
+    for j in 2:r_max
+        P = P * A
+        eta[j] = opnorm(P, 1)^(1 / (j + 1))
+    end
+    alpha = [max(eta[j], eta[j + 1]) for j in 1:(r_max - 1)]
+    tvals = Vector{Int}(undef, _PHI_IMAX + 1)
+    for i in 0:_PHI_IMAX
+        m_i = (i + 3)^2 ÷ 8
+        phat_i = _phi_theta(m_i, p) < 1 ? 0 : p
+        tvals[i + 1] = _phi_ell(A, m_i, p, phat_i)
+    end
+    Cost = zeros(Float64, _PHI_IMAX + 1, r_max - 1)
+    return _phi_select_from_alpha(alpha, r_max - 1, p, tvals, Cost)
+end
+
+function _paterson_stockmeyer(As, Nc, Dc, tau::Integer, m::Integer)
+    MT = typeof(As)
+    Apow = Vector{MT}(undef, tau + 1)
+    Apow[1] = one(As)
+    Apow[2] = As
+    for i in 3:(tau + 1)
+        Apow[i] = Apow[i - 1] * As
+    end
+    Atau = Apow[tau + 1]
+    N = zero(As)
+    D = zero(As)
+    nu = m ÷ tau
+    for i in 0:nu
+        start = i * tau + 1
+        stop = min((i + 1) * tau, m + 1)
+        blkN = zero(As)
+        blkD = zero(As)
+        for l in 1:(stop - start + 1)
+            blkN += Nc[start + l - 1] * Apow[l]
+            blkD += Dc[start + l - 1] * Apow[l]
+        end
+        if i == 0
+            N += blkN
+            D += blkD
+        else
+            N += blkN * Atau
+            D += blkD * Atau
             Atau = Atau * Apow[tau + 1]
         end
     end
@@ -229,53 +454,38 @@ function _paterson_stockmeyer(A::AbstractMatrix{T}, Nc, Dc, tau::Integer) where 
 end
 
 """
-    _phi_almohy!(out, A, p) -> out
+    _phi_almohy_generic(A, p) -> Vector
 
-Simultaneously compute `phi_0(A), phi_1(A), ..., phi_p(A)` for a dense matrix `A`
-(`p >= 1`) using the scaling-and-recovering algorithm of Al-Mohy and Liu
-(arXiv:2506.01193). `out` must be a length-`p+1` vector of `size(A)` matrices; on
-return `out[j+1] == phi_j(A)`.
-
-The cost is `O(p n^3)`, in contrast to the `O(n (n+p)^3)` of the basis-vector
-approach in [`phi!`](@ref).
+Container-preserving evaluation of `phi_0(A), ..., phi_p(A)` (`p >= 1`): the
+returned matrices have the same type as `A` (e.g. an `SMatrix` input yields
+`SMatrix` results). Used for immutable/static matrices, where the in-place
+workspace path does not apply.
 """
-function _phi_almohy!(
-        out::AbstractVector{<:AbstractMatrix}, A::AbstractMatrix{T},
-        p::Integer
-    ) where {T}
-    n = size(A, 1)
+function _phi_almohy_generic(A::AbstractMatrix, p::Integer)
     m, s, tau = _select_parameters_phi(A, p)
     As = A ./ exp2(s)
-    Nc, Dc = _phi_pade_coef(m, p)
-    Nm, Dm = _paterson_stockmeyer(As, Nc, Dc, tau)
+    m1 = m + 1
+    Ncoef = Vector{Float64}(undef, m1)
+    Dcoef = Vector{Float64}(undef, m1)
+    Amat = Matrix{Float64}(undef, m1, m1)
+    _phi_pade_coef!(Ncoef, Dcoef, Amat, m, p)
+    Nm, Dm = _paterson_stockmeyer(As, Ncoef, Dcoef, tau, m)
 
-    Rm = Vector{Matrix{T}}(undef, p + 1)
+    Rm = Vector{typeof(As)}(undef, p + 1)
     Rm[p + 1] = Dm \ Nm
-    # Recurrence (2.9): R^{(j)} = As R^{(j+1)} + I/j!, j = p-1 : -1 : 0.
+    Id = one(As)
     for k in p:-1:1
-        R = As * Rm[k + 1]
-        f = 1 / _factf(k - 1)
-        @inbounds for d in 1:n
-            R[d, d] += f
-        end
-        Rm[k] = R
+        Rm[k] = As * Rm[k + 1] + Id / _factf(k - 1)
     end
-
-    # Undo the scaling with the double-argument formula (2.10), s times.
     for _ in 1:s
         for j in p:-1:1
             M = Rm[1] * Rm[j + 1]
             for k in 1:j
-                M .+= (1 / _factf(j - k)) .* Rm[k + 1]
+                M += Rm[k + 1] / _factf(j - k)
             end
-            M ./= exp2(j)
-            Rm[j + 1] = M
+            Rm[j + 1] = M / exp2(j)
         end
         Rm[1] = Rm[1] * Rm[1]
     end
-
-    for j in 0:p
-        copyto!(out[j + 1], Rm[j + 1])
-    end
-    return out
+    return Rm
 end

@@ -316,6 +316,47 @@ end
     out = [Matrix{Float64}(undef, n, n) for _ in 1:4]
     phi!(out, A, 3)
     @test out ≈ phi_block_reference(A, 3)
+
+    # Reusable workspace: same result, and no allocation once the cache exists.
+    cache = PhiPadeCache(A, 3)
+    out2 = [Matrix{Float64}(undef, n, n) for _ in 1:4]
+    phi!(out2, A, 3; caches = cache)
+    @test out2 ≈ out
+    run_phi!(o, M, c) = phi!(o, M, 3; caches = c)
+    run_phi!(out2, A, cache)                           # warm up / compile
+    @test (@allocated run_phi!(out2, A, cache)) == 0
+
+    # Complex-matrix workspace path.
+    Ac = randn(ComplexF64, 6, 6) ./ 3
+    cachec = PhiPadeCache(Ac, 2)
+    outc = [Matrix{ComplexF64}(undef, 6, 6) for _ in 1:3]
+    phi!(outc, Ac, 2; caches = cachec)
+    @test outc ≈ phi_block_reference(Ac, 2)
+end
+
+@testset "Phi static arrays (container-preserving)" begin
+    Random.seed!(4321)
+    function phi_block_reference(A, p)
+        n = size(A, 1)
+        T = eltype(A)
+        W = zeros(T, n * (p + 1), n * (p + 1))
+        W[1:n, 1:n] .= A
+        for j in 0:(p - 1)
+            rb = j * n
+            W[(rb + 1):(rb + n), (rb + n + 1):(rb + 2n)] .= Matrix{T}(I, n, n)
+        end
+        eW = exp(W)
+        return [eW[1:n, (j * n + 1):((j + 1) * n)] for j in 0:p]
+    end
+    for N in (3, 5), p in (1, 2, 3)
+        A = SMatrix{N, N}(randn(N, N) ./ 3)
+        Rm = ExponentialUtilities._phi_almohy_generic(A, p)
+        @test all(r -> r isa SMatrix, Rm)        # static in, static out
+        ref = phi_block_reference(Matrix(A), p)
+        for j in 1:(p + 1)
+            @test Matrix(Rm[j]) ≈ ref[j] rtol = 1.0e-8 atol = 1.0e-12
+        end
+    end
 end
 
 @testset "Static Arrays" begin

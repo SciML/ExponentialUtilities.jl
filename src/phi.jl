@@ -133,10 +133,23 @@ function phi!(
     # The scaling-and-recovering algorithm of Al-Mohy and Liu (arXiv:2506.01193)
     # computes phi_0..phi_k simultaneously in O(k m^3), versus O(m (m+k)^3) for
     # the basis-vector approach below. Its Pade tables are tuned for double
-    # precision, so it is used only for Float64/ComplexF64 and only when the
-    # caller has not supplied the legacy `caches` bundle.
-    if k >= 1 && isnothing(caches) && T <: Union{Float64, ComplexF64}
-        return _phi_almohy!(out, A, k)
+    # precision, so it is used only for Float64/ComplexF64. The legacy path is
+    # kept for other element types and when a caller supplies the legacy
+    # `caches` tuple.
+    if k >= 1 && T <: Union{Float64, ComplexF64} && !(caches isa Tuple)
+        if A isa StridedMatrix && (isnothing(caches) || caches isa PhiPadeCache)
+            cache = caches isa PhiPadeCache ? caches : PhiPadeCache(A, k)
+            return _phi_almohy!(out, A, k, cache)
+        elseif isnothing(caches) && !ismutable(A)
+            # Container-preserving path for immutable dense matrices (e.g.
+            # `SMatrix`); mutable non-strided types (e.g. sparse) fall through to
+            # the legacy path below.
+            Rm = _phi_almohy_generic(A, k)
+            for j in 1:(k + 1)
+                copyto!(out[j], Rm[j])
+            end
+            return out
+        end
     end
     if isnothing(caches)
         e = Vector{T}(undef, m)
