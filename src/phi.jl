@@ -126,8 +126,9 @@ Non-allocating version of `phi` for non-diagonal matrix inputs, writing
 `phi_j(A)` into `out[j+1]`.
 
 For dense `Float64`/`ComplexF64` matrices, pass a reusable
-[`PhiPadeCache`](@ref) as `caches` to make repeated evaluations of the same
-size and order allocation-free:
+[`PhiPadeCache`](@ref) as `caches` so repeated evaluations of the same size and
+order reuse all large buffers (the only per-call allocation is the `O(n)` LU
+pivot vector):
 
 ```julia
 cache = PhiPadeCache(A, k)

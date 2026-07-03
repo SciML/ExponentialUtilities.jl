@@ -16,12 +16,11 @@
 #   phi_j(2A) = 2^{-j} ( phi_0(A) phi_j(A) + sum_{k=1}^{j} phi_k(A)/(j-k)! ).
 #
 # Two implementations share the scalar machinery below:
-#   * `_phi_almohy!`  -- fully in-place, allocation-free, using a reusable
-#                        `PhiPadeCache` workspace (for strided mutable matrices).
+#   * `_phi_almohy!`  -- fully in-place via a reusable `PhiPadeCache` workspace
+#                        (for strided mutable matrices); the only per-call
+#                        allocation is the O(n) LU pivot vector.
 #   * `_phi_almohy_generic` -- out-of-place and element-container-preserving, so
 #                        a static input (e.g. `SMatrix`) stays static.
-
-using LinearAlgebra: BlasInt
 
 # theta[m, p] = theta_{m,p} from Table 3.1 of the paper (largest 1-norm of the
 # scaled matrix for which the [m/m] Pade approximant is backward stable to
@@ -72,9 +71,23 @@ end
     return r
 end
 
-# First-factor coefficient of the backward-error series h_{m,p} (Eq. (3.4)).
+# First-factor coefficient of the backward-error series h_{m,p} (Eq. (3.4)),
+#
+#   (m+p)! m! / ((2m+p)! (2m+p+1)!)
+#     = prod_{j=1}^{m} 1/(m+p+j) * prod_{j=1}^{m+p+1} 1/(m+j),
+#
+# accumulated as a product of sub-unit factors so no intermediate factorial can
+# spuriously overflow (each factor < 1, so the running product is monotonically
+# decreasing and underflows only when the true value does).
 @inline function _phi_be_coeff(m::Integer, p::Integer)
-    return (_factf(m + p) / _factf(2m + p)) * (_factf(m) / _factf(2m + p + 1))
+    r = 1.0
+    for j in 1:m
+        r /= (m + p + j)
+    end
+    for j in 1:(m + p + 1)
+        r /= (m + j)
+    end
+    return r
 end
 
 """
@@ -82,12 +95,12 @@ end
 
 Reusable workspace for the in-place phi-function evaluator [`phi!`](@ref) on
 strided `Float64`/`ComplexF64` matrices. Allocate once for a given size and `p`,
-then pass it as the `caches` keyword to `phi!` to reuse across calls without
-further allocation.
+then pass it as the `caches` keyword to `phi!` to reuse across calls; the only
+remaining per-call allocation is the LU pivot vector (`O(n)` bytes).
 
 After each `phi!` call, `cache.info[]` holds a return code: `0` means success;
-a positive value is the LAPACK `getrf` info of a numerically singular Padé
-denominator; `-1` means the result was non-finite (`NaN`/`Inf` input). Both
+a positive value is the LU factorization's info for a numerically singular
+Padé denominator; `-1` means the result was non-finite (`NaN`/`Inf` input). Both
 failures only occur for pathological inputs, and no error is thrown — the
 outputs are filled with `NaN` so that adaptive integrators can detect the
 failed evaluation via `cache.info[] != 0` (or an `isfinite` check) and reject
@@ -105,7 +118,6 @@ struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
     pow1::MT
     pow2::MT
     absA::RMT
-    ipiv::Vector{BlasInt}
     rvec1::Vector{RT}
     rvec2::Vector{RT}
     Ncoef::Vector{Float64}
@@ -115,7 +127,7 @@ struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
     alpha::Vector{Float64}
     tvals::Vector{Int}
     Cost::Matrix{Float64}
-    info::typeof(Ref(zero(BlasInt)))
+    info::typeof(Ref(0))
 end
 
 # Largest r for which alpha_r may be probed (Eq. (3.10) with phat = p; theta_{12,p}
@@ -135,14 +147,13 @@ function PhiPadeCache(A::AbstractMatrix{T}, p::Integer) where {T}
     return PhiPadeCache{T, RT, Matrix{T}, Matrix{RT}}(
         mk(), Apow, mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(),
         Matrix{RT}(undef, n, n),
-        Vector{BlasInt}(undef, n),
         Vector{RT}(undef, n), Vector{RT}(undef, n),
         Vector{Float64}(undef, _PHI_M_MAX + 1), Vector{Float64}(undef, _PHI_M_MAX + 1),
         Matrix{Float64}(undef, _PHI_M_MAX + 1, _PHI_M_MAX + 1),
         Vector{Float64}(undef, r_max), Vector{Float64}(undef, r_max),
         Vector{Int}(undef, _PHI_IMAX + 1),
         Matrix{Float64}(undef, _PHI_IMAX + 1, r_max - 1),
-        Ref(zero(BlasInt)),
+        Ref(0),
     )
 end
 
@@ -369,61 +380,27 @@ function _paterson_stockmeyer!(cache::PhiPadeCache, As, m::Integer, tau::Integer
     return N, D
 end
 
-# LAPACK LU factor + solve with pivots written into a preallocated `ipiv`.
-# `LAPACK.getrf!` only gained a pivot-accepting method in newer Julia, so both
-# `getrf!` and `getrs!` are ccall-ed directly (as `exp_noalloc.jl` does for
-# `gebal!`) to keep the solve allocation-free on every supported version.
-for (getrf, getrs, elty) in
-    ((:dgetrf_, :dgetrs_, :Float64), (:zgetrf_, :zgetrs_, :ComplexF64))
-    @eval function _phi_getrf!(A::AbstractMatrix{$elty}, ipiv::Vector{BlasInt})
-        m, n = size(A)
-        info = Ref{BlasInt}(0)
-        ccall(
-            (BLAS.@blasfunc($getrf), BLAS.libblastrampoline), Cvoid,
-            (
-                Ref{BlasInt}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
-                Ptr{BlasInt}, Ref{BlasInt},
-            ),
-            m, n, A, max(1, stride(A, 2)), ipiv, info
-        )
-        return info[]
-    end
-    @eval function _phi_getrs!(
-            A::AbstractMatrix{$elty}, ipiv::Vector{BlasInt}, B::AbstractMatrix{$elty}
-        )
-        n = size(A, 1)
-        info = Ref{BlasInt}(0)
-        ccall(
-            (BLAS.@blasfunc($getrs), BLAS.libblastrampoline), Cvoid,
-            (
-                Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
-                Ptr{BlasInt}, Ptr{$elty}, Ref{BlasInt}, Ref{BlasInt}, Clong,
-            ),
-            'N', n, size(B, 2), A, max(1, stride(A, 2)), ipiv, B,
-            max(1, stride(B, 2)), info, 1
-        )
-        return B
-    end
-end
-
-# Solve Dfact * X = B in place (B overwritten by X), zero-allocation LU.
-# Returns the LAPACK getrf info code instead of throwing: 0 on success; on a
+# Solve Dfact * X = B in place (Dfact overwritten by its LU factorization, B
+# by X). Returns an info code instead of throwing: 0 on success; on a
 # numerically singular Dfact (pathological input, e.g. NaN/Inf), B is filled
-# with NaN so downstream step-rejection logic can detect the failure.
-function _phi_solve!(Dfact, ipiv, B)
-    info = _phi_getrf!(Dfact, ipiv)
-    if info == 0
-        _phi_getrs!(Dfact, ipiv, B)
+# with NaN so downstream step-rejection logic can detect the failure. The lu!
+# pivot vector is the only per-call allocation (O(n); no public API yet allows
+# reusing it across factorizations).
+function _phi_solve!(Dfact, B)
+    F = lu!(Dfact; check = false)
+    if issuccess(F)
+        ldiv!(F, B)
+        return 0
     else
         fill!(B, NaN)
+        return Int(F.info)
     end
-    return info
 end
 
 """
     _phi_almohy!(out, A, p, cache) -> out
 
-Allocation-free evaluation of `phi_0(A), ..., phi_p(A)` for a strided
+In-place evaluation of `phi_0(A), ..., phi_p(A)` for a strided
 `Float64`/`ComplexF64` matrix `A` (`p >= 1`), writing `phi_j(A)` into `out[j+1]`
 and using the reusable [`PhiPadeCache`](@ref) `cache` for all scratch storage.
 The `out` matrices double as the recovery buffers.
@@ -441,11 +418,11 @@ function _phi_almohy!(
 
     copyto!(cache.Dfact, Dm)
     copyto!(out[p + 1], Nm)
-    info = _phi_solve!(cache.Dfact, cache.ipiv, out[p + 1])
+    info = _phi_solve!(cache.Dfact, out[p + 1])
     if info == 0 && !all(isfinite, out[p + 1])
-        # NaN/Inf inputs reach here with info == 0 (LAPACK does not flag NaN
+        # NaN/Inf inputs reach here with info == 0 (the LU does not flag NaN
         # pivots); report them so integrators can test cache.info[] alone.
-        info = BlasInt(-1)
+        info = -1
     end
     cache.info[] = info
     if info != 0
