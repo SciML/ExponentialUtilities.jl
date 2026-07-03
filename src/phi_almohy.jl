@@ -21,6 +21,8 @@
 #   * `_phi_almohy_generic` -- out-of-place and element-container-preserving, so
 #                        a static input (e.g. `SMatrix`) stays static.
 
+import libblastrampoline_jll
+
 # theta[m, p] = theta_{m,p} from Table 3.1 of the paper (largest 1-norm of the
 # scaled matrix for which the [m/m] Pade approximant is backward stable to
 # double-precision unit roundoff). Rows are m = 1:20, columns p = 1:10.
@@ -314,9 +316,30 @@ function _paterson_stockmeyer!(cache::PhiPadeCache, As, m::Integer, tau::Integer
     return Nm, Dm
 end
 
+# LU factorization writing pivots into a preallocated `ipiv`. LAPACK's `getrf!`
+# only gained a pivot-accepting method in newer Julia, so ccall it directly (as
+# `StegrWork` does for `stegr!`) to keep the factorization allocation-free on the
+# LTS. The 4-argument `getrs!` used for the solve is available on all versions.
+for (getrf, elty) in ((:dgetrf_, :Float64), (:zgetrf_, :ComplexF64))
+    @eval function _phi_getrf!(A::AbstractMatrix{$elty}, ipiv::Vector{LinearAlgebra.BlasInt})
+        m, n = size(A)
+        info = Ref{LinearAlgebra.BlasInt}(0)
+        ccall(
+            (LinearAlgebra.BLAS.@blasfunc($getrf), libblastrampoline_jll.libblastrampoline),
+            Cvoid,
+            (
+                Ref{LinearAlgebra.BlasInt}, Ref{LinearAlgebra.BlasInt}, Ptr{$elty},
+                Ref{LinearAlgebra.BlasInt}, Ptr{LinearAlgebra.BlasInt}, Ref{LinearAlgebra.BlasInt},
+            ),
+            m, n, A, max(1, stride(A, 2)), ipiv, info
+        )
+        return A
+    end
+end
+
 # Solve Dfact * X = B in place (B overwritten by X), zero-allocation LU.
 function _phi_solve!(Dfact, ipiv, B)
-    LinearAlgebra.LAPACK.getrf!(Dfact, ipiv)
+    _phi_getrf!(Dfact, ipiv)
     LinearAlgebra.LAPACK.getrs!('N', Dfact, ipiv, B)
     return B
 end
