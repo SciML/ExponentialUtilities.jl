@@ -97,6 +97,21 @@ exp_generic(A) = exponential!(copy(A), ExpMethodGeneric())
     end
 end
 
+@testset "exponential! on immutable (static) matrices" begin
+    for (n, T) in ((3, Float64), (4, Float64), (3, Float32), (4, Float32))
+        A = rand(SMatrix{n, n, T})
+        E = exponential!(A)
+        @test E isa SMatrix{n, n}
+        @test E ≈ exp(Matrix(A))
+        @test !any(isnan, E)
+
+        J = ForwardDiff.jacobian(exponential!, A)
+        Jref = ForwardDiff.jacobian(exp_generic, Matrix(A))
+        @test !any(isnan, J)
+        @test J ≈ Jref
+    end
+end
+
 @testset "exponential! sparse" begin
     A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
     @test_throws ErrorException exponential!(A)
