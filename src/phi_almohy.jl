@@ -21,7 +21,7 @@
 #   * `_phi_almohy_generic` -- out-of-place and element-container-preserving, so
 #                        a static input (e.g. `SMatrix`) stays static.
 
-import libblastrampoline_jll
+using LinearAlgebra: BlasInt
 
 # theta[m, p] = theta_{m,p} from Table 3.1 of the paper (largest 1-norm of the
 # scaled matrix for which the [m/m] Pade approximant is backward stable to
@@ -99,7 +99,7 @@ struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
     pow1::MT
     pow2::MT
     absA::RMT
-    ipiv::Vector{LinearAlgebra.BlasInt}
+    ipiv::Vector{BlasInt}
     rvec1::Vector{RT}
     rvec2::Vector{RT}
     Ncoef::Vector{Float64}
@@ -123,7 +123,7 @@ function PhiPadeCache(A::AbstractMatrix{T}, p::Integer) where {T}
     return PhiPadeCache{T, RT, Matrix{T}, Matrix{RT}}(
         mk(), Apow[1], Apow, mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(),
         Matrix{RT}(undef, n, n),
-        Vector{LinearAlgebra.BlasInt}(undef, n),
+        Vector{BlasInt}(undef, n),
         Vector{RT}(undef, n), Vector{RT}(undef, n),
         Vector{Float64}(undef, _PHI_M_MAX + 1), Vector{Float64}(undef, _PHI_M_MAX + 1),
         Matrix{Float64}(undef, _PHI_M_MAX + 1, _PHI_M_MAX + 1),
@@ -316,31 +316,47 @@ function _paterson_stockmeyer!(cache::PhiPadeCache, As, m::Integer, tau::Integer
     return Nm, Dm
 end
 
-# LU factorization writing pivots into a preallocated `ipiv`. LAPACK's `getrf!`
-# only gained a pivot-accepting method in newer Julia, so ccall it directly (as
-# `StegrWork` does for `stegr!`) to keep the factorization allocation-free on the
-# LTS. The 4-argument `getrs!` used for the solve is available on all versions.
-for (getrf, elty) in ((:dgetrf_, :Float64), (:zgetrf_, :ComplexF64))
-    @eval function _phi_getrf!(A::AbstractMatrix{$elty}, ipiv::Vector{LinearAlgebra.BlasInt})
+# LAPACK LU factor + solve with pivots written into a preallocated `ipiv`.
+# `LAPACK.getrf!` only gained a pivot-accepting method in newer Julia, so both
+# `getrf!` and `getrs!` are ccall-ed directly (as `exp_noalloc.jl` does for
+# `gebal!`) to keep the solve allocation-free on every supported version.
+for (getrf, getrs, elty) in
+    ((:dgetrf_, :dgetrs_, :Float64), (:zgetrf_, :zgetrs_, :ComplexF64))
+    @eval function _phi_getrf!(A::AbstractMatrix{$elty}, ipiv::Vector{BlasInt})
         m, n = size(A)
-        info = Ref{LinearAlgebra.BlasInt}(0)
+        info = Ref{BlasInt}(0)
         ccall(
-            (LinearAlgebra.BLAS.@blasfunc($getrf), libblastrampoline_jll.libblastrampoline),
-            Cvoid,
+            (BLAS.@blasfunc($getrf), BLAS.libblastrampoline), Cvoid,
             (
-                Ref{LinearAlgebra.BlasInt}, Ref{LinearAlgebra.BlasInt}, Ptr{$elty},
-                Ref{LinearAlgebra.BlasInt}, Ptr{LinearAlgebra.BlasInt}, Ref{LinearAlgebra.BlasInt},
+                Ref{BlasInt}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+                Ptr{BlasInt}, Ref{BlasInt},
             ),
             m, n, A, max(1, stride(A, 2)), ipiv, info
         )
         return A
+    end
+    @eval function _phi_getrs!(
+            A::AbstractMatrix{$elty}, ipiv::Vector{BlasInt}, B::AbstractMatrix{$elty}
+        )
+        n = size(A, 1)
+        info = Ref{BlasInt}(0)
+        ccall(
+            (BLAS.@blasfunc($getrs), BLAS.libblastrampoline), Cvoid,
+            (
+                Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+                Ptr{BlasInt}, Ptr{$elty}, Ref{BlasInt}, Ref{BlasInt}, Clong,
+            ),
+            'N', n, size(B, 2), A, max(1, stride(A, 2)), ipiv, B,
+            max(1, stride(B, 2)), info, 1
+        )
+        return B
     end
 end
 
 # Solve Dfact * X = B in place (B overwritten by X), zero-allocation LU.
 function _phi_solve!(Dfact, ipiv, B)
     _phi_getrf!(Dfact, ipiv)
-    LinearAlgebra.LAPACK.getrs!('N', Dfact, ipiv, B)
+    _phi_getrs!(Dfact, ipiv, B)
     return B
 end
 
