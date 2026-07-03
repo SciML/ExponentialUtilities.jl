@@ -112,6 +112,28 @@ end
     end
 end
 
+@testset "ExpMethodGeneric preserves element type (immutable matrices)" begin
+    # https://discourse.julialang.org/t/137880 : ExpMethodGeneric silently promoted
+    # Float32 static matrices to Float64. The (13,13) Padé path must keep the input type.
+    for (n, T) in ((2, Float32), (3, Float32), (2, Float64), (3, Float64))
+        A = rand(SMatrix{n, n, T})
+        E = exponential!(A, ExpMethodGeneric())
+        @test E isa SMatrix{n, n, T}
+        @test Float64.(E) ≈ exp(Float64.(Matrix(A))) rtol = sqrt(eps(T))
+
+        J = ForwardDiff.jacobian(x -> exponential!(x, ExpMethodGeneric()), A)
+        @test eltype(J) === T
+    end
+
+    # ComplexF32 must stay ComplexF32
+    Ac = rand(SMatrix{2, 2, ComplexF32})
+    @test exponential!(Ac, ExpMethodGeneric()) isa SMatrix{2, 2, ComplexF32}
+
+    # Scalar path likewise preserves precision
+    @test exponential!(0.5f0, ExpMethodGeneric()) isa Float32
+    @test ForwardDiff.derivative(x -> exponential!(x, ExpMethodGeneric()), 0.3f0) isa Float32
+end
+
 @testset "exponential! sparse" begin
     A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
     @test_throws ErrorException exponential!(A)
