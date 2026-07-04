@@ -132,6 +132,24 @@ end
     # Scalar path likewise preserves precision
     @test exponential!(0.5f0, ExpMethodGeneric()) isa Float32
     @test ForwardDiff.derivative(x -> exponential!(x, ExpMethodGeneric()), 0.3f0) isa Float32
+
+    # The (13,13) Padé coefficients are exact rationals, so an immutable Double64 matrix
+    # must reach full Double64 accuracy. Hardcoded Float64 coefficients capped this at
+    # eps(Float64) (~1e-16); with exact rationals it reaches eps(Double64) (~5e-32).
+    Ad = SMatrix{2, 2, Double64}(
+        Double64(9 // 10), Double64(2 // 10),
+        Double64(3 // 10), Double64(7 // 10)
+    )
+    Rd = exponential!(Ad, ExpMethodGeneric())
+    setprecision(BigFloat, 300) do
+        Ab = BigFloat[9 // 10 3 // 10; 2 // 10 7 // 10]
+        sc = Ab ./ BigFloat(2)^50
+        ref = sum(sc^n / factorial(big(n)) for n in 0:80)
+        for _ in 1:50
+            ref = ref * ref
+        end
+        @test maximum(abs.(BigFloat.(Rd) .- ref)) < 1.0e-28
+    end
 end
 
 @testset "exponential! sparse" begin
