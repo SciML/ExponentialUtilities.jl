@@ -232,22 +232,41 @@ function exponential!(
     end
 end
 
+# Specialized (13,13) Padé numerator for the immutable-matrix path. The coefficient
+# type is taken from `eltype(x)` at runtime (rather than hardcoded `Float64`) so that a
+# Float32 input yields a Float32 result instead of being silently promoted to Float64.
+# This is deliberately not `@generated`: deriving the type inside a generated body would
+# require constructing the element type (e.g. a ForwardDiff `Dual`), which is world-age
+# blocked, so ForwardDiff differentiation would fail.
 function exp_pade_p(x, ::Val{13}, ::Val{13})
+    T = float(eltype(x))
     return @evalpoly(
-        x, LinearAlgebra.UniformScaling{Float64}(1.0),
-        LinearAlgebra.UniformScaling{Float64}(0.5),
-        LinearAlgebra.UniformScaling{Float64}(0.12),
-        LinearAlgebra.UniformScaling{Float64}(0.018333333333333333),
-        LinearAlgebra.UniformScaling{Float64}(0.0019927536231884057),
-        LinearAlgebra.UniformScaling{Float64}(0.00016304347826086958),
-        LinearAlgebra.UniformScaling{Float64}(1.0351966873706003e-5),
-        LinearAlgebra.UniformScaling{Float64}(5.175983436853002e-7),
-        LinearAlgebra.UniformScaling{Float64}(2.0431513566525008e-8),
-        LinearAlgebra.UniformScaling{Float64}(6.306022705717595e-10),
-        LinearAlgebra.UniformScaling{Float64}(1.48377004840414e-11),
-        LinearAlgebra.UniformScaling{Float64}(2.529153491597966e-13),
-        LinearAlgebra.UniformScaling{Float64}(2.8101705462199623e-15),
-        LinearAlgebra.UniformScaling{Float64}(1.5440497506703088e-17)
+        x,
+        UniformScaling(T(1 // 1)),
+        UniformScaling(T(1 // 2)),
+        UniformScaling(T(3 // 25)),
+        UniformScaling(T(11 // 600)),
+        UniformScaling(T(11 // 5520)),
+        UniformScaling(T(3 // 18400)),
+        UniformScaling(T(1 // 96600)),
+        UniformScaling(T(1 // 1932000)),
+        UniformScaling(T(1 // 48944000)),
+        UniformScaling(T(1 // 1585785600)),
+        UniformScaling(T(1 // 67395888000)),
+        UniformScaling(T(1 // 3953892096000)),
+        UniformScaling(T(1 // 355850288640000)),
+        UniformScaling(T(1 // 64764752532480000))
+    )
+end
+
+function exp_pade_p(x::Number, ::Val{13}, ::Val{13})
+    T = float(typeof(x))
+    return @evalpoly(
+        x,
+        T(1 // 1), T(1 // 2), T(3 // 25), T(11 // 600), T(11 // 5520),
+        T(3 // 18400), T(1 // 96600), T(1 // 1932000), T(1 // 48944000),
+        T(1 // 1585785600), T(1 // 67395888000), T(1 // 3953892096000),
+        T(1 // 355850288640000), T(1 // 64764752532480000)
     )
 end
 
@@ -311,15 +330,6 @@ function exp_pade_p!(
         y1[n, n] += one(T)
     end
     return y1
-end
-
-function exp_pade_p(x::Number, ::Val{13}, ::Val{13})
-    return @evalpoly(
-        x, 1.0, 0.5, 0.12, 0.018333333333333333, 0.0019927536231884057,
-        0.00016304347826086958, 1.0351966873706003e-5, 5.175983436853002e-7,
-        2.0431513566525008e-8, 6.306022705717595e-10, 1.48377004840414e-11,
-        2.529153491597966e-13, 2.8101705462199623e-15, 1.5440497506703088e-17
-    )
 end
 
 @generated function exp_pade_p(x, ::Val{k}, ::Val{m}) where {k, m}

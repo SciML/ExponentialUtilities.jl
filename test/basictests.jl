@@ -112,6 +112,46 @@ end
     end
 end
 
+@testset "ExpMethodGeneric preserves element type (immutable matrices)" begin
+    # https://discourse.julialang.org/t/137880 : ExpMethodGeneric silently promoted
+    # Float32 static matrices to Float64. The (13,13) Padé path must keep the input type.
+    for (n, T) in ((2, Float32), (3, Float32), (2, Float64), (3, Float64))
+        A = rand(SMatrix{n, n, T})
+        E = exponential!(A, ExpMethodGeneric())
+        @test E isa SMatrix{n, n, T}
+        @test Float64.(E) ≈ exp(Float64.(Matrix(A))) rtol = sqrt(eps(T))
+
+        J = ForwardDiff.jacobian(x -> exponential!(x, ExpMethodGeneric()), A)
+        @test eltype(J) === T
+    end
+
+    # ComplexF32 must stay ComplexF32
+    Ac = rand(SMatrix{2, 2, ComplexF32})
+    @test exponential!(Ac, ExpMethodGeneric()) isa SMatrix{2, 2, ComplexF32}
+
+    # Scalar path likewise preserves precision
+    @test exponential!(0.5f0, ExpMethodGeneric()) isa Float32
+    @test ForwardDiff.derivative(x -> exponential!(x, ExpMethodGeneric()), 0.3f0) isa Float32
+
+    # The (13,13) Padé coefficients are exact rationals, so an immutable Double64 matrix
+    # must reach full Double64 accuracy. Hardcoded Float64 coefficients capped this at
+    # eps(Float64) (~1e-16); with exact rationals it reaches eps(Double64) (~5e-32).
+    Ad = SMatrix{2, 2, Double64}(
+        Double64(9 // 10), Double64(2 // 10),
+        Double64(3 // 10), Double64(7 // 10)
+    )
+    Rd = exponential!(Ad, ExpMethodGeneric())
+    setprecision(BigFloat, 300) do
+        Ab = BigFloat[9 // 10 3 // 10; 2 // 10 7 // 10]
+        sc = Ab ./ BigFloat(2)^50
+        ref = sum(sc^n / factorial(big(n)) for n in 0:80)
+        for _ in 1:50
+            ref = ref * ref
+        end
+        @test maximum(abs.(BigFloat.(Rd) .- ref)) < 1.0e-28
+    end
+end
+
 @testset "exponential! sparse" begin
     A = sparse([1, 2, 1], [2, 1, 1], [1.0, 2.0, 3.0])
     @test_throws ErrorException exponential!(A)
