@@ -329,19 +329,18 @@ end
     phi!(out, A, 3)
     @test out ≈ phi_block_reference(A, 3)
 
-    # Reusable workspace: same result, and only the O(n) `lu!` pivot vector is
-    # allocated once the cache exists (all O(n^2) buffers are reused; the pivot
-    # vector cannot be preallocated through the public LinearAlgebra API).
-    lu_alloc_bound(m) = 8m + 200
+    # Reusable workspace: same result, and reuse is allocation-free (the linear
+    # solve runs through the workspace's LinearSolve cache, which owns the LU
+    # pivot storage).
     cache = PhiPadeCache(A, 3)
     out2 = [Matrix{Float64}(undef, n, n) for _ in 1:4]
     phi!(out2, A, 3; caches = cache)
     @test out2 ≈ out
     run_phi!(o, M, c) = phi!(o, M, 3; caches = c)
     run_phi!(out2, A, cache)                           # warm up / compile
-    @test (@allocated run_phi!(out2, A, cache)) <= lu_alloc_bound(n)
+    @test (@allocated run_phi!(out2, A, cache)) == 0
 
-    # Complex-matrix workspace path, same allocation bound on reuse.
+    # Complex-matrix workspace path, also allocation-free on reuse.
     Ac = randn(ComplexF64, 6, 6) ./ 3
     cachec = PhiPadeCache(Ac, 2)
     outc = [Matrix{ComplexF64}(undef, 6, 6) for _ in 1:3]
@@ -350,7 +349,7 @@ end
     @test cachec.info[] == 0
     run_phic!(o, M, c) = phi!(o, M, 2; caches = c)
     run_phic!(outc, Ac, cachec)
-    @test (@allocated run_phic!(outc, Ac, cachec)) <= lu_alloc_bound(6)
+    @test (@allocated run_phic!(outc, Ac, cachec)) == 0
 
     # Numerical failure must not throw: NaN input yields NaN-filled outputs and
     # a nonzero return code in cache.info[], so adaptive integrators can reject

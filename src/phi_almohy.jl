@@ -22,6 +22,8 @@
 #   * `_phi_almohy_generic` -- out-of-place and element-container-preserving, so
 #                        a static input (e.g. `SMatrix`) stays static.
 
+using LinearSolve: LinearSolve, LinearProblem, GenericLUFactorization
+
 # theta[m, p] = theta_{m,p} from Table 3.1 of the paper (largest 1-norm of the
 # scaled matrix for which the [m/m] Pade approximant is backward stable to
 # double-precision unit roundoff). Rows are m = 1:20, columns p = 1:10.
@@ -95,23 +97,28 @@ end
 
 Reusable workspace for the in-place phi-function evaluator [`phi!`](@ref) on
 strided `Float64`/`ComplexF64` matrices. Allocate once for a given size and `p`,
-then pass it as the `caches` keyword to `phi!` to reuse across calls; the only
-remaining per-call allocation is the LU pivot vector (`O(n)` bytes).
+then pass it as the `caches` keyword to `phi!` to reuse across calls. The
+linear solve runs through an embedded LinearSolve.jl cache (batched matrix
+right-hand side, `GenericLUFactorization`); reuse across calls is
+allocation-free — all buffers, including the LU pivots, live in the workspace
+and the LinearSolve cache.
 
 After each `phi!` call, `cache.info[]` holds a return code: `0` means success;
-a positive value is the LU factorization's info for a numerically singular
+a positive value indicates a numerically singular
 Padé denominator; `-1` means the result was non-finite (`NaN`/`Inf` input). Both
 failures only occur for pathological inputs, and no error is thrown — the
 outputs are filled with `NaN` so that adaptive integrators can detect the
 failed evaluation via `cache.info[] != 0` (or an `isfinite` check) and reject
 the step rather than abort.
 """
-struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}}
+struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}, LS}
     As::MT
     Apow::Vector{MT}
     Nm::MT
     Dm::MT
     Dfact::MT
+    rhs::MT
+    linsolve::LS
     Naux::MT
     Daux::MT
     tmp::MT
@@ -144,8 +151,16 @@ function PhiPadeCache(A::AbstractMatrix{T}, p::Integer) where {T}
     for i in 2:_PHI_NPOW
         Apow[i] = mk()
     end
-    return PhiPadeCache{T, RT, Matrix{T}, Matrix{RT}}(
-        mk(), Apow, mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk(),
+    Dfact = Matrix{T}(I, n, n)
+    rhs = zeros(T, n, n)
+    # GenericLUFactorization refactorizes in place with a cached pivot vector,
+    # so cache reuse is allocation-free (LUFactorization currently copies A on
+    # every dense refactorization). Dfact/rhs are workspace buffers refilled
+    # before each solve.
+    linsolve = LinearSolve.init(LinearProblem(Dfact, rhs), GenericLUFactorization())
+    return PhiPadeCache{T, RT, Matrix{T}, Matrix{RT}, typeof(linsolve)}(
+        mk(), Apow, mk(), mk(), Dfact, rhs, linsolve,
+        mk(), mk(), mk(), mk(), mk(),
         Matrix{RT}(undef, n, n),
         Vector{RT}(undef, n), Vector{RT}(undef, n),
         Vector{Float64}(undef, _PHI_M_MAX + 1), Vector{Float64}(undef, _PHI_M_MAX + 1),
@@ -380,20 +395,24 @@ function _paterson_stockmeyer!(cache::PhiPadeCache, As, m::Integer, tau::Integer
     return N, D
 end
 
-# Solve Dfact * X = B in place (Dfact overwritten by its LU factorization, B
-# by X). Returns an info code instead of throwing: 0 on success; on a
-# numerically singular Dfact (pathological input, e.g. NaN/Inf), B is filled
-# with NaN so downstream step-rejection logic can detect the failure. The lu!
-# pivot vector is the only per-call allocation (O(n); no public API yet allows
-# reusing it across factorizations).
-function _phi_solve!(Dfact, B)
-    F = lu!(Dfact; check = false)
-    if issuccess(F)
-        ldiv!(F, B)
+# Solve Dm * X = Nm through the workspace's LinearSolve cache (batched matrix
+# right-hand side, LinearSolve >= 4), writing X into `X`. Returns an info code
+# instead of throwing: 0 on success; 1 on a numerically singular Dm
+# (pathological input, e.g. NaN/Inf), in which case `X` is filled with NaN so
+# downstream step-rejection logic can detect the failure.
+function _phi_solve!(cache::PhiPadeCache, Dm, Nm, X)
+    copyto!(cache.Dfact, Dm)
+    copyto!(cache.rhs, Nm)
+    linsolve = cache.linsolve
+    linsolve.A = cache.Dfact
+    linsolve.b = cache.rhs
+    sol = LinearSolve.solve!(linsolve)
+    if sol.retcode == LinearSolve.ReturnCode.Success
+        copyto!(X, sol.u)
         return 0
     else
-        fill!(B, NaN)
-        return Int(F.info)
+        fill!(X, NaN)
+        return 1
     end
 end
 
@@ -416,9 +435,7 @@ function _phi_almohy!(
     _phi_pade_coef!(cache.Ncoef, cache.Dcoef, cache.Amat, m, p)
     Nm, Dm = _paterson_stockmeyer!(cache, As, m, tau)
 
-    copyto!(cache.Dfact, Dm)
-    copyto!(out[p + 1], Nm)
-    info = _phi_solve!(cache.Dfact, out[p + 1])
+    info = _phi_solve!(cache, Dm, Nm, out[p + 1])
     if info == 0 && !all(isfinite, out[p + 1])
         # NaN/Inf inputs reach here with info == 0 (the LU does not flag NaN
         # pivots); report them so integrators can test cache.info[] alone.
