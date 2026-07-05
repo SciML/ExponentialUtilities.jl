@@ -1,3 +1,5 @@
+using LinearSolve: LinearSolve, LinearProblem, LUFactorization
+
 """
     ExpMethodHigham2005Base()
 
@@ -14,7 +16,35 @@ function alloc_mem(
     U = Matrix{T}(undef, n, n)
     V = Matrix{T}(undef, n, n)
     temp = Matrix{T}(undef, n, n)
-    return (A2, P, U, V, temp)
+    # Cached LinearSolve workspace for the Padé denominator solves. The buffers
+    # are workspace-owned, so aliasing lets LUFactorization refactorize in
+    # place (`lu!`) on every `solve!` instead of copying the n×n matrix.
+    Abuf = Matrix{T}(undef, n, n)
+    Bbuf = Matrix{T}(undef, n, n)
+    linsolve = LinearSolve.init(
+        LinearProblem(Abuf, Bbuf), LUFactorization();
+        alias = LinearSolve.LinearAliasSpecifier(alias_A = true, alias_b = true)
+    )
+    return (A2, P, U, V, temp, linsolve)
+end
+
+# X .= temp \ X through the cached LinearSolve workspace: refill the
+# workspace-owned buffers, mark A as replaced, and solve in place.
+function _pade_linsolve!(
+        X::StridedMatrix{T}, temp::StridedMatrix{T}, linsolve
+    ) where {T}
+    Abuf = linsolve.A
+    copyto!(Abuf, temp)
+    linsolve.A = Abuf # flag the refactorization; lu! overwrites Abuf
+    copyto!(linsolve.b, X)
+    sol = LinearSolve.solve!(linsolve)
+    # LAPACK.gesv! threw on a singular denominator; keep that contract instead
+    # of silently propagating garbage from a failed factorization.
+    if !LinearSolve.SciMLBase.successful_retcode(sol.retcode)
+        throw(LinearAlgebra.SingularException(0))
+    end
+    copyto!(X, sol.u)
+    return X
 end
 
 ## Destructive matrix exponential using algorithm from Higham, 2008,
@@ -32,7 +62,7 @@ function exponential!(
     # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
 
-    A2, P, U, V, temp = cache
+    A2, P, U, V, temp, linsolve = cache
 
     fill!(P, zero(T))
     fill!(@diagview(P), one(T)) # P = Inn
@@ -80,9 +110,7 @@ function exponential!(
         U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
-        # Pade denominator solve through LinearSolve's default algorithm choice
-        # (matrix RHS, LinearSolve >= 4); replaces the raw LAPACK.gesv! call.
-        X .= LinearSolve.solve(LinearProblem(temp, X)).u
+        _pade_linsolve!(X, temp, linsolve)
     else
         s = log2(nA / 5.4)               # power of 2 later reversed by squaring
         si = 0                           # always defined so the s > 0 squaring loop is type-stable
@@ -111,9 +139,7 @@ function exponential!(
         U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
-        # Pade denominator solve through LinearSolve's default algorithm choice
-        # (matrix RHS, LinearSolve >= 4); replaces the raw LAPACK.gesv! call.
-        X .= LinearSolve.solve(LinearProblem(temp, X)).u
+        _pade_linsolve!(X, temp, linsolve)
 
         if s > 0            # squaring to reverse dividing by power of 2
             for t in 1:si
