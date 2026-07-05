@@ -80,7 +80,9 @@ function exponential!(
         U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
-        LAPACK.gesv!(temp, X)
+        # Pade denominator solve through LinearSolve's default algorithm choice
+        # (matrix RHS, LinearSolve >= 4); replaces the raw LAPACK.gesv! call.
+        X .= LinearSolve.solve(LinearProblem(temp, X)).u
     else
         s = log2(nA / 5.4)               # power of 2 later reversed by squaring
         si = 0                           # always defined so the s > 0 squaring loop is type-stable
@@ -109,7 +111,9 @@ function exponential!(
         U, temp = temp, U # equivalent to U = A * U
         @. X = V + U
         @. temp = V - U
-        LAPACK.gesv!(temp, X)
+        # Pade denominator solve through LinearSolve's default algorithm choice
+        # (matrix RHS, LinearSolve >= 4); replaces the raw LAPACK.gesv! call.
+        X .= LinearSolve.solve(LinearProblem(temp, X)).u
 
         if s > 0            # squaring to reverse dividing by power of 2
             for t in 1:si
