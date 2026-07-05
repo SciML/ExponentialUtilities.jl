@@ -1,4 +1,4 @@
-using LinearSolve: LinearSolve, LinearProblem, LUFactorization
+using LinearSolve: LinearSolve, LinearProblem
 
 """
     ExpMethodHigham2005Base()
@@ -16,13 +16,15 @@ function alloc_mem(
     U = Matrix{T}(undef, n, n)
     V = Matrix{T}(undef, n, n)
     temp = Matrix{T}(undef, n, n)
-    # Cached LinearSolve workspace for the Padé denominator solves. The buffers
-    # are workspace-owned, so aliasing lets LUFactorization refactorize in
-    # place (`lu!`) on every `solve!` instead of copying the n×n matrix.
+    # Cached LinearSolve workspace for the Padé denominator solves, using
+    # LinearSolve's default algorithm choice (size-dependent: e.g. generic LU
+    # for tiny matrices, LAPACK/RecursiveFactorization above). The buffers are
+    # workspace-owned, so aliasing lets the factorization refactorize in place
+    # on every `solve!` instead of copying the n×n matrix.
     Abuf = Matrix{T}(undef, n, n)
     Bbuf = Matrix{T}(undef, n, n)
     linsolve = LinearSolve.init(
-        LinearProblem(Abuf, Bbuf), LUFactorization();
+        LinearProblem(Abuf, Bbuf);
         alias = LinearSolve.LinearAliasSpecifier(alias_A = true, alias_b = true)
     )
     return (A2, P, U, V, temp, linsolve)
@@ -38,8 +40,10 @@ function _pade_linsolve!(
     linsolve.A = Abuf # flag the refactorization; lu! overwrites Abuf
     copyto!(linsolve.b, X)
     sol = LinearSolve.solve!(linsolve)
-    # LAPACK.gesv! threw on a singular denominator; keep that contract instead
-    # of silently propagating garbage from a failed factorization.
+    # The Pade denominator is nonsingular by construction for the branch norm
+    # bounds, so this only triggers if even the default algorithm's safety
+    # fallback failed; surface it like LAPACK.gesv! did rather than silently
+    # propagating garbage.
     if !LinearSolve.SciMLBase.successful_retcode(sol.retcode)
         throw(LinearAlgebra.SingularException(0))
     end
