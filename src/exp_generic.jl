@@ -222,7 +222,12 @@ function exponential!(
         # be all Infs when there are both Infs and zero since Inf*0===NaN
         return x * sum(x * exp(nx))
     end
-    s = iszero(nx) ? 0 : intlog2(nx)
+    # `nx > 1` (not `iszero(nx)`) so zero-valued Duals with nonzero partials
+    # take the s = 0 branch: ForwardDiff >= 1 defines `iszero(::Dual)` to also
+    # require zero partials, which sent Dual(0, 1) into `intlog2` where the
+    # partials were dropped (and 2^intlog2(0) = 2^64 overflows to 0). For real
+    # nx in (0, 1], intlog2(nx) was already 0, so this changes nothing else.
+    s = nx > 1 ? intlog2(nx) : 0
     (Vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) &&
         return exp_generic_mutable(x, s, Val{13}())
     if s >= 1

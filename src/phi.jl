@@ -103,9 +103,12 @@ The phi functions are defined as
 \\varphi_0(z) = \\exp(z),\\quad \\varphi_{k+1}(z) = \\frac{\\varphi_k(z) - \\varphi_k(0)}{z}
 ```
 
-Calls `phiv_dense` on each of the basis vectors to obtain the answer. If A
-is `Diagonal`, instead calls the scalar `phi` on each diagonal element and the
-return values are also `Diagonal`s
+For `Float64`/`ComplexF64` matrices this uses the scaling-and-recovering
+algorithm of Al-Mohy and Liu (arXiv:2506.01193), which computes all of
+`phi_0(A), ..., phi_k(A)` simultaneously in `O(k m^3)` operations. Other element
+types fall back to calling `phiv_dense` on each basis vector (`O(m (m+k)^3)`). If
+`A` is `Diagonal`, the scalar `phi` is instead applied to each diagonal element
+and the return values are also `Diagonal`s.
 """
 function phi(A::AbstractMatrix{T}, k; kwargs...) where {T <: Number}
     m = size(A, 1)
@@ -119,7 +122,28 @@ end
 """
     phi!(out,A,k[;caches]) -> out
 
-Non-allocating version of `phi` for non-diagonal matrix inputs.
+Non-allocating version of `phi` for non-diagonal matrix inputs, writing
+`phi_j(A)` into `out[j+1]`.
+
+For dense `Float64`/`ComplexF64` matrices, pass a reusable
+[`PhiPadeCache`](@ref) as `caches` to make repeated evaluations of the same
+size and order allocation-free (the linear solve runs through an embedded
+LinearSolve.jl cache):
+
+```julia
+cache = PhiPadeCache(A, k)
+phi!(out, A, k; caches = cache)
+```
+
+Numerical failure (a singular Padé denominator or non-finite result, only
+possible for pathological inputs such as matrices containing `NaN`/`Inf`) does
+not throw: the outputs are filled with `NaN` and, when a `PhiPadeCache` is
+used, `cache.info[]` is set to a nonzero return code (`0` on success). This
+lets adaptive integrators reject the step instead of aborting.
+
+For the legacy basis-vector algorithm, `caches` is instead the tuple
+`(Vector{T}(undef, m), Matrix{T}(undef, m, k+1), Matrix{T}(undef, m+k, m+k))`;
+supplying it forces that code path.
 """
 function phi!(
         out::Vector{Matrix{T}}, A::AbstractMatrix{T}, k::Integer; caches = nothing,
@@ -127,6 +151,27 @@ function phi!(
     ) where {T <: Number}
     m = size(A, 1)
     @assert length(out) == k + 1&&all(P -> size(P) == (m, m), out) "Dimension mismatch"
+    # The scaling-and-recovering algorithm of Al-Mohy and Liu (arXiv:2506.01193)
+    # computes phi_0..phi_k simultaneously in O(k m^3), versus O(m (m+k)^3) for
+    # the basis-vector approach below. Its Pade tables are tuned for double
+    # precision, so it is used only for Float64/ComplexF64. The legacy path is
+    # kept for other element types and when a caller supplies the legacy
+    # `caches` tuple.
+    if k >= 1 && T <: Union{Float64, ComplexF64} && !(caches isa Tuple)
+        if A isa StridedMatrix && (isnothing(caches) || caches isa PhiPadeCache)
+            cache = caches isa PhiPadeCache ? caches : PhiPadeCache(A, k)
+            return _phi_almohy!(out, A, k, cache)
+        elseif isnothing(caches) && !ismutable(A)
+            # Container-preserving path for immutable dense matrices (e.g.
+            # `SMatrix`); mutable non-strided types (e.g. sparse) fall through to
+            # the legacy path below.
+            Rm = _phi_almohy_generic(A, k)
+            for j in 1:(k + 1)
+                copyto!(out[j], Rm[j])
+            end
+            return out
+        end
+    end
     if isnothing(caches)
         e = Vector{T}(undef, m)
         W = Matrix{T}(undef, m, k + 1)

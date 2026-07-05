@@ -29,6 +29,7 @@ include("exp_noalloc.jl")
 include("exp_generic.jl")
 include("exp_sparse.jl")
 include("phi.jl")
+include("phi_almohy.jl")
 include("arnoldi.jl")
 include("krylov_phiv.jl")
 include("krylov_phiv_adaptive.jl")
@@ -41,7 +42,7 @@ include("precompile.jl")
 export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCache,
     expv, expv!, phiv, phiv!, kiops, expv_timestep, expv_timestep!, phiv_timestep,
     phiv_timestep!,
-    StegrCache, get_subspace_cache, exponential!
+    StegrCache, PhiPadeCache, get_subspace_cache, exponential!
 export ExpMethodHigham2005,
     ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative,
     ExpMethodDiagonalization

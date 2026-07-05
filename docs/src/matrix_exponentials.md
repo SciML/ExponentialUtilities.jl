@@ -3,6 +3,8 @@
 ```@docs
 exponential!
 phi
+phi!
+PhiPadeCache
 ```
 
 ## Methods
