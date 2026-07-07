@@ -377,6 +377,19 @@ end
         @test P30[j] ≈ ref30[j] rtol = 1.0e-8 atol = 1.0e-13
     end
 
+    for normTs in (1.0e-8, 1.0e-2, 0.5, 1.0, 1.9), p in (60, 200, 500)
+        m = 1
+        phat = 0
+        delta = (p - 1) * (p - phat) / p + 1
+        K = 2m + p + 1
+        logcoeff_big = -sum(log(big(m + p + j)) for j in 1:m) -
+            sum(log(big(m + j)) for j in 1:(m + p + 1))
+        ref = Float64(exp((logcoeff_big - big(delta) * log(big(normTs))) / big(K)))
+        c = ExponentialUtilities._phi_be_scale(m, p, normTs, delta, K)
+        @test isfinite(c)
+        @test c ≈ ref rtol = 5.0e-14
+    end
+
     # Preallocated in-place entry point returns phi_j in out[j+1].
     n = 7
     A = randn(n, n) ./ 3
