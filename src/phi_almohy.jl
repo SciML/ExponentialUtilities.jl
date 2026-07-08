@@ -92,6 +92,21 @@ end
     return r
 end
 
+@inline function _phi_log_be_coeff(m::Integer, p::Integer)
+    r = 0.0
+    for j in 1:m
+        r -= log(float(m + p + j))
+    end
+    for j in 1:(m + p + 1)
+        r -= log(float(m + j))
+    end
+    return r
+end
+
+@inline function _phi_be_scale(m::Integer, p::Integer, normTs, delta, K::Integer)
+    return exp((_phi_log_be_coeff(m, p) - delta * log(normTs)) / K)
+end
+
 """
     PhiPadeCache(A, p)
 
@@ -302,7 +317,7 @@ function _phi_ell!(cache::PhiPadeCache, A, normT, m::Integer, p::Integer, phat::
     normTs = normT / scalefac
     delta = (p - 1) * (p - phat) / p + 1
     K = 2m + p + 1
-    c = (_phi_be_coeff(m, p) / normTs^delta)^(1 / K)
+    c = _phi_be_scale(m, p, normTs, delta, K)
     absA = cache.absA
     @. absA = c * abs(A) / scalefac
     alpha = _normpow_nonneg!(cache, absA, K)
@@ -498,7 +513,7 @@ function _phi_ell(A::AbstractMatrix, normT, m::Integer, p::Integer, phat::Intege
     normTs = normT / scalefac
     delta = (p - 1) * (p - phat) / p + 1
     K = 2m + p + 1
-    c = (_phi_be_coeff(m, p) / normTs^delta)^(1 / K)
+    c = _phi_be_scale(m, p, normTs, delta, K)
     scaledT = c .* abs.(A ./ scalefac)
     alpha = _normpow_nonneg(scaledT, K)
     t = log2(2alpha / eps(Float64)) / (K - delta) + t0
