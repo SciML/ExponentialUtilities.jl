@@ -30,6 +30,7 @@ expv_timestep
 phiv_timestep
 expv_timestep!
 phiv_timestep!
+kiops
 ```
 
 ## Caches
@@ -37,4 +38,6 @@ phiv_timestep!
 ```@docs
 ExponentialUtilities.ExpvCache
 ExponentialUtilities.PhivCache
+ExponentialUtilities.StegrCache
+ExponentialUtilities.get_subspace_cache
 ```

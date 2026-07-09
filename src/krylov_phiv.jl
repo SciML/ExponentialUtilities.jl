@@ -2,6 +2,21 @@
 
 ############################
 # Cache for expv
+"""
+    ExpvCache{T}(maxiter::Int)
+
+Reusable scratch workspace for the in-place [`expv!`](@ref) Krylov
+matrix-exponential-vector product with element type `T`. It holds a single flat
+buffer sized for an `maxiter`×`maxiter` Hessenberg matrix; pass the cache as the
+`cache` keyword to `expv!` to avoid reallocating that buffer on repeated calls.
+The buffer is grown automatically (via `resize!`) if a later call requests a
+larger subspace than the one it was allocated for.
+
+# Fields
+
+  - `mem::Vector{T}`: flat storage of length `maxiter^2` reshaped on demand into
+    the `m`×`m` working copy of the Hessenberg matrix.
+"""
 mutable struct ExpvCache{T}
     mem::Vector{T}
     ExpvCache{T}(maxiter::Int) where {T} = new{T}(Vector{T}(undef, maxiter^2))
@@ -222,6 +237,28 @@ compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = sour
 
 ############################
 # Cache for phiv
+"""
+    PhivCache(w, maxiter::Int, p::Int)
+
+Reusable scratch workspace for the in-place [`phiv!`](@ref) Krylov
+matrix-phi-vector product. It packs all the intermediate buffers needed to
+evaluate `ϕ_0(tA)b … ϕ_p(tA)b` over a Krylov subspace of dimension up to
+`maxiter` into a single flat vector, whose element type matches `eltype(w)`
+(the output array `w`). Pass the cache as the `cache` keyword to `phiv!` to
+avoid reallocating these buffers on repeated calls; the buffer is grown
+automatically (via `resize!`) if a later call requests a larger subspace or
+higher order than the one it was allocated for.
+
+The `useview` type parameter records whether views into the flat buffer are
+usable (`true` for ordinary `Array`s, `false` for GPU arrays, which get freshly
+allocated reshaped copies instead).
+
+# Fields
+
+  - `mem::Vector{T}`: flat storage that is carved (by `get_caches`) into the
+    subspace vector, a Hessenberg working copy, and the two augmented matrices
+    used by the phi-function recurrence.
+"""
 mutable struct PhivCache{useview, T}
     mem::Vector{T}
 end
