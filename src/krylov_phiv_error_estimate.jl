@@ -7,6 +7,27 @@
 abstract type SubspaceCache{T} end
 abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 
+"""
+    StegrCache(T, n::Integer)
+
+Subspace-exponential cache for the error-estimate variant of [`expv!`](@ref)
+(the `mode = :error_estimate` path) on Hermitian operators with element type
+`T`. It is a concrete `HermitianSubspaceCache` sized for a Lanczos subspace of
+dimension up to `n`, and it drives the LAPACK symmetric-tridiagonal
+eigensolver `stegr!` to compute the exponential of the tridiagonal subspace
+matrix on each iteration. Construct one directly, or let
+[`get_subspace_cache`](@ref) build the right cache for a given
+`KrylovSubspace`.
+
+# Fields
+
+  - `v::Vector{T}`: the subspace-propagated vector (length `n`) that holds the
+    result of applying the subspace exponential.
+  - `w::Vector{T}`: scratch vector (length `n`) for intermediate values.
+  - `sw::Stegr.StegrWork{R}`: preallocated LAPACK `stegr!` workspace, where
+    `R = real(T)`, reused across iterations to diagonalize the tridiagonal
+    subspace matrix.
+"""
 mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
     v::Vector{T} # Subspace-propagated vector
     w::Vector{T}
@@ -38,6 +59,15 @@ function expT!(
     return mul!(@view(cache.v[sel]), @view(cache.sw.Z[sel, sel]), @view(cache.w[sel]))
 end
 
+"""
+    get_subspace_cache(Ks::KrylovSubspace) -> SubspaceCache
+
+Construct the subspace-exponential cache appropriate for the Krylov subspace
+`Ks`, for use with the error-estimate variant of [`expv!`](@ref). For a real
+(Hermitian) subspace this returns a [`StegrCache`](@ref) sized to `Ks.maxiter`,
+which uses the LAPACK symmetric-tridiagonal eigensolver. Non-Hermitian
+(complex) subspaces are not yet supported and raise an error.
+"""
 function get_subspace_cache(Ks::KrylovSubspace{T, U}) where {T, U <: Complex}
     error("Subspace exponential caches not yet available for non-Hermitian matrices.")
 end
