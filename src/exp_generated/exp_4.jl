@@ -60,7 +60,7 @@ function exp_gen!(cache, A, ::Val{4})
     memslots6 .= coeff1 .* memslots6 .+ coeff2 .* memslots3
     # Deallocating U in slot 3
     # Computing P with operation: ldiv
-    ldiv_for_generated!(memslots2, memslots1, memslots6)
+    ldiv_for_generated!(memslots2, memslots1, memslots6, cache.linsolve)
     # Deallocating Z in slot 1
     # Deallocating X in slot 6
     return copyto!(A, memslots2) # Returning P

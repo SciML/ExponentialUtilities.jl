@@ -11,10 +11,32 @@ ExpMethodHigham2005(A::AbstractMatrix) = ExpMethodHigham2005(A isa StridedMatrix
 ExpMethodHigham2005() = ExpMethodHigham2005(true)
 ExpMethodHigham2005(A::GPUArraysCore.AbstractGPUArray) = ExpMethodHigham2005(false)
 
+# Holds the generated-code memory slots plus, when the element type supports it,
+# a cached LinearSolve workspace for the Padé denominator solve. `getmem` sees
+# only `slots`, so the generated code is unchanged apart from passing `linsolve`.
+struct Higham2005Cache{V <: AbstractVector, L}
+    slots::V
+    linsolve::L
+end
+
+# LinearSolve's default algorithm choice with alias_A/alias_b: size-selects the
+# fastest LU (RecursiveFactorization when loaded), refactorizes in place. Only
+# for dense strided BLAS matrices; other types (GPU, BigFloat, ...) keep the
+# `lu!` fallback in `ldiv_for_generated!`.
+function _pade_linsolve(A::StridedMatrix{<:LinearAlgebra.BlasFloat})
+    Abuf = similar(A)
+    Bbuf = similar(A)
+    return LinearSolve.init(
+        LinearProblem(Abuf, Bbuf);
+        alias = LinearSolve.LinearAliasSpecifier(alias_A = true, alias_b = true)
+    )
+end
+_pade_linsolve(A) = nothing
+
 function alloc_mem(A, ::ExpMethodHigham2005)
     T = eltype(A)
     scale = T <: LinearAlgebra.BlasFloat ? similar(A, real(T), size(A, 1)) : nothing
-    return [similar(A) for i in 1:5], scale
+    return Higham2005Cache([similar(A) for i in 1:5], _pade_linsolve(A)), scale
 end
 
 # Import the generated code
@@ -32,11 +54,19 @@ include("exp_generated/exp_11.jl")
 include("exp_generated/exp_12.jl")
 include("exp_generated/exp_13.jl")
 
-function getmem(cache, k) # Called from generated code
-    return cache[k - 1]
+getmem(cache, k) = cache[k - 1] # Called from generated code
+getmem(cache::Higham2005Cache, k) = cache.slots[k - 1]
+
+# C = A \ B. Called from generated code, threading the cache's `linsolve`.
+function ldiv_for_generated!(C, A, B, linsolve) # cached LinearSolve path
+    linsolve.A = A # alias the denominator slot: factorized in place
+    linsolve.b = B
+    sol = LinearSolve.solve!(linsolve)
+    copyto!(C, sol.u)
+    return C
 end
-function ldiv_for_generated!(C, A, B) # C=A\B. Called from generated code
-    F = lu!(A) # This allocation is unavoidable, due to the interface of LinearAlgebra
+function ldiv_for_generated!(C, A, B, ::Nothing) # lu! fallback (GPU, BigFloat, ...)
+    F = lu!(A)
     ldiv!(F, B) # Result stored in B
     if (pointer_from_objref(C) != pointer_from_objref(B)) # Aliasing allowed
         copyto!(C, B)
