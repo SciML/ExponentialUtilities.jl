@@ -16,11 +16,12 @@ function alloc_mem(
     U = Matrix{T}(undef, n, n)
     V = Matrix{T}(undef, n, n)
     temp = Matrix{T}(undef, n, n)
-    # Cached LinearSolve workspace for the Padé denominator solves, using
-    # LinearSolve's default algorithm choice (size-dependent: e.g. generic LU
-    # for tiny matrices, LAPACK/RecursiveFactorization above). The buffers are
-    # workspace-owned, so aliasing lets the factorization refactorize in place
-    # on every `solve!` instead of copying the n×n matrix.
+    # Cached LinearSolve workspace for the Padé denominator solves, using the
+    # default algorithm choice: it size-selects the fastest available LU
+    # (RecursiveFactorization when loaded — markedly faster than LAPACK at
+    # small/medium n). The buffers are workspace-owned, so aliasing lets the
+    # factorization overwrite Abuf in place on every `solve!` (no n×n copy),
+    # keeping each call allocation-free.
     Abuf = Matrix{T}(undef, n, n)
     Bbuf = Matrix{T}(undef, n, n)
     linsolve = LinearSolve.init(
@@ -37,13 +38,11 @@ function _pade_linsolve!(
     ) where {T}
     Abuf = linsolve.A
     copyto!(Abuf, temp)
-    linsolve.A = Abuf # flag the refactorization; lu! overwrites Abuf
+    linsolve.A = Abuf # flag refactorization; alias_A lets it overwrite Abuf
     copyto!(linsolve.b, X)
     sol = LinearSolve.solve!(linsolve)
-    # The Pade denominator is nonsingular by construction for the branch norm
-    # bounds, so this only triggers if even the default algorithm's safety
-    # fallback failed; surface it like LAPACK.gesv! did rather than silently
-    # propagating garbage.
+    # exp! historically threw on a singular denominator (via LAPACK.gesv!);
+    # keep that contract rather than propagating a failed factorization.
     if !LinearSolve.SciMLBase.successful_retcode(sol.retcode)
         throw(LinearAlgebra.SingularException(0))
     end
