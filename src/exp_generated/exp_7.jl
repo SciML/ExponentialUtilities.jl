@@ -81,7 +81,7 @@ function exp_gen!(cache, A, ::Val{7})
     memslots2 .= coeff1 .* memslots2 .+ coeff2 .* memslots5
     # Deallocating U in slot 5
     # Computing P with operation: ldiv
-    ldiv_for_generated!(memslots3, memslots1, memslots2)
+    ldiv_for_generated!(memslots3, memslots1, memslots2, cache.linsolve)
     # Deallocating Z in slot 1
     # Deallocating X in slot 2
     # Computing S1 with operation: mult
