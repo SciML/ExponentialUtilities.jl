@@ -128,34 +128,29 @@ function phiv_timestep!(
         gamma::Real = 0.8, NA::Int = 0,
         verbose = false
     ) where {T <: Number, tType <: Real}
-    # A scalar estimate of `opnorm(A, Inf)` is needed only to derive `abstol`
-    # (when unspecified) and the initial `tau` (when unspecified). Obtain it
-    # lazily and memoize, so a caller that supplies both `abstol` and `tau`
-    # never triggers `opnorm(A, Inf)` -- important for matrix types such as
-    # sparse GPU arrays for which `opnorm` is undefined.
-    opnorm_estimate = Ref{Union{Nothing, Real}}(opnorm isa Number ? opnorm : nothing)
-    function get_opnorm()
-        if opnorm_estimate[] === nothing
-            opnorm_estimate[] = opnorm === nothing ? LinearAlgebra.opnorm(A, Inf) :
-                opnorm(A, Inf)
+    # Choose initial timestep. A scalar estimate of `opnorm(A, Inf)` is needed
+    # only to derive `abstol` (when unspecified) and the initial `tau` (when
+    # unspecified); it is computed once here and only in that case, so a caller
+    # that supplies both `abstol` and `tau` never triggers `opnorm(A, Inf)` --
+    # important for matrix types such as sparse GPU arrays for which `opnorm` is
+    # undefined.
+    if abstol === nothing || iszero(tau)
+        opn = opnorm isa Number ? opnorm :
+            opnorm === nothing ? LinearAlgebra.opnorm(A, Inf) : opnorm(A, Inf)
+        if abstol === nothing
+            abstol = tol * opn
         end
-        return opnorm_estimate[]
-    end
-    # Choose initial timestep
-    if abstol === nothing
-        abstol = tol * get_opnorm()
+        if iszero(tau)
+            b0norm = norm(@view(B[:, 1]), Inf)
+            tau = 10 / opn *
+                (
+                abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
+                    (4 * opn * b0norm)
+            )^(1 / m)
+            verbose && println("Initial time step unspecified, chosen to be $tau")
+        end
     end
     verbose && println("Absolute tolerance: $abstol")
-    if iszero(tau)
-        opn = get_opnorm()
-        b0norm = norm(@view(B[:, 1]), Inf)
-        tau = 10 / opn *
-            (
-            abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
-                (4 * opn * b0norm)
-        )^(1 / m)
-        verbose && println("Initial time step unspecified, chosen to be $tau")
-    end
     # Initialization
     n = size(U, 1)
     sort!(ts)
