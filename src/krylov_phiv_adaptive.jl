@@ -80,6 +80,15 @@ Niesen & Wright is used, the relative tolerance of which can be set using the
 keyword parameter `tol`. The delta and gamma parameters of the adaptation
 scheme can also be adjusted.
 
+The adaptation scheme drives the internal error estimate below an absolute
+tolerance `abstol`. By default `abstol = tol * opnorm(A, Inf)`, reproducing the
+historical behavior. Passing `abstol` directly overrides this; combined with an
+explicit `tau`, it lets callers avoid evaluating `opnorm(A, Inf)` entirely,
+which is useful for matrix types (e.g. sparse GPU arrays) that do not support
+`opnorm`. The `opnorm` keyword may be a precomputed scalar or a function
+`opnorm(A, Inf)`; it is only evaluated when `abstol` or the initial `tau` is
+left unspecified.
+
 When encountering a happy breakdown in the Krylov subspace construction, the
 time step is set to the remainder of the time interval since time stepping is
 no longer necessary.
@@ -112,26 +121,36 @@ function phiv_timestep!(
         U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T};
         tau::Real = 0.0,
         m::Int = min(10, size(A, 1)), tol::Real = 1.0e-7,
-        opnorm = LinearAlgebra.opnorm(A, Inf), iop::Int = 0,
+        opnorm = nothing, abstol::Union{Nothing, Real} = nothing, iop::Int = 0,
         correct::Bool = false, caches = nothing, adaptive = false,
         delta::Real = 1.2,
         ishermitian::Bool = LinearAlgebra.ishermitian(A),
         gamma::Real = 0.8, NA::Int = 0,
         verbose = false
     ) where {T <: Number, tType <: Real}
-    # Choose initial timestep
-    opnorm = opnorm isa Number ? opnorm : opnorm(A, Inf) # backward compatibility
-    abstol = tol * opnorm
-    verbose && println("Absolute tolerance: $abstol")
-    if iszero(tau)
-        b0norm = norm(@view(B[:, 1]), Inf)
-        tau = 10 / opnorm *
-            (
-            abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
-                (4 * opnorm * b0norm)
-        )^(1 / m)
-        verbose && println("Initial time step unspecified, chosen to be $tau")
+    # Choose initial timestep. A scalar estimate of `opnorm(A, Inf)` is needed
+    # only to derive `abstol` (when unspecified) and the initial `tau` (when
+    # unspecified); it is computed once here and only in that case, so a caller
+    # that supplies both `abstol` and `tau` never triggers `opnorm(A, Inf)` --
+    # important for matrix types such as sparse GPU arrays for which `opnorm` is
+    # undefined.
+    if abstol === nothing || iszero(tau)
+        opn = opnorm isa Number ? opnorm :
+            opnorm === nothing ? LinearAlgebra.opnorm(A, Inf) : opnorm(A, Inf)
+        if abstol === nothing
+            abstol = tol * opn
+        end
+        if iszero(tau)
+            b0norm = norm(@view(B[:, 1]), Inf)
+            tau = 10 / opn *
+                (
+                abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
+                    (4 * opn * b0norm)
+            )^(1 / m)
+            verbose && println("Initial time step unspecified, chosen to be $tau")
+        end
     end
+    verbose && println("Absolute tolerance: $abstol")
     # Initialization
     n = size(U, 1)
     sort!(ts)

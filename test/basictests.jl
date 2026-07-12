@@ -591,6 +591,51 @@ end
     @test norm(u - u_exact) / norm(u_exact) < tol
 end
 
+@testset "abstol keyword and lazy opnorm" begin
+    # A matrix wrapper whose `opnorm` throws, but which otherwise supports the
+    # operations the Krylov time stepper needs. Passing `abstol` together with an
+    # explicit `tau` must avoid `opnorm` entirely; omitting them must still hit
+    # (and here, error on) `opnorm`, proving it is the only trigger.
+    struct NoOpnorm{T, M <: AbstractMatrix{T}} <: AbstractMatrix{T}
+        A::M
+    end
+    Base.size(A::NoOpnorm) = size(A.A)
+    Base.getindex(A::NoOpnorm, I...) = getindex(A.A, I...)
+    LinearAlgebra.mul!(y, A::NoOpnorm, x) = mul!(y, A.A, x)
+    LinearAlgebra.ishermitian(A::NoOpnorm) = ishermitian(A.A)
+    LinearAlgebra.opnorm(::NoOpnorm, ::Real) = error("opnorm intentionally unsupported")
+
+    n = 50
+    t = 3.0
+    tol = 1.0e-7
+    Ad = spdiagm(-1 => ones(n - 1), 0 => -2 * ones(n), 1 => ones(n - 1))
+    b = randn(n)
+    u_exact = expv_timestep(t, Ad, b; adaptive = true, tol = tol)
+
+    A = NoOpnorm(Matrix(Ad))
+    # Default path evaluates opnorm(A, Inf) -> errors.
+    @test_throws ErrorException expv_timestep(t, A, b; adaptive = true, tol = tol)
+    # Supplying abstol and tau bypasses opnorm and gives the right answer.
+    u = expv_timestep(
+        t, A, b; adaptive = true, tol = tol,
+        abstol = tol * opnorm(Ad, Inf), tau = t
+    )
+    @test norm(u - u_exact) / norm(u_exact) < 1.0e-5
+
+    # abstol without tau still needs opnorm for the initial step (errors here),
+    # confirming the initial-tau branch is the remaining consumer.
+    @test_throws ErrorException expv_timestep(
+        t, A, b; adaptive = true, tol = tol, abstol = 1.0e-6
+    )
+
+    # A scalar `opnorm` override is a valid way to feed the estimate without a
+    # method: abstol defaults to tol * opnorm and the initial tau uses it too.
+    u2 = expv_timestep(
+        t, A, b; adaptive = true, tol = tol, opnorm = opnorm(Ad, Inf)
+    )
+    @test norm(u2 - u_exact) / norm(u_exact) < 1.0e-5
+end
+
 @testset "Krylov for Hermitian matrices" begin
     # Hermitian matrices have real spectra. Ensure that the subspace
     # matrix is representable as a real matrix.
