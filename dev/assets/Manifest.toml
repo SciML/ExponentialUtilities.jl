@@ -209,7 +209,7 @@ version = "2.8.2+0"
 deps = ["Adapt", "ArrayInterface", "GPUArraysCore", "GenericSchur", "LinearAlgebra", "LinearSolve", "PrecompileTools", "Printf", "SparseArrays", "libblastrampoline_jll"]
 path = "/home/runner/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
-version = "1.32.0"
+version = "1.33.0"
 
     [deps.ExponentialUtilities.extensions]
     ExponentialUtilitiesStaticArraysExt = "StaticArrays"
@@ -634,9 +634,9 @@ version = "1.3.4"
 
 [[deps.RecursiveArrayTools]]
 deps = ["Adapt", "ArrayInterface", "DocStringExtensions", "GPUArraysCore", "LinearAlgebra", "PrecompileTools", "RecipesBase", "StaticArraysCore", "SymbolicIndexingInterface"]
-git-tree-sha1 = "ad9833b89f7956f7f3668a004093bed4b2004bb8"
+git-tree-sha1 = "7bdf89cbe4f5e1837b6e64adba6065e59b3b9f94"
 uuid = "731186ca-8d62-57ce-b412-fbd966d074cd"
-version = "4.3.3"
+version = "4.3.4"
 
     [deps.RecursiveArrayTools.extensions]
     RecursiveArrayToolsCUDAExt = "CUDA"
@@ -754,9 +754,9 @@ version = "2.0.3"
 
 [[deps.SciMLOperators]]
 deps = ["Accessors", "Adapt", "ArrayInterface", "DocStringExtensions", "LinearAlgebra"]
-git-tree-sha1 = "54ac780e1be8c12ad39295b5d4dfd4b1af3685ba"
+git-tree-sha1 = "9eb16cbe95f0578417aef9786c3238de3f456c22"
 uuid = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
-version = "1.24.0"
+version = "1.24.1"
 
     [deps.SciMLOperators.extensions]
     SciMLOperatorsLoopVectorizationExt = "LoopVectorization"
