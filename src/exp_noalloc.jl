@@ -24,6 +24,7 @@ end
 # for dense strided BLAS matrices; other types (GPU, BigFloat, ...) keep the
 # `lu!` fallback in `ldiv_for_generated!`.
 function _pade_linsolve(A::StridedMatrix{<:LinearAlgebra.BlasFloat})
+    A isa GPUArraysCore.AbstractGPUArray && return nothing
     Abuf = similar(A)
     Bbuf = similar(A)
     return LinearSolve.init(
