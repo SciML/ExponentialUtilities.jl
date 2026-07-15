@@ -86,9 +86,9 @@ is estimated matrix-free from the Arnoldi Hessenberg built on the first Krylov
 step, so `opnorm(A, Inf)` is never evaluated: this needs no operator method
 beyond `mul!` -- suitable for matrix types (e.g. sparse GPU arrays) that do not
 support `opnorm` -- and reflects `A`'s action on the Krylov subspace the
-exponential actually explores. In this mode the initial `tau` defaults to the
-whole interval. Pass `opnorm` as a precomputed scalar (a norm or bound) or a
-function `opnorm(A, Inf)` to override the estimate with an explicit
+exponential actually explores. The first Arnoldi step supplies the scale used
+to seed the initial `tau`. Pass `opnorm` as a precomputed scalar (a norm or
+bound) or a function `opnorm(A, Inf)` to override the estimate with an explicit
 operator-norm scale, which additionally seeds the initial `tau`.
 
 When encountering a happy breakdown in the Krylov subspace construction, the
@@ -225,15 +225,16 @@ function phiv_timestep!(
             # Matrix-free default: estimate the operator norm from the Krylov
             # Hessenberg (already the quantity the adaptation below uses), and
             # seed the initial substep from it (Niesen-Wright (17)) rather than
-            # stepping the whole interval, which matches the explicit-opnorm
-            # path's accuracy. Both are set on the first step only.
+            # stepping the whole interval. Apply the adaptation safety factor
+            # because this scale is a Krylov-subspace estimate rather than an
+            # operator-norm bound. Both are set on the first step only.
             opn = LinearAlgebra.opnorm(getH(Ks), 1)
             abstol = tol * opn
             if seed_arnoldi_tau
                 b0norm = norm(@view(B[:, 1]), Inf)
                 tau = min(
                     tend - t,
-                    10 / opn * (
+                    gamma * 10 / opn * (
                         abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
                             (4 * opn * b0norm)
                     )^(1 / m)
