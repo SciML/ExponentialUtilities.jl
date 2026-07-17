@@ -507,7 +507,9 @@ function phiv!(
     fill!(e, zero(T))
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1, expmethod = expmethod, expcache = expwork) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
-    aC2 = Adapt.adapt(typeof(w), C2)
+    # C2 is a strided reshape of the flat cache buffer: BLAS can consume it
+    # directly, so only adapt (which copies) when w needs another storage type.
+    aC2 = w isa Array ? C2 : Adapt.adapt(typeof(w), C2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost
