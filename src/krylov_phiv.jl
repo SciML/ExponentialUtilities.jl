@@ -276,7 +276,7 @@ function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
 end
 function get_caches(C::PhivCache{useview, T}, m::Int, p::Int) where {useview, T}
     numelems = m + m^2 + (m + p)^2 + m * (p + 1)
-    numelems^2 > length(C.mem) && resize!(C, m, p) # resize the cache if needed
+    numelems > length(C.mem) && resize!(C, m, p) # resize the cache if needed
     e = @view(C.mem[1:m])
     offset = m
 

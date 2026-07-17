@@ -550,6 +550,29 @@ end
     @test Q[:, 2] ≈ (t * A) \ (exp(t * A) - I) * ones(n)
 end
 
+@testset "PhivCache reuse (issue: cache reallocated every call)" begin
+    Random.seed!(0)
+    n, m, k = 40, 10, 3
+    A = randn(n, n) / 5
+    b = randn(n)
+    Ks = arnoldi(A, b; m = m)
+    w = Matrix{Float64}(undef, n, k + 1)
+    cache = ExponentialUtilities.PhivCache(b, m, k + 1)
+    phiv!(w, 0.1, Ks, k; cache = cache)
+    mem = cache.mem
+    phiv!(w, 0.1, Ks, k; cache = cache)
+    # A correctly-sized cache must not be reallocated on repeated calls
+    @test cache.mem === mem
+    # Correctness against the uncached path
+    w2 = Matrix{Float64}(undef, n, k + 1)
+    phiv!(w2, 0.1, Ks, k)
+    @test w ≈ w2
+    # An undersized cache must still grow to fit
+    smallcache = ExponentialUtilities.PhivCache(b, 2, 1)
+    phiv!(w, 0.1, Ks, k; cache = smallcache)
+    @test w ≈ w2
+end
+
 @testset "Complex Value" begin
     n = 20
     m = 10
