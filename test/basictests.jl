@@ -573,6 +573,33 @@ end
     @test w ≈ w2
 end
 
+@testset "exponential! workspace reuse in phiv!/expv!" begin
+    Random.seed!(0)
+    n, m = 40, 10
+    A = randn(n, n) / 5
+    b = randn(n)
+    Ks = arnoldi(A, b; m = m)
+    cache = ExponentialUtilities.PhivCache(b, m, 5)
+    # Alternating phi orders (as the ETDRK/EPIRK integrators do) must reuse
+    # one workspace per extended-matrix size and stay correct
+    for k in (1, 3, 1, 3)
+        w = Matrix{Float64}(undef, n, k + 1)
+        phiv!(w, 0.1, Ks, k; cache = cache)
+        @test w ≈ phiv(0.1, Ks, k)
+    end
+    entries = cache.expcache
+    @test entries isa Vector{Any}
+    @test length(entries) == 2 # one per distinct size, not one per call
+    # expv! with an ExpvCache reuses its workspace and stays correct
+    ecache = ExponentialUtilities.ExpvCache{Float64}(m)
+    w1 = zeros(n)
+    expv!(w1, 0.1, Ks; cache = ecache)
+    entries1 = ecache.expcache
+    expv!(w1, 0.1, Ks; cache = ecache)
+    @test ecache.expcache === entries1
+    @test w1 ≈ expv(0.1, Ks)
+end
+
 @testset "Complex Value" begin
     n = 20
     m = 10
