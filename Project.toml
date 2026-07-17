@@ -22,7 +22,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 ExponentialUtilitiesStaticArraysExt = "StaticArrays"
 
 [compat]
-Adapt = "3.4.0, 4"
+Adapt = "4.3"
 Aqua = "0.8"
 ArrayInterface = "7.1"
 DoubleFloats = "1.1.14"
