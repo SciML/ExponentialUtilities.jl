@@ -573,7 +573,9 @@ end
     t = 5.0
     tol = 1.0e-7
     A = spdiagm(-1 => ones(n - 1), 0 => -2 * ones(n), 1 => ones(n - 1))
-    B = randn(n, K + 1)
+    # This input puts the first Arnoldi step just inside the adaptation acceptance
+    # boundary, so it exercises the safety factor on the estimated norm scale.
+    B = randn(Random.Xoshiro(14), n, K + 1)
     Phi_half = phi(t / 2 * A, K)
     Phi = phi(t * A, K)
     uhalf_exact = sum((t / 2)^i * Phi_half[i + 1] * B[:, i + 1] for i in 0:K)
