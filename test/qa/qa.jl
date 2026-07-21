@@ -2,6 +2,7 @@ using SciMLTesting, ExponentialUtilities, JET, Test
 
 run_qa(
     ExponentialUtilities;
+    api_docs_kwargs = (; rendered = true),
     explicit_imports = true,
     aqua_kwargs = (; deps_compat = (; ignore = [:libblastrampoline_jll])),
     ei_kwargs = (;
