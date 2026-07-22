@@ -22,6 +22,7 @@ ExponentialUtilitiesStaticArraysExt = "StaticArrays"
 
 [compat]
 Adapt = "4.3"
+AllocCheck = "0.2"
 Aqua = "0.8"
 ArrayInterface = "7.1"
 DoubleFloats = "1.1.14"
@@ -41,6 +42,7 @@ Test = "1"
 julia = "1.10"
 
 [extras]
+AllocCheck = "9b6a8646-10ed-4001-bbdc-1d2f46dfbb1a"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -51,4 +53,4 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "DoubleFloats", "ForwardDiff", "Test", "SafeTestsets", "SciMLTesting", "StaticArrays", "Random"]
+test = ["AllocCheck", "Aqua", "DoubleFloats", "ForwardDiff", "Test", "SafeTestsets", "SciMLTesting", "StaticArrays", "Random"]
