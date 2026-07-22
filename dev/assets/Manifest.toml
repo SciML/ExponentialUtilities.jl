@@ -206,7 +206,7 @@ uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
 version = "2.8.2+0"
 
 [[deps.ExponentialUtilities]]
-deps = ["Adapt", "ArrayInterface", "GPUArraysCore", "GenericSchur", "LinearAlgebra", "LinearSolve", "PrecompileTools", "Printf", "SparseArrays", "libblastrampoline_jll"]
+deps = ["Adapt", "ArrayInterface", "GPUArraysCore", "GenericSchur", "LinearAlgebra", "LinearSolve", "PrecompileTools", "Printf", "SparseArrays"]
 path = "/home/runner/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 version = "1.33.2"
