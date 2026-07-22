@@ -853,9 +853,44 @@ end
         return minimum(@allocated(phiv_timestep!(u, 0.05, A, B; kws...)) for _ in 1:5)
     end
 
-    # Size-independence is the load-bearing assertion: equal allocation at a small
-    # and a large n proves the scratch buffers are reused, not reallocated. The
-    # absolute ceiling catches any return to the O(n^2)+ per-call regression.
+    # Structural reuse check -- the primary, version- and dependency-independent
+    # guard. After warmup, repeated calls must neither grow the exponential!
+    # workspace store nor swap out the flat scratch buffer. This directly tests
+    # the fixes for per-call PhivCache buffer reallocation and per-call workspace
+    # reallocation (which a byte count cannot reliably catch, since a reallocated
+    # workspace is a size-independent ~15 KB constant that varies by Julia and
+    # LinearSolve version).
+    @testset "workspace and scratch buffers keep their identity across calls" begin
+        A = mkA(300)
+        b = [1.0 / i for i in 1:300]
+        Ks = arnoldi(A, b; m = m)
+
+        w = Matrix{Float64}(undef, 300, 4)
+        pcache = ExponentialUtilities.PhivCache(b, m, 4)
+        phiv!(w, 0.1, Ks, 3; cache = pcache)  # warm
+        pmem = pointer(pcache.mem)
+        pworkspaces = length(pcache.expcache)
+        for _ in 1:5
+            phiv!(w, 0.1, Ks, 3; cache = pcache)
+        end
+        @test pointer(pcache.mem) == pmem              # flat buffer not reallocated
+        @test length(pcache.expcache) == pworkspaces   # no new workspace per call
+
+        wv = zeros(300)
+        ecache = ExponentialUtilities.ExpvCache{Float64}(m)
+        expv!(wv, 0.1, Ks; cache = ecache)  # warm
+        emem = pointer(ecache.mem)
+        eworkspaces = length(ecache.expcache)
+        for _ in 1:5
+            expv!(wv, 0.1, Ks; cache = ecache)
+        end
+        @test pointer(ecache.mem) == emem
+        @test length(ecache.expcache) == eworkspaces
+    end
+
+    # Size-independence: equal per-call allocation at a small and a large n proves
+    # the scratch buffers do not scale with the problem size (before the fix this
+    # scaled as O(n^2)/call). Holds on every Julia version.
     for (name, f, ceiling) in (
             ("phiv!", phiv_alloc, 256),
             ("expv!", expv_alloc, 256),
@@ -864,8 +899,15 @@ end
         f(32)                         # compile the whole path before measuring
         small = f(64)
         large = f(1024)
-        @test small == large          # independent of n -> buffers reused
-        @test large <= ceiling        # small constant, not O(n^2)
+        @test small == large
+        # The tight absolute bound only holds where the compiler fully optimizes
+        # the (very large, ~1200-character) concrete workspace-cache type: on
+        # Julia >= 1.11 these entry points are ~0 bytes/call, but on 1.10 that type
+        # defeats inference and each call boxes a small, size-independent constant
+        # (~8 KB). Assert the tight bound only on 1.11+.
+        if VERSION >= v"1.11"
+            @test large <= ceiling
+        end
     end
 end
 
