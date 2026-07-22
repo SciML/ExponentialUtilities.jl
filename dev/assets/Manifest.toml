@@ -207,9 +207,9 @@ version = "2.8.2+0"
 
 [[deps.ExponentialUtilities]]
 deps = ["Adapt", "ArrayInterface", "GPUArraysCore", "GenericSchur", "LinearAlgebra", "LinearSolve", "PrecompileTools", "Printf", "SparseArrays", "libblastrampoline_jll"]
-path = "/home/runner/work/ExponentialUtilities.jl/ExponentialUtilities.jl"
+path = "/home/runner/_work/ExponentialUtilities.jl/ExponentialUtilities.jl"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
-version = "1.33.1"
+version = "1.33.2"
 
     [deps.ExponentialUtilities.extensions]
     ExponentialUtilitiesStaticArraysExt = "StaticArrays"
@@ -400,9 +400,9 @@ version = "1.12.0"
 
 [[deps.LinearSolve]]
 deps = ["AMD", "ArrayInterface", "ConcreteStructs", "DocStringExtensions", "EnumX", "GPUArraysCore", "InteractiveUtils", "Krylov", "Libdl", "LinearAlgebra", "MKL_jll", "Markdown", "OpenBLAS_jll", "PrecompileTools", "Preferences", "PureKLU", "RecursiveArrayTools", "Reexport", "SciMLBase", "SciMLLogging", "SciMLOperators", "Setfield", "SparseArrays", "SparseColumnPivotedQR", "StaticArraysCore"]
-git-tree-sha1 = "e318cbf0c7be207b9e661cc6dc2877389d7aa460"
+git-tree-sha1 = "ef12628e82a96bd048340cd5dc99b6aada88a42f"
 uuid = "7ed4a6bd-45f5-4d41-b270-4a48e9bafcae"
-version = "4.3.0"
+version = "5.0.1"
 
     [deps.LinearSolve.extensions]
     LinearSolveAMDGPUExt = "AMDGPU"
