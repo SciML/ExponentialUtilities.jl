@@ -856,9 +856,9 @@ end
     # and a large n proves the scratch buffers are reused, not reallocated. The
     # absolute ceiling catches any return to the O(n^2)+ per-call regression.
     for (name, f, ceiling) in (
-            ("phiv!", phiv_alloc, 512),
-            ("expv!", expv_alloc, 512),
-            ("phiv_timestep!", phiv_timestep_alloc, 1024),
+            ("phiv!", phiv_alloc, 64),
+            ("expv!", expv_alloc, 64),
+            ("phiv_timestep!", phiv_timestep_alloc, 128),
         )
         f(32)                         # compile the whole path before measuring
         small = f(64)

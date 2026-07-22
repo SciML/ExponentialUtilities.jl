@@ -75,17 +75,19 @@ The mutated `u` or `U`.
 """
 function expv_timestep!(
         u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
-        kwargs...
+        caches = nothing, kwargs...
     ) where {T <: Number, tType <: Real}
-    expv_timestep!(reshape(u, length(u), 1), [t], A, b; kwargs...)
+    # `phiv_timestep!` accepts a vector output and a vector `b` (one φ₀ term)
+    # directly, so no `reshape`/`[t]` allocation is needed.
+    ts1 = _singleton_ts(caches, t)
+    phiv_timestep!(u, ts1, A, b; caches = caches, kwargs...)
     return u
 end
 function expv_timestep!(
-        U::AbstractMatrix{T}, ts::Vector{tType}, A, b::AbstractVector{T};
+        U::AbstractMatrix{T}, ts::AbstractVector{tType}, A, b::AbstractVector{T};
         kwargs...
     ) where {T <: Number, tType <: Real}
-    B = reshape(b, length(b), 1)
-    return phiv_timestep!(U, ts, A, B; kwargs...)
+    return phiv_timestep!(U, ts, A, b; kwargs...)
 end
 """
     phiv_timestep(ts,A,B[;adaptive,tol,kwargs...]) -> U
@@ -178,13 +180,45 @@ The mutated `u` or `U`.
 """
 function phiv_timestep!(
         u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};
-        kwargs...
+        caches = nothing, kwargs...
     ) where {T <: Number, tType <: Real}
-    phiv_timestep!(reshape(u, length(u), 1), [t], A, B; kwargs...)
+    # Pass the vector output straight through (the matrix method accepts a
+    # `AbstractVecOrMat` and writes a single snapshot directly into `u`), and take
+    # the length-1 `ts` from the phiv cache when available, so the scalar-time
+    # entry point allocates neither a `reshape` nor a `[t]`.
+    ts1 = _singleton_ts(caches, t)
+    phiv_timestep!(u, ts1, A, B; caches = caches, kwargs...)
     return u
 end
+# Length-1 `ts` buffer for the scalar-time methods: reuse the phiv cache's slot
+# when the caller supplied caches and the time is `Float64` (the buffer's type);
+# otherwise fall back to a fresh vector. Both arms yield a concretely-typed
+# vector for a given `t`.
+function _singleton_ts(caches::Tuple, t::Float64)
+    ts1 = (caches[5]::PhivCache).ts1
+    @inbounds ts1[1] = t
+    return ts1
+end
+_singleton_ts(_, t) = [t]
+# Snapshot-count and snapshot-column accessors so `phiv_timestep!` can write its
+# output either into the columns of a matrix `U` (multiple time snapshots) or
+# directly into a vector `u` (a single snapshot). The vector path lets the
+# scalar-time wrappers avoid a per-call `reshape(u, n, 1)` (an Array-header
+# allocation).
+_nsnapshots(U::AbstractMatrix) = size(U, 2)
+_nsnapshots(::AbstractVector) = 1
+_snapshotcol(U::AbstractMatrix, j) = @view(U[:, j])
+_snapshotcol(u::AbstractVector, _) = u
+# Column accessors for the coefficient argument `B`, so `expv_timestep!` can pass
+# its vector `b` straight through (a single `phi_0` term, p = 0) without a
+# `reshape(b, n, 1)` allocation. A vector `b` has one column, only ever indexed 1.
+_ncoeffs(B::AbstractMatrix) = size(B, 2)
+_ncoeffs(::AbstractVector) = 1
+_coeffcol(B::AbstractMatrix, j) = @view(B[:, j])
+_coeffcol(b::AbstractVector, _) = b
+
 function phiv_timestep!(
-        U::AbstractMatrix{T}, ts::Vector{tType}, A, B::AbstractMatrix{T};
+        U::AbstractVecOrMat{T}, ts::AbstractVector{tType}, A, B::AbstractVecOrMat{T};
         tau::Real = 0.0,
         m::Int = min(10, size(A, 1)), tol::Real = 1.0e-7,
         opnorm = nothing, iop::Int = 0,
@@ -208,7 +242,7 @@ function phiv_timestep!(
         opn = opnorm isa Number ? opnorm : opnorm(A, Inf)
         abstol = tol * opn
         if iszero(tau)
-            b0norm = norm(@view(B[:, 1]), Inf)
+            b0norm = norm(_coeffcol(B, 1), Inf)
             tau = 10 / opn *
                 (
                 abstol * ((m + 1) / ℯ)^(m + 1) * sqrt(2 * pi * (m + 1)) /
@@ -229,8 +263,8 @@ function phiv_timestep!(
     if seed_arnoldi_tau
         tau = tend
     end
-    p = size(B, 2) - 1
-    @assert length(ts) == size(U, 2) "Dimension mismatch"
+    p = _ncoeffs(B) - 1
+    @assert length(ts) == _nsnapshots(U) "Dimension mismatch"
     @assert n == size(A, 1) == size(A, 2) == size(B, 1) "Dimension mismatch"
     if caches == nothing
         u = similar(B, T, n)              # stores the current state
@@ -249,8 +283,11 @@ function phiv_timestep!(
         W = @view(W[:, 1:(p + 1)])
         P = @view(P[:, 1:(p + 2)])
     end
-    copyto!(u, @view(B[:, 1])) # u(0) = b0
-    coeffs = ones(tType, p)
+    copyto!(u, _coeffcol(B, 1)) # u(0) = b0
+    # Reuse the phiv cache's coefficient scratch when available (avoids a per-call
+    # allocation); fall back to a fresh vector on the uncached path. Both branches
+    # yield a Vector{T}, so `coeffs` stays concretely typed.
+    coeffs = (phiv_cache isa PhivCache) ? phiv_cache.coeffs : ones(T, p)
     if adaptive # initialization step for the adaptive scheme
         if ishermitian
             iop = 2 # does not have an effect on arnoldi!, just for flops estimation
@@ -280,7 +317,7 @@ function phiv_timestep!(
         @views @inbounds for j in 1:p
             mul!(W[:, j + 1], A, W[:, j])
             for l in 0:(p - j)
-                axpy!(coeffs[l + 1], B[:, j + l + 1], W[:, j + 1])
+                axpy!(coeffs[l + 1], _coeffcol(B, j + l + 1), W[:, j + 1])
             end
         end
         # Part 2: compute ϕp(tau*A)wp using Krylov, possibly with adaptation
@@ -295,7 +332,7 @@ function phiv_timestep!(
             opn = LinearAlgebra.opnorm(getH(Ks), 1)
             abstol = tol * opn
             if seed_arnoldi_tau
-                b0norm = norm(@view(B[:, 1]), Inf)
+                b0norm = norm(_coeffcol(B, 1), Inf)
                 tau = min(
                     tend - t,
                     gamma * 10 / opn * (
@@ -309,11 +346,7 @@ function phiv_timestep!(
         if Ks.wasbreakdown
             tau = tend - t
         end
-        _,
-            epsilon = phiv!(
-            P, tau, Ks, p + 1; cache = phiv_cache, correct = correct,
-            errest = true
-        )
+        _, epsilon = _phiv!(P, tau, Ks, p + 1, phiv_cache, correct, ExpMethodHigham2005Base())
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
         if adaptive
             omega = (tend / tau) * (epsilon / abstol)
@@ -342,11 +375,7 @@ function phiv_timestep!(
                 tau, tau_old = tau_new, tau
                 # Compute ϕp(tau*A)wp using the new parameters
                 arnoldi!(Ks, A, @view(W[:, end]); tol = tol, m = m, iop = iop)
-                _,
-                    epsilon_new = phiv!(
-                    P, tau, Ks, p + 1; cache = phiv_cache,
-                    correct = correct, errest = true
-                )
+                _, epsilon_new = _phiv!(P, tau, Ks, p + 1, phiv_cache, correct, ExpMethodHigham2005Base())
                 epsilon, epsilon_old = epsilon_new, epsilon
                 omega = (tend / tau) * (epsilon / abstol)
                 verbose && println("  * m = $m, tau = $tau, error estimate = $epsilon")
@@ -363,8 +392,8 @@ function phiv_timestep!(
         # Fill out all snapshots in between the current step
         while snapshot <= length(ts) && t + tau >= ts[snapshot]
             tau_snapshot = ts[snapshot] - t
-            u_snapshot = @view(U[:, snapshot])
-            phiv!(P, tau_snapshot, Ks, p + 1; cache = phiv_cache, correct = correct)
+            u_snapshot = _snapshotcol(U, snapshot)
+            _phiv!(P, tau_snapshot, Ks, p + 1, phiv_cache, correct, ExpMethodHigham2005Base())
             lmul!(tau_snapshot^p, copyto!(u_snapshot, @view(P[:, end - 1])))
             @inbounds for l in 1:(p - 1) # compute cl = tau^l/l!
                 coeffs[l + 1] = coeffs[l] * tau_snapshot / l

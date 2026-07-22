@@ -228,7 +228,13 @@ function firststep!(Ks::KrylovSubspace, V, H, b)
         fill!(H, zero(eltype(H)))
         Ks.beta = norm(b)
         if !iszero(Ks.beta)
-            @. V[:, 1] = b / Ks.beta
+            # Explicit loop rather than `@. V[:, 1] = b / Ks.beta`: the column
+            # `view(V, :, 1)` the broadcast would materialize does not elide,
+            # allocating a SubArray on every arnoldi! call.
+            invbeta = inv(Ks.beta)
+            for i in eachindex(b)
+                V[i, 1] = b[i] * invbeta
+            end
         end
     end
 end

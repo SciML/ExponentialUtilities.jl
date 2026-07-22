@@ -40,13 +40,20 @@ mutable struct ExpvCache{T, W}
     # has no `alloc_mem` preallocation (e.g. BigFloat), and exponential! is then
     # called without a workspace.
     expcache::Vector{Tuple{Int, W}}
+    # First column of exp(H), copied out so the final `mul!` consumes a
+    # contiguous vector rather than a column view of the reshaped `mem` buffer
+    # (that view does not elide and would allocate a SubArray each call).
+    expcol::Vector{T}
 end
 function ExpvCache{T}(maxiter::Int) where {T}
     W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
-    return ExpvCache{T, W}(Vector{T}(undef, maxiter^2), Tuple{Int, W}[])
+    return ExpvCache{T, W}(
+        Vector{T}(undef, maxiter^2), Tuple{Int, W}[], Vector{T}(undef, maxiter)
+    )
 end
 function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
     C.mem = Vector{T}(undef, maxiter^2 * 2)
+    length(C.expcol) < maxiter && resize!(C.expcol, maxiter)
     return C
 end
 function get_cache(C::ExpvCache, m::Int)
@@ -181,17 +188,29 @@ function expv!(
         throw(ArgumentError("Cache must be an ExpvCache"))
     end
     copyto!(Hcopy, @view(H[1:m, :]))
+    Vm = @view(V[:, 1:m])
     if ishermitian(Hcopy)
         # Optimize the case for symtridiagonal H
         F = eigen!(SymTridiagonal(Hcopy))
         expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        return lmul!(beta, mul!(w, Vm, expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
     else
         lmul!(t, Hcopy)
-        expH = Hcopy
-        _exponential!(expH, expmethod, expwork)
-        expHe = @view(expH[:, 1])
+        _exponential!(Hcopy, expmethod, expwork)
+        # Consume the first column of exp(H) as a contiguous vector. A column
+        # view of `Hcopy` (a reshape of the cache buffer) does not elide; copying
+        # into the cache's `expcol` keeps the mul! input allocation-free.
+        if cache isa ExpvCache
+            expcol = cache.expcol
+            length(expcol) < m && resize!(expcol, m)
+            @inbounds for i in 1:m
+                expcol[i] = Hcopy[i, 1]
+            end
+            return lmul!(beta, mul!(w, Vm, @view(expcol[1:m])))
+        else
+            return lmul!(beta, mul!(w, Vm, @view(Hcopy[:, 1])))
+        end
     end
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
@@ -343,9 +362,13 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
 mutable struct PhivCache{useview, T, W}
     mem::Vector{T}
     expcache::Vector{Tuple{Int, W}}
-end
-function PhivCache{useview, T, W}(mem::Vector{T}) where {useview, T, W}
-    return PhivCache{useview, T, W}(mem, Tuple{Int, W}[])
+    # Reusable t^l/l! coefficient scratch for phiv_timestep! (which threads this
+    # cache in). Kept here so phiv_timestep! need not allocate it per call; plain
+    # phiv! does not touch it. `coeffs[1]` stays one(T); the rest are overwritten.
+    coeffs::Vector{T}
+    # Length-1 `ts` scratch for the scalar-time phiv_timestep!/expv_timestep!
+    # wrappers, so they need not allocate a `[t]` per call.
+    ts1::Vector{Float64}
 end
 
 function PhivCache(w, maxiter::Int, p::Int)
@@ -353,7 +376,10 @@ function PhivCache(w, maxiter::Int, p::Int)
     T = eltype(w)
     mem = Vector{T}(undef, numelems)
     W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
-    return PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T, W}(mem)
+    useview = !(w isa GPUArraysCore.AbstractGPUArray)
+    return PhivCache{useview, T, W}(
+        mem, Tuple{Int, W}[], ones(T, max(p, 1)), Vector{Float64}(undef, 1)
+    )
 end
 
 """
@@ -508,9 +534,21 @@ the output matrix.
 The mutated `w`, or `(w, estimate)` when `errest=true`.
 """
 function phiv!(
-        w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
+        w::AbstractMatrix, t::Number, Ks::KrylovSubspace, k::Integer;
         cache = nothing, correct = false,
         errest = false, expmethod = ExpMethodHigham2005Base()
+    )
+    w, err = _phiv!(w, t, Ks, k, cache, correct, expmethod)
+    # Split the error estimate out into an internal helper that always returns
+    # `(w, err)`: returning either `w` or `(w, err)` from `phiv!` directly makes
+    # the return type a union, which boxes (an allocation) at internal callers
+    # such as `phiv_timestep!` that always request the estimate.
+    return errest ? (w, err) : w
+end
+
+function _phiv!(
+        w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer,
+        cache, correct, expmethod
     ) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1) == size(V, 1) "Dimension mismatch"
@@ -539,10 +577,6 @@ function phiv!(
             axpy!(betah * C2[end, i + 1], vlast, @view(w[:, i]))
         end
     end
-    if errest
-        err = abs(beta * H[end, end] * t * C2[end, end])
-        return w, err
-    else
-        return w
-    end
+    err = abs(beta * H[end, end] * t * C2[end, end])
+    return w, err
 end
