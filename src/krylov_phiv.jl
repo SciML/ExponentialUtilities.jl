@@ -29,15 +29,21 @@ expv!(similar(b), 0.1, arnoldi(A, b); cache)
   - `mem::Vector{T}`: flat storage of length `maxiter^2` reshaped on demand into
     the `m`×`m` working copy of the Hessenberg matrix.
 """
-mutable struct ExpvCache{T}
+mutable struct ExpvCache{T, W}
     mem::Vector{T}
-    # (n, expmethod, workspace) entries for exponential!. The container is
-    # concrete but the entries cannot be: each workspace's type depends on the
-    # matrix size and element type at the time it is requested (LinearSolve's
-    # default algorithm choice is size-dependent), and one cache may hold
-    # workspaces of several sizes at once.
-    expcache::Vector{Any}
-    ExpvCache{T}(maxiter::Int) where {T} = new{T}(Vector{T}(undef, maxiter^2), Any[])
+    # exponential! workspaces (see `alloc_mem`) keyed by extended-matrix size.
+    # `W` is a single concrete type: the workspace type is fixed by the element
+    # type `T` and the default `ExpMethodHigham2005Base`, and is independent of
+    # the matrix size (LinearSolve's DefaultLinearSolver is a size-independent
+    # wrapper), so a cache spanning several subspace sizes stores one concrete
+    # type -- only the instances (one per size) differ. `W === Nothing` when `T`
+    # has no `alloc_mem` preallocation (e.g. BigFloat), and exponential! is then
+    # called without a workspace.
+    expcache::Vector{Tuple{Int, W}}
+end
+function ExpvCache{T}(maxiter::Int) where {T}
+    W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
+    return ExpvCache{T, W}(Vector{T}(undef, maxiter^2), Tuple{Int, W}[])
 end
 function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
     C.mem = Vector{T}(undef, maxiter^2 * 2)
@@ -329,25 +335,25 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
   - `mem::Vector{T}`: flat storage that is carved (by `get_caches`) into the
     subspace vector, a Hessenberg working copy, and the two augmented matrices
     used by the phi-function recurrence.
-  - `expcache`: lazily allocated `exponential!` workspaces (see `alloc_mem`)
-    reused across calls, one per distinct extended-matrix size and exponential
-    method requested against this cache.
+  - `expcache::Vector{Tuple{Int, W}}`: `exponential!` workspaces (see
+    `alloc_mem`) keyed by extended-matrix size, reused across calls. `W` is a
+    single concrete workspace type; see [`ExpvCache`](@ref) for why one type
+    covers all sizes.
 """
-mutable struct PhivCache{useview, T}
+mutable struct PhivCache{useview, T, W}
     mem::Vector{T}
-    # (n, expmethod, workspace) entries for exponential!; see ExpvCache for why
-    # the entries are heterogeneous.
-    expcache::Vector{Any}
+    expcache::Vector{Tuple{Int, W}}
 end
-function PhivCache{useview, T}(mem::Vector{T}) where {useview, T}
-    return PhivCache{useview, T}(mem, Any[])
+function PhivCache{useview, T, W}(mem::Vector{T}) where {useview, T, W}
+    return PhivCache{useview, T, W}(mem, Tuple{Int, W}[])
 end
 
 function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
     mem = Vector{T}(undef, numelems)
-    return PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T}(mem)
+    W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
+    return PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T, W}(mem)
 end
 
 """
@@ -355,27 +361,37 @@ end
 
 Return a reusable `exponential!` workspace (as produced by `alloc_mem(A,
 expmethod)`) stored in the cache `C`, allocating one the first time each
-distinct size/method combination is requested. A small list of workspaces is
-kept because a single integrator step may evaluate phi functions of several
-different orders (and hence extended-matrix sizes) against the same cache.
-Returns `nothing` when `alloc_mem` has no preallocation for this matrix
-type/method, in which case callers should use the two-argument `exponential!`.
+distinct extended-matrix size is requested. A small list of workspaces is kept
+because a single integrator step may evaluate phi functions of several
+different orders (and hence sizes) against the same cache; they all share the
+one concrete workspace type `W` the cache was built for.
+
+The typed store only holds workspaces for the default `ExpMethodHigham2005Base`
+(the method the cache's `W` was derived from); every other method dispatches to
+the fallback returning `nothing`, so the caller uses the two-argument
+`exponential!`. `nothing` is likewise returned for element types with no
+`alloc_mem` preallocation (`W === Nothing`, e.g. `BigFloat`). Dispatching on the
+method type keeps the return concretely typed (`W` or `Nothing`, never a union).
 """
-function get_expcache!(C::Union{ExpvCache, PhivCache}, A, expmethod)
+function get_expcache!(
+        C::Union{ExpvCache{T, W}, PhivCache{<:Any, T, W}}, A,
+        expmethod::ExpMethodHigham2005Base
+    ) where {T, W}
+    W === Nothing && return nothing  # nothing::Nothing === W, so return stays concrete
     n = size(A, 1)
     entries = C.expcache
-    for (nc, method, work) in entries
-        if nc == n && typeof(method) === typeof(expmethod)
-            return work
-        end
+    for (nc, work) in entries
+        nc == n && return work
     end
-    work = alloc_mem(A, expmethod)
+    work = alloc_mem(A, expmethod)::W
     # Bound the store: adaptive Krylov can wander over many subspace sizes, and
     # each workspace holds several n×n matrices. Resetting is cheap and rare.
     length(entries) >= 16 && empty!(entries)
-    push!(entries, (n, expmethod, work))
+    push!(entries, (n, work))
     return work
 end
+# Non-default methods are not cached; the caller allocates via two-arg exponential!.
+get_expcache!(::Union{ExpvCache, PhivCache}, A, expmethod) = nothing
 
 # Call exponential! with the reusable workspace when one is available; the
 # two-argument form allocates its own.

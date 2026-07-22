@@ -588,7 +588,7 @@ end
         @test w ≈ phiv(0.1, Ks, k)
     end
     entries = cache.expcache
-    @test entries isa Vector{Any}
+    @test isconcretetype(eltype(entries)) # concretely-typed store, not Vector{Any}
     @test length(entries) == 2 # one per distinct size, not one per call
     # expv! with an ExpvCache reuses its workspace and stays correct
     ecache = ExponentialUtilities.ExpvCache{Float64}(m)
@@ -856,9 +856,9 @@ end
     # and a large n proves the scratch buffers are reused, not reallocated. The
     # absolute ceiling catches any return to the O(n^2)+ per-call regression.
     for (name, f, ceiling) in (
-            ("phiv!", phiv_alloc, 4096),
-            ("expv!", expv_alloc, 4096),
-            ("phiv_timestep!", phiv_timestep_alloc, 8192),
+            ("phiv!", phiv_alloc, 512),
+            ("expv!", expv_alloc, 512),
+            ("phiv_timestep!", phiv_timestep_alloc, 1024),
         )
         f(32)                         # compile the whole path before measuring
         small = f(64)
