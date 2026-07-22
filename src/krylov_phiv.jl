@@ -31,8 +31,13 @@ expv!(similar(b), 0.1, arnoldi(A, b); cache)
 """
 mutable struct ExpvCache{T}
     mem::Vector{T}
-    expcache::Any # list of (n, expmethod, workspace) entries for exponential!
-    ExpvCache{T}(maxiter::Int) where {T} = new{T}(Vector{T}(undef, maxiter^2), nothing)
+    # (n, expmethod, workspace) entries for exponential!. The container is
+    # concrete but the entries cannot be: each workspace's type depends on the
+    # matrix size and element type at the time it is requested (LinearSolve's
+    # default algorithm choice is size-dependent), and one cache may hold
+    # workspaces of several sizes at once.
+    expcache::Vector{Any}
+    ExpvCache{T}(maxiter::Int) where {T} = new{T}(Vector{T}(undef, maxiter^2), Any[])
 end
 function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
     C.mem = Vector{T}(undef, maxiter^2 * 2)
@@ -330,10 +335,12 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
 """
 mutable struct PhivCache{useview, T}
     mem::Vector{T}
-    expcache::Any # list of (n, expmethod, workspace) entries for exponential!
+    # (n, expmethod, workspace) entries for exponential!; see ExpvCache for why
+    # the entries are heterogeneous.
+    expcache::Vector{Any}
 end
 function PhivCache{useview, T}(mem::Vector{T}) where {useview, T}
-    return PhivCache{useview, T}(mem, nothing)
+    return PhivCache{useview, T}(mem, Any[])
 end
 
 function PhivCache(w, maxiter::Int, p::Int)
@@ -357,10 +364,6 @@ type/method, in which case callers should use the two-argument `exponential!`.
 function get_expcache!(C::Union{ExpvCache, PhivCache}, A, expmethod)
     n = size(A, 1)
     entries = C.expcache
-    if !(entries isa Vector{Any})
-        entries = Any[]
-        C.expcache = entries
-    end
     for (nc, method, work) in entries
         if nc == n && typeof(method) === typeof(expmethod)
             return work

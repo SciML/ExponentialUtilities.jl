@@ -794,3 +794,76 @@ end
     scalar_result = exponential!(Double64(1.0), ExpMethodGeneric{Val{13}()}())
     @test Float64(scalar_result) ≈ exp(1.0) rtol = 1.0e-14
 end
+
+@testset "Krylov cache reuse is non-allocating and size-independent" begin
+    # Regression guard for the workspace-reuse fixes (PhivCache/ExpvCache no
+    # longer reallocate the phiv/exp scratch buffers on every call). AllocCheck's
+    # static check_allocs cannot certify this: the workspace is allocated lazily
+    # on the first cache miss and reused afterwards, which is a runtime/temporal
+    # property invisible to static analysis (and LinearSolve/BLAS/the dynamic
+    # dispatch over the heterogeneous expcache store are flagged regardless). The
+    # meaningful invariant is instead measured at runtime: after warmup the
+    # per-call allocation is a small constant that does NOT grow with the problem
+    # size n. Before the fix it scaled as O(n^2) plus a LinearSolve init per call.
+    m = 30
+
+    # Deterministic, non-symmetric operator so arnoldi takes the general (Higham)
+    # path rather than the Lanczos/eigen path that the workspace fix does not touch.
+    mkA(n) = [
+        i == j ? -2.0 : 0.1 / (1 + abs(i - j)) * (i < j ? 1.0 : 0.5)
+            for i in 1:n, j in 1:n
+    ]
+
+    # `minimum` over repeated calls filters one-off JIT/first-execution
+    # allocations; the buffers are all preallocated before the measured loop.
+    function phiv_alloc(n; k = 3)
+        A = mkA(n)
+        b = [1.0 / i for i in 1:n]
+        Ks = arnoldi(A, b; m = m)
+        w = Matrix{Float64}(undef, n, k + 1)
+        cache = ExponentialUtilities.PhivCache(b, m, k + 1)
+        for _ in 1:3
+            phiv!(w, 0.1, Ks, k; cache = cache)
+        end
+        return minimum(@allocated(phiv!(w, 0.1, Ks, k; cache = cache)) for _ in 1:5)
+    end
+
+    function expv_alloc(n)
+        A = mkA(n)
+        b = [1.0 / i for i in 1:n]
+        Ks = arnoldi(A, b; m = m)
+        w = zeros(n)
+        cache = ExponentialUtilities.ExpvCache{Float64}(m)
+        for _ in 1:3
+            expv!(w, 0.1, Ks; cache = cache)
+        end
+        return minimum(@allocated(expv!(w, 0.1, Ks; cache = cache)) for _ in 1:5)
+    end
+
+    function phiv_timestep_alloc(n; p = 1)
+        A = mkA(n)
+        B = [1.0 / (i + j) for i in 1:n, j in 1:(p + 1)]
+        u = zeros(n)
+        caches = ExponentialUtilities._phiv_timestep_caches(u, m, p)
+        kws = (; m = m, caches = caches, tau = 0.0, tol = 1.0e-7, adaptive = false)
+        for _ in 1:3
+            phiv_timestep!(u, 0.05, A, B; kws...)
+        end
+        return minimum(@allocated(phiv_timestep!(u, 0.05, A, B; kws...)) for _ in 1:5)
+    end
+
+    # Size-independence is the load-bearing assertion: equal allocation at a small
+    # and a large n proves the scratch buffers are reused, not reallocated. The
+    # absolute ceiling catches any return to the O(n^2)+ per-call regression.
+    for (name, f, ceiling) in (
+            ("phiv!", phiv_alloc, 4096),
+            ("expv!", expv_alloc, 4096),
+            ("phiv_timestep!", phiv_timestep_alloc, 8192),
+        )
+        f(32)                         # compile the whole path before measuring
+        small = f(64)
+        large = f(1024)
+        @test small == large          # independent of n -> buffers reused
+        @test large <= ceiling        # small constant, not O(n^2)
+    end
+end
