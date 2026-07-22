@@ -1,16 +1,37 @@
 module ExponentialUtilities
-using LinearAlgebra, SparseArrays, Printf
+import LinearAlgebra
+import LinearAlgebra: BLAS, Diagonal, Hermitian, I, SingularException,
+    SymTridiagonal, UniformScaling, axpy!, diagind, diagview, dot, eigen!,
+    ishermitian, ldiv!, lmul!, lu!, mul!, norm, opnorm, rdiv!, rmul!
+import SparseArrays
+import SparseArrays: AbstractSparseArray, AbstractSparseMatrix, SparseMatrixCSC, nnz
+import Printf
+import Printf: @printf
 using ArrayInterface: ismutable, allowed_setindex!
-using PrecompileTools
+import PrecompileTools
+import PrecompileTools: @compile_workload, @setup_workload
 import GenericSchur
 import GPUArraysCore
 import Adapt
 
-using Base: typename
+const BlasFloat = Union{Float32, Float64, ComplexF32, ComplexF64}
 
-Base.@assume_effects :foldable __parameterless_type(T) = typename(T).wrapper
-parameterless_type(x) = __parameterless_type(typeof(x))
-parameterless_type(::Type{T}) where {T} = __parameterless_type(T)
+function checksquare(A)
+    n, m = size(A)
+    n == m || throw(DimensionMismatch("matrix must be square, got size $(size(A))"))
+    return n
+end
+
+function rcswap!(i::Integer, j::Integer, A::AbstractMatrix)
+    i == j && return A
+    @inbounds for k in axes(A, 2)
+        A[i, k], A[j, k] = A[j, k], A[i, k]
+    end
+    @inbounds for k in axes(A, 1)
+        A[k, i], A[k, j] = A[k, j], A[k, i]
+    end
+    return A
+end
 
 """
     @diagview(A,d) -> view of the `d`th diagonal of `A`.
@@ -34,7 +55,6 @@ include("arnoldi.jl")
 include("krylov_phiv.jl")
 include("krylov_phiv_adaptive.jl")
 include("kiops.jl")
-include("StegrWork.jl")
 include("krylov_phiv_error_estimate.jl")
 # precompile script
 include("precompile.jl")

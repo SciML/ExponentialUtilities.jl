@@ -3,18 +3,40 @@
 #######################################
 # Output type/cache
 """
-    KrylovSubspace{T}(n,[maxiter=30]) -> Ks
-    KrylovSubspace{T, U, VType}(n,[maxiter=30]) -> Ks
+    KrylovSubspace{T}(n, [maxiter = 30]) -> Ks
+    KrylovSubspace{T, U, VType}(n, [maxiter = 30]) -> Ks
 
-Constructs an uninitialized Krylov subspace, which can be filled by `arnoldi!`.
+Construct an uninitialized Krylov subspace to be filled by [`arnoldi!`](@ref)
+or [`lanczos!`](@ref).
 
-The dimension of the subspace, `Ks.m`, can be dynamically altered but should
-be smaller than `maxiter`, the maximum allowed arnoldi iterations.
+# Arguments
 
-The type of the (extended) orthonormal basis vector matrix `V` may be specified
-as `VType`. This is required e. g. for `GPUArray`s.
+  - `T`: element type of the Krylov basis.
+  - `U`: element type of the Hessenberg matrix. Use `real(T)` for a Hermitian
+    problem.
+  - `VType`: matrix storage type for the basis. It must support
+    `VType(undef, rows, columns)`; choose a GPU-backed matrix type for GPU
+    vectors.
+  - `n`: dimension of the operator domain.
+  - `maxiter`: maximum Krylov dimension, defaulting to `30`.
+  - `augmented`: number of rows reserved for an augmented operator, defaulting
+    to `0`.
 
-`U` determines `eltype(H)`.
+# Fields
+
+  - `m`: current Krylov dimension. It can be smaller than `maxiter` after a
+    happy breakdown.
+  - `maxiter`: allocated maximum Krylov dimension.
+  - `augmented`: number of augmented rows.
+  - `beta`: norm of the starting vector from the last factorization.
+  - `wasbreakdown`: whether the last factorization ended in a happy breakdown.
+  - `V`: orthonormal Krylov basis storage.
+  - `H`: Hessenberg or tridiagonal recurrence-coefficient storage.
+
+# Returns
+
+An uninitialized `KrylovSubspace`. Call `arnoldi!` or `lanczos!` before using
+its basis or coefficients.
 
     getV(Ks) -> V
     getH(Ks) -> H
@@ -90,7 +112,26 @@ end
 """
     arnoldi(A,b[;m,tol,opnorm,iop]) -> Ks
 
-Performs `m` arnoldi iterations to obtain the Krylov subspace K_m(A,b).
+Perform Arnoldi iterations to obtain the Krylov subspace ``K_m(A, b)``.
+
+# Arguments
+
+  - `A`: a square matrix or a matrix-free operator satisfying the
+    Matrix-Free Operator Interface page in the manual.
+  - `b`: starting vector.
+
+# Keywords
+
+  - `m`: requested Krylov dimension, default `min(30, size(A, 1))`.
+  - `ishermitian`: select Lanczos for a Hermitian operator; defaults to
+    `LinearAlgebra.ishermitian(A)`.
+  - Additional keywords are forwarded to [`arnoldi!`](@ref), including `tol`,
+    `iop`, and `opnorm`.
+
+# Returns
+
+A populated [`KrylovSubspace`](@ref). Its `m` can be smaller than requested
+after a happy breakdown.
 
 The n x (m + 1) basis vectors `getV(Ks)` and the (m + 1) x m upper Hessenberg
 matrix `getH(Ks)` are related by the recurrence formula
@@ -253,7 +294,28 @@ end
 """
     arnoldi!(Ks,A,b[;tol,m,opnorm,iop,init]) -> Ks
 
-Non-allocating version of `arnoldi`.
+Populate an existing [`KrylovSubspace`](@ref) without allocating its basis.
+
+# Arguments
+
+  - `Ks`: reusable Krylov storage whose element and storage types must support
+    `A` and `b`.
+  - `A`: square matrix or matrix-free operator.
+  - `b`: starting vector.
+
+# Keywords
+
+  - `tol`: happy-breakdown threshold, default `1e-7`.
+  - `m`: requested Krylov dimension, bounded by `Ks.maxiter` unless the cache
+    is resized.
+  - `ishermitian`: select [`lanczos!`](@ref) for Hermitian operators.
+  - `iop`: incomplete-orthogonalization length; `0` performs full Arnoldi.
+  - `init`, `t`, `mu`, `l`: advanced controls for continuing or augmented
+    Krylov constructions.
+
+# Returns
+
+The mutated `Ks`.
 """
 function arnoldi!(
         Ks::KrylovSubspace{T1, U}, A::AT, b;
@@ -316,7 +378,7 @@ function lanczos_step!(
 end
 
 """
-    coeff(::Type,α)
+    coeff(::Type, α)
 
 Helper functions that returns the real part if that is what is
 required (for Hermitian matrices), otherwise returns the value
@@ -336,8 +398,24 @@ realview(::Type{R}, V::AbstractVector{R}) where {R} = V
 """
     lanczos!(Ks,A,b[;tol,m,opnorm]) -> Ks
 
-A variation of `arnoldi!` that uses the Lanczos algorithm for
-Hermitian matrices.
+Populate an existing [`KrylovSubspace`](@ref) with the Lanczos recurrence for
+a Hermitian operator.
+
+# Arguments
+
+  - `Ks`: reusable Krylov storage with real-valued Hessenberg coefficients.
+  - `A`: Hermitian matrix or matrix-free operator.
+  - `b`: starting vector.
+
+# Keywords
+
+`tol`, `m`, `opnorm`, `init`, `t`, `mu`, and `l` have the same role as for
+[`arnoldi!`](@ref). Call this only when `A` is Hermitian for the scalar product
+implemented by `mul!`.
+
+# Returns
+
+The mutated `Ks`.
 """
 function lanczos!(
         Ks::KrylovSubspace{T1, U, B}, A::AT, b;

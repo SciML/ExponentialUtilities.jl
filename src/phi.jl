@@ -95,7 +95,31 @@ end
 """
     phi(A,k[;cache]) -> [phi_0(A),phi_1(A),...,phi_k(A)]
 
-Compute the matrix phi functions for all orders up to k. `k` >= 1.
+Compute matrix phi functions for all orders up to `k`. `k >= 1`.
+
+# Arguments
+
+  - `A`: square numeric matrix.
+  - `k`: highest requested phi-function order.
+
+# Keywords
+
+  - `caches`: optional [`PhiPadeCache`](@ref) for repeated dense
+    `Float64`/`ComplexF64` evaluations, or the legacy basis-vector workspace
+    tuple described below.
+  - `expmethod`: matrix-exponential implementation for the legacy path.
+
+# Returns
+
+A vector `out` where `out[j + 1]` approximates ``\\varphi_j(A)`` for
+`j = 0:k`. For diagonal input, every result is diagonal.
+
+# Example
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+phi(A, 2)
+```
 
 The phi functions are defined as
 
@@ -122,8 +146,23 @@ end
 """
     phi!(out,A,k[;caches]) -> out
 
-Non-allocating version of `phi` for non-diagonal matrix inputs, writing
-`phi_j(A)` into `out[j+1]`.
+Compute matrix phi functions without allocating the output matrices.
+
+# Arguments
+
+  - `out`: vector of `k + 1` preallocated square matrices. Entry `out[j + 1]`
+    is overwritten with ``\\varphi_j(A)``.
+  - `A`: square numeric matrix.
+  - `k`: highest requested phi-function order.
+
+# Keywords
+
+  - `caches`: optional [`PhiPadeCache`](@ref) or legacy basis-vector workspace.
+  - `expmethod`: matrix-exponential implementation for the legacy path.
+
+# Returns
+
+The mutated `out`.
 
 For dense `Float64`/`ComplexF64` matrices, pass a reusable
 [`PhiPadeCache`](@ref) as `caches` to make repeated evaluations of the same

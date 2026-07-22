@@ -1,8 +1,19 @@
 """
     ExpMethodHigham2005(A::AbstractMatrix);
-    ExpMethodHigham2005(b::Bool=true);
+    ExpMethodHigham2005(b::Bool = true);
 
-Computes the matrix exponential using the algorithm Higham, N. J. (2005). "The scaling and squaring method for the matrix exponential revisited." SIAM J. Matrix Anal. Appl.Vol. 26, No. 4, pp. 1179–1193" based on generated code. If a matrix is specified, balancing is determined automatically.
+Matrix-exponential method using Higham's 2005 scaling-and-squaring Padé
+algorithm and generated evaluation kernels.
+
+# Arguments
+
+  - `do_balancing`: whether to balance a suitable dense matrix before the Padé
+    evaluation. The no-argument constructor defaults to `true`; the matrix
+    constructor selects balancing only for strided matrices.
+
+# Fields
+
+  - `do_balancing::Bool`: whether to apply matrix balancing.
 """
 struct ExpMethodHigham2005
     do_balancing::Bool
@@ -23,7 +34,7 @@ end
 # fastest LU (RecursiveFactorization when loaded), refactorizes in place. Only
 # for dense strided BLAS matrices; other types (GPU, BigFloat, ...) keep the
 # `lu!` fallback in `ldiv_for_generated!`.
-function _pade_linsolve(A::StridedMatrix{<:LinearAlgebra.BlasFloat})
+function _pade_linsolve(A::StridedMatrix{<:BlasFloat})
     A isa GPUArraysCore.AbstractGPUArray && return nothing
     Abuf = similar(A)
     Bbuf = similar(A)
@@ -36,7 +47,7 @@ _pade_linsolve(A) = nothing
 
 function alloc_mem(A, ::ExpMethodHigham2005)
     T = eltype(A)
-    scale = T <: LinearAlgebra.BlasFloat ? similar(A, real(T), size(A, 1)) : nothing
+    scale = T <: BlasFloat ? similar(A, real(T), size(A, 1)) : nothing
     return Higham2005Cache([similar(A) for i in 1:5], _pade_linsolve(A)), scale
 end
 
@@ -77,43 +88,6 @@ end
 
 const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4, 10.8, 21.6, 43.2, 86.4, 172.8, 345.6, 691.2)
 
-# From LinearAlgebra
-const LIBLAPACK = BLAS.libblastrampoline
-using LinearAlgebra: BlasInt, checksquare
-for (gebal, gebak, elty, relty) in (
-        (:dgebal_, :dgebak_, :Float64, :Float64),
-        (:sgebal_, :sgebak_, :Float32, :Float32),
-        (:zgebal_, :zgebak_, :ComplexF64, :Float64),
-        (:cgebal_, :cgebak_, :ComplexF32, :Float32),
-    )
-    @eval begin
-        #     SUBROUTINE DGEBAL( JOB, N, A, LDA, ILO, IHI, SCALE, INFO )
-        #*     .. Scalar Arguments ..
-        #      CHARACTER          JOB
-        #      INTEGER            IHI, ILP, INFO, LDA, N
-        #     .. Array Arguments ..
-        #      DOUBLE PRECISION   A( LDA, * ), SCALE( * )
-        function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
-            BLAS.chkstride1(A)
-            n = checksquare(A)
-            LAPACK.chkfinite(A) # balancing routines don't support NaNs and Infs
-            ihi = Ref{BlasInt}()
-            ilo = Ref{BlasInt}()
-            info = Ref{BlasInt}()
-            ccall(
-                (BLAS.@blasfunc($gebal), LIBLAPACK), Cvoid,
-                (
-                    Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
-                    Ptr{BlasInt}, Ptr{BlasInt}, Ptr{$relty}, Ptr{BlasInt}, Clong,
-                ),
-                job, n, A, max(1, stride(A, 2)), ilo, ihi, scale, info, 1
-            )
-            LAPACK.chklapackerror(info[])
-            return ilo[], ihi[], scale
-        end
-    end
-end
-
 # Inplace add of a UniformScaling object (support julia 1.6.2)
 @inline function inplace_add!(A, B::UniformScaling) # Called from generated code
     s = B.λ
@@ -127,7 +101,7 @@ end
 end
 function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, method))
     cache, _scale = _cache
-    n = LinearAlgebra.checksquare(A)
+    n = checksquare(A)
     nA = opnorm(A, 1)
 
     # Maybe to balancing. `ilo`/`ihi`/`scale` are seeded with no-op defaults so they are
@@ -140,23 +114,19 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
     prow = nothing  # row/col permutations from the GenericSchur (non-BLAS) balancing path
     pcol = nothing
     if method.do_balancing
-        if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
-            ilo, ihi, scale = gebal_noalloc!('B', A, _scale)    # modifies A and _scale
-        else
-            A, bal = GenericSchur.balance!(A)
-            ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
-            prow, pcol = bal.prow, bal.pcol
-        end
+        A, bal = GenericSchur.balance!(A)
+        ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
+        prow, pcol = bal.prow, bal.pcol
     end
 
     # Make the call to the appropriate exp_gen! function
-    X = Base.Cartesian.@nif 13 d -> begin
-        nA < RHO_V[d]
-    end d -> begin # if condition
-        exp_gen!(cache, A, Val(d))
-    end d -> begin # fallback (d == 13)
-        exp_gen!(cache, A, Val(d))
+    d = 13
+    for d in 1:12
+        if nA < RHO_V[d]
+            break
+        end
     end
+    X = exp_gen!(cache, A, Val(d))
 
     # Undo the balancing
     if method.do_balancing
@@ -170,27 +140,14 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
             end
         end
 
-        if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
-            if ilo > 1       # apply lower permutations in reverse order
-                for j in (ilo - 1):-1:1
-                    LinearAlgebra.rcswap!(j, Int(scale[j]), X)
-                end
+        if ilo > 1       # apply lower permutations in reverse order
+            for j in (ilo - 1):-1:1
+                rcswap!(j, prow[j], X)
             end
-            if ihi < n       # apply upper permutations in forward order
-                for j in (ihi + 1):n
-                    LinearAlgebra.rcswap!(j, Int(scale[j]), X)
-                end
-            end
-        else
-            if ilo > 1       # apply lower permutations in reverse order
-                for j in (ilo - 1):-1:1
-                    LinearAlgebra.rcswap!(j, prow[j], X)
-                end
-            end
-            if ihi < n       # apply upper permutations in forward order
-                for j in (ihi + 1):n
-                    LinearAlgebra.rcswap!(j, pcol[j - ihi], X)
-                end
+        end
+        if ihi < n       # apply upper permutations in forward order
+            for j in (ihi + 1):n
+                rcswap!(j, pcol[j - ihi], X)
             end
         end
     end

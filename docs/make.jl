@@ -9,8 +9,7 @@ makedocs(
     sitename = "ExponentialUtilities.jl",
     authors = "Chris Rackauckas",
     modules = [ExponentialUtilities],
-    clean = true, doctest = false, linkcheck = true,
-    warnonly = [:missing_docs, :docs_block],
+    clean = true, checkdocs = :exports, linkcheck = true,
     format = Documenter.HTML(
         analytics = "UA-90474609-3",
         assets = ["assets/favicon.ico"],

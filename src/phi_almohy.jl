@@ -125,6 +125,20 @@ failures only occur for pathological inputs, and no error is thrown — the
 outputs are filled with `NaN` so that adaptive integrators can detect the
 failed evaluation via `cache.info[] != 0` (or an `isfinite` check) and reject
 the step rather than abort.
+
+# Arguments
+
+  - `A`: representative strided `Float64` or `ComplexF64` square matrix.
+  - `p`: largest phi-function order needed in subsequent [`phi!`](@ref) calls.
+
+# Fields
+
+  - `As`, `Apow`, `Nm`, `Dm`, `Dfact`, `rhs`, `Naux`, `Daux`, `tmp`, `pow1`,
+    and `pow2`: matrix work buffers for scaling, Padé evaluation, and recovery.
+  - `linsolve`: reusable LinearSolve cache for Padé denominator solves.
+  - `absA`, `rvec1`, `rvec2`, `Ncoef`, `Dcoef`, `Amat`, `eta`, `alpha`,
+    `tvals`, and `Cost`: real-valued parameter-selection work buffers.
+  - `info`: result code from the most recent evaluation (`0` on success).
 """
 struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}, LS}
     As::MT
