@@ -3,14 +3,18 @@ using LinearSolve: LinearSolve, LinearProblem
 """
     ExpMethodHigham2005Base()
 
-The same as `ExpMethodHigham2005` but follows `Base.exp` closer.
+Matrix-exponential method using the Base-compatible Higham scaling-and-squaring
+implementation.
+
+This is primarily the default reduced-matrix method used by the Krylov APIs.
+It has no fields or constructor arguments.
 """
 struct ExpMethodHigham2005Base end
 function alloc_mem(
         A::StridedMatrix{T},
         method::ExpMethodHigham2005Base
-    ) where {T <: LinearAlgebra.BlasFloat}
-    n = LinearAlgebra.checksquare(A)
+    ) where {T <: BlasFloat}
+    n = checksquare(A)
     A2 = Matrix{T}(undef, n, n)
     P = Matrix{T}(undef, n, n)
     U = Matrix{T}(undef, n, n)
@@ -18,7 +22,7 @@ function alloc_mem(
     temp = Matrix{T}(undef, n, n)
     # Cached LinearSolve workspace for the Padé denominator solves, using the
     # default algorithm choice: it size-selects the fastest available LU
-    # (RecursiveFactorization when loaded — markedly faster than LAPACK at
+    # (RecursiveFactorization when loaded — markedly faster than the generic
     # small/medium n). The buffers are workspace-owned, so aliasing lets the
     # factorization overwrite Abuf in place on every `solve!` (no n×n copy),
     # keeping each call allocation-free.
@@ -41,10 +45,10 @@ function _pade_linsolve!(
     linsolve.A = Abuf # flag refactorization; alias_A lets it overwrite Abuf
     copyto!(linsolve.b, X)
     sol = LinearSolve.solve!(linsolve)
-    # exp! historically threw on a singular denominator (via LAPACK.gesv!);
+    # exp! historically threw on a singular denominator;
     # keep that contract rather than propagating a failed factorization.
     if !LinearSolve.SciMLBase.successful_retcode(sol.retcode)
-        throw(LinearAlgebra.SingularException(0))
+        throw(SingularException(0))
     end
     copyto!(X, sol.u)
     return X
@@ -58,9 +62,9 @@ end
 function exponential!(
         A::StridedMatrix{T}, method::ExpMethodHigham2005Base,
         cache = alloc_mem(A, method)
-    ) where {T <: LinearAlgebra.BlasFloat}
+    ) where {T <: BlasFloat}
     X = A
-    n = LinearAlgebra.checksquare(A)
+    n = checksquare(A)
     # if ishermitian(A)
     # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
@@ -70,12 +74,8 @@ function exponential!(
     fill!(P, zero(T))
     fill!(@diagview(P), one(T)) # P = Inn
 
-    if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
-        ilo, ihi, scale = LAPACK.gebal!('B', A)    # modifies A
-    else
-        A, bal = GenericSchur.balance!(A)
-        ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
-    end
+    A, bal = GenericSchur.balance!(A)
+    ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
 
     nA = opnorm(A, 1)
     ## For sufficiently small nA, use lower order Padé-Approximations
@@ -163,27 +163,14 @@ function exponential!(
         end
     end
 
-    if A isa StridedMatrix{<:LinearAlgebra.BLAS.BlasFloat}
-        if ilo > 1       # apply lower permutations in reverse order
-            for j in (ilo - 1):-1:1
-                LinearAlgebra.rcswap!(j, Int(scale[j]), X)
-            end
+    if ilo > 1       # apply lower permutations in reverse order
+        for j in (ilo - 1):-1:1
+            rcswap!(j, bal.prow[j], X)
         end
-        if ihi < n       # apply upper permutations in forward order
-            for j in (ihi + 1):n
-                LinearAlgebra.rcswap!(j, Int(scale[j]), X)
-            end
-        end
-    else
-        if ilo > 1       # apply lower permutations in reverse order
-            for j in (ilo - 1):-1:1
-                LinearAlgebra.rcswap!(j, bal.prow[j], X)
-            end
-        end
-        if ihi < n       # apply upper permutations in forward order
-            for j in (ihi + 1):n
-                LinearAlgebra.rcswap!(j, bal.pcol[j - ihi], X)
-            end
+    end
+    if ihi < n       # apply upper permutations in forward order
+        for j in (ihi + 1):n
+            rcswap!(j, bal.pcol[j - ihi], X)
         end
     end
 

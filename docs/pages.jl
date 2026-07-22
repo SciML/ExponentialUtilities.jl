@@ -5,4 +5,5 @@ pages = [
     "matrix_exponentials.md",
     "expv.md",
     "arnoldi.md",
+    "interfaces.md",
 ]

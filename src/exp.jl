@@ -2,7 +2,7 @@
 
 # Fallback
 """
-    cache=alloc_mem(A,method)
+    cache = alloc_mem(A, method)
 
 Pre-allocates memory associated with matrix exponential function `method` and matrix `A`. To be used in combination with [`exponential!`](@ref).
 """
@@ -25,9 +25,18 @@ end;
 
 ## The diagonalization based
 """
-    ExpMethodDiagonalization(enforce_real=true)
+    ExpMethodDiagonalization(enforce_real = true)
 
-Matrix exponential method corresponding to the diagonalization with `eigen` possibly by removing imaginary part introduced by the numerical approximation.
+Matrix-exponential method based on diagonalization with `eigen`.
+
+# Arguments
+
+  - `enforce_real`: when `true` (the default), discard small imaginary parts
+    introduced by numerical diagonalization for real input matrices.
+
+# Fields
+
+  - `enforce_real::Bool`: whether real input receives a real-valued result.
 """
 struct ExpMethodDiagonalization
     enforce_real::Bool
@@ -35,11 +44,25 @@ end
 ExpMethodDiagonalization() = ExpMethodDiagonalization(true);
 
 """
-    E=exponential!(A,[method [cache]])
+    E = exponential!(A, [method [cache]])
 
-Computes the matrix exponential with the method specified in `method`. The contents of `A` are modified, allowing for fewer allocations. The `method` parameter specifies the implementation and implementation parameters, e.g. [`ExpMethodNative`](@ref), [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), [`ExpMethodHigham2005`](@ref). Memory
-needed can be preallocated and provided in the parameter `cache` such that the memory can be recycled when calling `exponential!` several times. The preallocation is done with the command [`alloc_mem`](@ref): `cache=alloc_mem(A,method)`.
-`A` may not be sparse matrix type, since exp(A) is likely to be dense.
+Compute a matrix exponential, mutating `A` when the selected method supports
+in-place evaluation.
+
+# Arguments
+
+  - `A`: square, non-sparse matrix. Mutable inputs are overwritten by most
+    methods; immutable inputs use [`ExpMethodGeneric`](@ref) and are returned
+    out of place.
+  - `method`: exponential implementation, such as [`ExpMethodNative`](@ref),
+    [`ExpMethodDiagonalization`](@ref), [`ExpMethodGeneric`](@ref), or
+    [`ExpMethodHigham2005`](@ref).
+  - `cache`: optional workspace from `alloc_mem(A, method)` for repeated calls.
+
+# Returns
+
+The matrix exponential. For mutable input and in-place methods, this is the
+mutated `A`.
 
 If no `method` is given, immutable matrices (e.g. StaticArrays' `SMatrix`) are
 computed out-of-place with [`ExpMethodGeneric`](@ref) and the result is returned
@@ -75,7 +98,7 @@ end
 """
     ExpMethodNative()
 
-Matrix exponential method corresponding to calling `Base.exp`.
+Matrix-exponential method that delegates to `Base.exp`.
 """
 struct ExpMethodNative end
 function exponential!(A, method::ExpMethodNative, cache = nothing)

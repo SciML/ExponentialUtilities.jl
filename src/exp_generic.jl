@@ -8,7 +8,7 @@ intlog2(x) = x > typemax(Int) ? ceil(Int, log2(x)) : intlog2(ceil(Int, x))
 function naivemul!(
         C::StridedMatrix{T}, A::StridedMatrix{T},
         B::StridedMatrix{T}
-    ) where {T <: LinearAlgebra.BlasFloat}
+    ) where {T <: BlasFloat}
     return mul!(C, A, B)
 end
 function naivemul!(
@@ -22,9 +22,7 @@ function naivemul!(C, A, B)
     # TODO: heuristically pick `Nunroll` and `Munroll` using `sizeof(T)`, and maybe based on size of register file as well.
     # Nunroll = 2
     # Munroll = 4
-    # For now, the `4` and `2` are hardcoded to use `Base.Cartesian.@nexprs` without generated functions.
-    # But a minor code reorgaanization, e.g. loading and storing tuples while moving the `Base.Cartesian.@nexprs`
-    # into `tload` and `tstore!` functions could let us switch APIs.
+    # These values select the generic multiplication path's block shape.
     nstep = step(Naxis)
     mstep = step(Maxis)
     # I don't want to deal with axes having non-unit step
@@ -44,92 +42,17 @@ function naivemul!(C, A, B)
         mul!(C, A, B)
     end
 end
-_const(A) = A
-_const(A::Array) = Base.Experimental.Const(A)
-# Separated to make it easier to test.
-@generated function naivemul!(
-        C::AbstractMatrix{T}, A, B, Maxis, Naxis, ::Val{MU},
-        ::Val{NU}
-    ) where {T, MU, NU}
-    nrem_body = quote
-        m = first(Maxis) - 1
-        while m < M - $(MU - 1)
-            Base.Cartesian.@nexprs $MU i -> Cmn_i = zero(T)
-            for k in Kaxis
-                Base.Cartesian.@nexprs $MU i -> Cmn_i = muladd(
-                    _const(A)[m + i, k],
-                    _const(B)[k, nn], Cmn_i
-                )
+function naivemul!(C::AbstractMatrix{T}, A, B, Maxis, Naxis, ::Val, ::Val) where {T}
+    @inbounds for n in Naxis
+        for m in Maxis
+            value = zero(T)
+            for k in axes(B, 1)
+                value = muladd(A[m, k], B[k, n], value)
             end
-            Base.Cartesian.@nexprs $MU i -> C[m + i, nn] = Cmn_i
-            m += $MU
-        end
-        for mm in (1 + m):M
-            Cmn = zero(T)
-            for k in Kaxis
-                Cmn = muladd(_const(A)[mm, k], _const(B)[k, nn], Cmn)
-            end
-            C[mm, nn] = Cmn
+            C[m, n] = value
         end
     end
-    nrem_quote = if NU > 2
-        :(
-            for nn in (1 + n):N
-                $nrem_body
-            end
-        )
-    else
-        :(
-            let nn = N
-                $nrem_body
-            end
-        )
-    end
-    return quote
-        N = last(Naxis)
-        M = last(Maxis)
-        Kaxis = axes(B, 1)
-        Base.Experimental.@aliasscope begin
-            n = first(Naxis) - 1
-            @inbounds begin
-                while n < N - $(NU - 1)
-                    m = first(Maxis) - 1
-                    while m < M - $(MU - 1)
-                        Base.Cartesian.@nexprs $NU j -> Base.Cartesian.@nexprs $MU i -> Cmn_i_j = zero(T)
-                        for k in Kaxis
-                            Base.Cartesian.@nexprs $MU i -> Ak_i = _const(A)[m + i, k]
-                            Base.Cartesian.@nexprs $NU j -> begin
-                                Bk_j = _const(B)[k, n + j]
-                                Base.Cartesian.@nexprs $MU i -> Cmn_i_j = muladd(
-                                    Ak_i, Bk_j,
-                                    Cmn_i_j
-                                )
-                            end
-                        end
-                        Base.Cartesian.@nexprs $NU j -> Base.Cartesian.@nexprs $MU i -> C[m + i, n + j] = Cmn_i_j
-                        m += $MU
-                    end
-                    for mm in (1 + m):M
-                        Base.Cartesian.@nexprs $NU j -> Cmn_j = zero(T)
-                        for k in Kaxis
-                            Base.Cartesian.@nexprs $NU j -> Cmn_j = muladd(
-                                _const(A)[mm, k],
-                                _const(B)[
-                                    k,
-                                    n + j,
-                                ],
-                                Cmn_j
-                            )
-                        end
-                        Base.Cartesian.@nexprs $NU j -> C[mm, n + j] = Cmn_j
-                    end
-                    n += $NU
-                end
-                $(NU > 1 ? nrem_quote : nothing)
-            end
-        end
-        C
-    end
+    return C
 end
 
 """
@@ -152,13 +75,23 @@ use `ExpMethodGeneric(T)` where `T` is the element type.
 
 See "The Scaling and Squaring Method for the Matrix Exponential Revisited"
 by Higham, Nicholas J. in 2005 for algorithm details.
+
+# Arguments
+
+  - `k`: optional Padé order. `ExpMethodGeneric()` uses order `13` for common
+    floating-point inputs; `ExpMethodGeneric(T)` selects an order from `T`'s
+    precision.
+
+# Fields
+
+  - `T`: a `Val{k}` type parameter storing the selected Padé order.
 """
 struct ExpMethodGeneric{T} end
 ExpMethodGeneric() = ExpMethodGeneric{Val(13)}()
 ExpMethodGeneric(k::Integer) = ExpMethodGeneric{Val{k}()}()
 
 """
-    pade_order_for_type(::Type{T}) where T
+    pade_order_for_type(::Type{T}) where {T}
 
 Compute the minimum Padé order k required for machine-precision accuracy
 for a given floating-point type T. The (k,k) Padé approximant for exp(x)

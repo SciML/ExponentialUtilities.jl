@@ -709,32 +709,35 @@ end
     @test norm(wz) == 0
 end
 
-struct MatrixFreeOperator{T} <: AbstractMatrix{T}
-    A::Matrix{T}
+module ExternalMatrixFreeOperator
+    using LinearAlgebra
+    export Operator
+
+    struct Operator{T, M <: AbstractMatrix{T}}
+        data::M
+    end
+
+    Base.eltype(::Operator{T}) where {T} = T
+    Base.size(A::Operator, dim::Integer) = size(A.data, dim)
+    LinearAlgebra.mul!(y::AbstractVector, A::Operator, x::AbstractVector) =
+        mul!(y, A.data, x)
+    LinearAlgebra.ishermitian(A::Operator) = ishermitian(A.data)
 end
-Base.eltype(A::MatrixFreeOperator{T}) where {T} = T
-function LinearAlgebra.mul!(y::AbstractVector, A::MatrixFreeOperator, x::AbstractVector)
-    return mul!(y, A.A, x)
-end
-Base.size(A::MatrixFreeOperator, dim) = size(A.A, dim)
-struct OpnormFunctor end
-(::OpnormFunctor)(A::MatrixFreeOperator, p::Real) = opnorm(A.A, p)
-@testset "Matrix-free Operator" begin
+
+@testset "Matrix-free operator generic interface" begin
     Random.seed!(123)
     n = 20
     for ishermitian in (false, true)
         A = rand(ComplexF64, n, n)
         M = ishermitian ? A'A : A
-        Op = MatrixFreeOperator(M)
+        Op = ExternalMatrixFreeOperator.Operator(M)
         b = rand(ComplexF64, n)
-        Ks = arnoldi(
-            Op, b; ishermitian = ishermitian, opnorm = OpnormFunctor(),
-            tol = 1.0e-12
-        )
+        Ks = arnoldi(Op, b; ishermitian, tol = 1.0e-12)
         pv = phiv(0.01, Ks, 2)
-        pv′ = hcat(map(A -> A * b, phi(0.01Op.A, 2))...)
+        pv′ = hcat(map(A -> A * b, phi(0.01Op.data, 2))...)
 
         @test pv ≈ pv′ atol = 1.0e-12
+        @test expv(0.01, Op, b; m = n, ishermitian) ≈ exp(0.01M) * b atol = 1.0e-12
     end
 end
 

@@ -12,6 +12,18 @@ buffer sized for an `maxiter`×`maxiter` Hessenberg matrix; pass the cache as th
 The buffer is grown automatically (via `resize!`) if a later call requests a
 larger subspace than the one it was allocated for.
 
+# Arguments
+
+  - `T`: element type of the Krylov Hessenberg workspace.
+  - `maxiter`: largest Krylov dimension expected for repeated calls.
+
+# Example
+
+```julia
+cache = ExpvCache{Float64}(30)
+expv!(similar(b), 0.1, arnoldi(A, b); cache)
+```
+
 # Fields
 
   - `mem::Vector{T}`: flat storage of length `maxiter^2` reshaped on demand into
@@ -33,9 +45,30 @@ end
 ############################
 # Expv
 """
-    expv(t,A,b; kwargs) -> exp(tA)b
+    expv(t, A, b; kwargs) -> exp(tA)b
 
-Compute the matrix-exponential-vector product using Krylov.
+Compute the matrix-exponential-vector product with a Krylov approximation.
+
+# Arguments
+
+  - `t`: scalar time or scale factor.
+  - `A`: square matrix or matrix-free operator satisfying the
+    Matrix-Free Operator Interface page in the manual.
+  - `b`: input vector.
+  - `Ks`: a precomputed [`KrylovSubspace`](@ref) for the `(A, b)` pair.
+
+# Keywords
+
+  - `mode`: `:happy_breakdown` (default) builds a regular Arnoldi basis;
+    `:error_estimate` uses the Hermitian error-estimate method.
+  - `cache`: optional [`ExpvCache`](@ref) for the reduced exponential.
+  - `expmethod`: matrix-exponential implementation for the reduced problem.
+  - Remaining keywords for the `(t, A, b)` form are forwarded to
+    [`arnoldi`](@ref).
+
+# Returns
+
+The vector approximating ``\\exp(t A)b``.
 
 A Krylov subspace is constructed using `arnoldi` and `exp!` is called
 on the Hessenberg matrix. Consult `arnoldi` for the values of the
@@ -43,7 +76,7 @@ keyword arguments. An alternative algorithm, where an error estimate
 generated on-the-fly is used to terminate the Krylov iteration, can be
 employed by setting the kwarg `mode=:error_estimate`.
 
-    expv(t,Ks; cache) -> exp(tA)b
+    expv(t, Ks; cache) -> exp(tA)b
 
 Compute the expv product using a pre-constructed Krylov subspace.
 """
@@ -94,7 +127,23 @@ end
 """
     expv!(w,t,Ks[;cache]) -> w
 
-Non-allocating version of `expv` that uses precomputed Krylov subspace `Ks`.
+Compute ``\\exp(t A)b`` from a precomputed Krylov basis without allocating the
+output vector.
+
+# Arguments
+
+  - `w`: output vector, overwritten in place.
+  - `t`: scalar time or scale factor.
+  - `Ks`: populated [`KrylovSubspace`](@ref).
+
+# Keywords
+
+  - `cache`: `nothing` or a reusable [`ExpvCache`](@ref).
+  - `expmethod`: reduced matrix-exponential implementation.
+
+# Returns
+
+The mutated `w`.
 """
 function expv!(
         w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
@@ -196,7 +245,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(typeof(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # GPU expv! for Complex t (allocates in hermitian branch due to Real->Complex conversion)
@@ -230,7 +279,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(typeof(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
@@ -252,6 +301,20 @@ higher order than the one it was allocated for.
 The `useview` type parameter records whether views into the flat buffer are
 usable (`true` for ordinary `Array`s, `false` for GPU arrays, which get freshly
 allocated reshaped copies instead).
+
+# Arguments
+
+  - `w`: representative output array whose element type and device determine
+    the workspace layout.
+  - `maxiter`: largest Krylov dimension expected for repeated calls.
+  - `p`: highest phi-function order expected for repeated calls.
+
+# Example
+
+```julia
+cache = PhivCache(similar(b, length(b), 3), 30, 2)
+phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
+```
 
 # Fields
 
@@ -301,7 +364,29 @@ end
 """
     phiv(t,A,b,k;correct,kwargs) -> [phi_0(tA)b phi_1(tA)b ... phi_k(tA)b][, errest]
 
-Compute the matrix-phi-vector products using Krylov. `k` >= 1.
+Compute matrix-phi-vector products with a Krylov approximation. `k >= 1`.
+
+# Arguments
+
+  - `t`: scalar time or scale factor.
+  - `A`: square matrix or matrix-free operator satisfying the
+    Matrix-Free Operator Interface page in the manual.
+  - `b`: input vector.
+  - `k`: highest phi-function order.
+  - `Ks`: precomputed [`KrylovSubspace`](@ref) for the `(A, b)` pair.
+
+# Keywords
+
+  - `cache`: optional [`PhivCache`](@ref) for reduced phi-function work.
+  - `correct`: apply the last-Arnoldi-vector correction to orders `0:k-1`.
+  - `errest`: return `(w, estimate)` instead of just `w`.
+  - Remaining keywords for the `(t, A, b, k)` form are forwarded to
+    [`arnoldi`](@ref).
+
+# Returns
+
+An `n` by `k + 1` matrix whose columns are ``\\varphi_j(tA)b`` for
+`j = 0:k`, or that matrix paired with an error estimate when `errest=true`.
 
 The phi functions are defined as
 
@@ -339,7 +424,23 @@ end
 """
     phiv!(w,t,Ks,k[;cache,correct,errest]) -> w[,errest]
 
-Non-allocating version of 'phiv' that uses precomputed Krylov subspace `Ks`.
+Compute phi-vector products from a precomputed Krylov basis without allocating
+the output matrix.
+
+# Arguments
+
+  - `w`: output matrix with `size(w, 2) == k + 1`, overwritten in place.
+  - `t`: scalar time or scale factor.
+  - `Ks`: populated [`KrylovSubspace`](@ref).
+  - `k`: highest phi-function order.
+
+# Keywords
+
+`cache`, `correct`, and `errest` have the same meaning as for [`phiv`](@ref).
+
+# Returns
+
+The mutated `w`, or `(w, estimate)` when `errest=true`.
 """
 function phiv!(
         w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
@@ -359,7 +460,7 @@ function phiv!(
     fill!(e, zero(T))
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
-    aC2 = Adapt.adapt(parameterless_type(w), C2)
+    aC2 = Adapt.adapt(typeof(w), C2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost

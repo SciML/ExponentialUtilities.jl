@@ -26,6 +26,22 @@ internally.
 Note that this function is just a special case of `phiv_timestep` with a more
 intuitive interface (vector `b` instead of a n-by-1 matrix `B`).
 
+# Arguments
+
+  - `ts` or `t`: requested output time(s).
+  - `A`: square matrix or matrix-free operator satisfying the
+    Matrix-Free Operator Interface page in the manual.
+  - `b`: initial vector.
+
+# Keywords
+
+`adaptive`, `tol`, `tau`, `m`, `iop`, `opnorm`, `ishermitian`, `delta`,
+`gamma`, `NA`, and `verbose` are forwarded to [`phiv_timestep`](@ref).
+
+# Returns
+
+A vector for scalar `t`, or a matrix whose column `j` corresponds to `ts[j]`.
+
 [^1]: Niesen, J., & Wright, W. (2009). A Krylov subspace algorithm for
     evaluating the φ-functions in exponential integrators. arXiv preprint
     arXiv:0907.4631.
@@ -44,7 +60,18 @@ end
 """
     expv_timestep!(u,t,A,b[;kwargs]) -> u
 
-Non-allocating version of `expv_timestep`.
+Non-allocating version of [`expv_timestep`](@ref).
+
+# Arguments
+
+  - `u` or `U`: output vector or output matrix, overwritten in place.
+  - `t` or `ts`: requested output time(s).
+  - `A`: square matrix or matrix-free operator.
+  - `b`: initial vector.
+
+# Returns
+
+The mutated `u` or `U`.
 """
 function expv_timestep!(
         u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
@@ -98,6 +125,28 @@ no longer necessary.
 Set `verbose=true` to print out the internal steps (for debugging). For the
 other keyword arguments, consult `arnoldi` and `phiv`, which are used
 internally.
+
+# Arguments
+
+  - `ts` or `t`: requested output time(s).
+  - `A`: square matrix or matrix-free operator satisfying the
+    Matrix-Free Operator Interface page in the manual.
+  - `B`: matrix whose columns are the coefficients `b_0, ..., b_p`.
+
+# Keywords
+
+  - `tau`: initial internal step size. `0` selects an estimate.
+  - `m`: maximum Krylov dimension per internal step.
+  - `tol`: requested relative tolerance for adaptive stepping.
+  - `opnorm`: `nothing`, a scalar bound, or callable `(A, Inf) -> bound`.
+  - `adaptive`: enable joint step-size and Krylov-dimension adaptation.
+  - `iop`, `correct`, `caches`, `delta`, `ishermitian`, `gamma`, `NA`, and
+    `verbose`: advanced Arnoldi, correction, workspace, and adaptation controls.
+
+# Returns
+
+A vector for scalar `t`, or a matrix whose column `j` is the requested linear
+combination at `ts[j]`.
 """
 function phiv_timestep(ts::Vector{tType}, A, B; kwargs...) where {tType <: Real}
     U = Matrix{eltype(B)}(undef, size(A, 1), length(ts))
@@ -110,7 +159,22 @@ end
 """
     phiv_timestep!(U,ts,A,B[;kwargs]) -> U
 
-Non-allocating version of `phiv_timestep`.
+Non-allocating version of [`phiv_timestep`](@ref).
+
+# Arguments
+
+  - `u` or `U`: output vector or matrix, overwritten in place.
+  - `t` or `ts`: requested output time(s).
+  - `A`: square matrix or matrix-free operator.
+  - `B`: coefficient matrix for the phi-function combination.
+
+# Keywords
+
+The keywords are the same as for [`phiv_timestep`](@ref).
+
+# Returns
+
+The mutated `u` or `U`.
 """
 function phiv_timestep!(
         u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};

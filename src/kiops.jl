@@ -13,13 +13,13 @@ vectors from ``u``, that is
 The size of the Krylov subspace is changed dynamically during the integration.
 The Krylov subspace is computed using the incomplete orthogonalization method.
 
-Arguments:
+# Arguments
 
   - `tstops`     - Array of `tstop`
   - `A`          - the matrix argument of the ``φ`` functions
   - `u`          - the matrix with columns representing the vectors to be multiplied by the ``φ`` functions
 
-Keyword arguments:
+# Keywords
 
   - `tol`        - the convergence tolerance required (default: 1e-7)
   - `mmin`, `mmax` - let the Krylov size vary between mmin and mmax (default: 10, 128)
@@ -29,7 +29,7 @@ Keyword arguments:
   - `opnorm`     -  the operator norm of ``A`` (default: opnorm(A, Inf))
   - `task1`      - if true, divide the result by 1/T^p
 
-Returns:
+# Returns
 
   - `w`        - the linear combination of the ``φ`` functions evaluated at ``tA`` acting on the vectors from ``u``
   - `stats[1]` - number of substeps
@@ -273,7 +273,7 @@ function kiops(
     return w, stats
 end
 
-Base.@propagate_inbounds function kiops_update_solution!(
+function kiops_update_solution!(
         tau_now, tau, tau_out, w, l, V, F,
         H, beta, j, n, step, numSteps,
         reject, ireject
