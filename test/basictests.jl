@@ -900,14 +900,13 @@ end
         small = f(64)
         large = f(1024)
         @test small == large
-        # The tight absolute bound only holds where the compiler fully optimizes
-        # the (very large, ~1200-character) concrete workspace-cache type: on
-        # Julia >= 1.11 these entry points are ~0 bytes/call, but on 1.10 that type
-        # defeats inference and each call boxes a small, size-independent constant
-        # (~8 KB). Assert the tight bound only on 1.11+.
-        if VERSION >= v"1.11"
-            @test large <= ceiling
-        end
+        # The tight absolute bound holds where the compiler fully optimizes the
+        # (very large, ~1200-character) concrete workspace-cache type: on Julia
+        # >= 1.11 these entry points are ~0 bytes/call. On 1.10 that type defeats
+        # inference and each call boxes a small, size-independent constant (~8 KB);
+        # that is an accepted limitation there, so the bound is recorded as broken
+        # rather than skipped.
+        @test large <= ceiling broken = (VERSION < v"1.11")
     end
 end
 
