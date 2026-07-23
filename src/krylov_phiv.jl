@@ -410,9 +410,15 @@ function get_expcache!(
         nc == n && return work
     end
     work = alloc_mem(A, expmethod)::W
-    # Bound the store: adaptive Krylov can wander over many subspace sizes, and
-    # each workspace holds several n×n matrices. Resetting is cheap and rare.
-    length(entries) >= 16 && empty!(entries)
+    # Bound the store so memory stays in check, but evict only the oldest entry
+    # instead of wiping the whole cache. Adaptive Krylov revisits a modest,
+    # bounded set of extended-matrix sizes within a solve (each workspace is
+    # O((m+p)^2), tied to the subspace dimension, not the state size), so
+    # `empty!` here would repeatedly discard the still-hot workspaces and force
+    # the entire working set to be reallocated every 16th distinct size. Keeping
+    # the recently seen sizes warm makes the adaptive path allocation-free at
+    # steady state once its size set has been visited.
+    length(entries) >= 64 && popfirst!(entries)
     push!(entries, (n, work))
     return work
 end

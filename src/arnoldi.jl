@@ -461,6 +461,6 @@ function lanczos!(
             break
         end
     end
-    @inbounds copyto!(@diagview(H, 1), v[1:(end - 1)])
+    @inbounds copyto!(@diagview(H, 1), @view(v[1:(end - 1)]))
     return Ks
 end
