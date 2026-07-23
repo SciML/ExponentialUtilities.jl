@@ -278,7 +278,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(typeof(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # GPU expv! for Complex t (allocates in hermitian branch due to Real->Complex conversion)
@@ -312,7 +312,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(typeof(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
@@ -566,7 +566,7 @@ function _phiv!(
     phiv_dense!(C2, Hcopy, e, k; cache = C1, expmethod = expmethod, expcache = expwork) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
     # C2 is a strided reshape of the flat cache buffer: BLAS can consume it
     # directly, so only adapt (which copies) when w needs another storage type.
-    aC2 = w isa Array ? C2 : Adapt.adapt(typeof(w), C2)
+    aC2 = w isa Array ? C2 : Adapt.adapt(parameterless_type(w), C2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost

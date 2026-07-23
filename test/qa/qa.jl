@@ -20,6 +20,11 @@ run_qa(
         all_qualified_accesses_via_owners = (;
             ignore = (:chkstride1, :libblastrampoline),
         ),
+        # ArrayInterface.parameterless_type is not declared public but is the
+        # standard way to adapt a host array to the GPU array type of `w`.
+        all_explicit_imports_are_public = (;
+            ignore = (:parameterless_type,),
+        ),
     ),
 )
 
