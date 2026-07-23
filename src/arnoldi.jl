@@ -228,12 +228,18 @@ function firststep!(Ks::KrylovSubspace, V, H, b)
         fill!(H, zero(eltype(H)))
         Ks.beta = norm(b)
         if !iszero(Ks.beta)
-            # Explicit loop rather than `@. V[:, 1] = b / Ks.beta`: the column
-            # `view(V, :, 1)` the broadcast would materialize does not elide,
-            # allocating a SubArray on every arnoldi! call.
             invbeta = inv(Ks.beta)
-            for i in eachindex(b)
-                V[i, 1] = b[i] * invbeta
+            if fast_scalar_indexing(V)
+                # Explicit loop rather than `@. V[:, 1] = b / Ks.beta`: the column
+                # `view(V, :, 1)` the broadcast would materialize does not elide,
+                # allocating a SubArray on every arnoldi! call. Scalar indexing is
+                # only valid where it is fast (CPU arrays).
+                for i in eachindex(b)
+                    V[i, 1] = b[i] * invbeta
+                end
+            else
+                # GPU / non-scalar-indexing arrays: broadcast into the column.
+                @views V[:, 1] .= b .* invbeta
             end
         end
     end

@@ -7,7 +7,7 @@ import SparseArrays
 import SparseArrays: AbstractSparseArray, AbstractSparseMatrix, SparseMatrixCSC, nnz
 import Printf
 import Printf: @printf
-using ArrayInterface: ismutable, allowed_setindex!
+using ArrayInterface: ismutable, allowed_setindex!, fast_scalar_indexing
 import PrecompileTools
 import PrecompileTools: @compile_workload, @setup_workload
 import GenericSchur
