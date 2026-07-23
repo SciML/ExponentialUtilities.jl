@@ -3,7 +3,6 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays, DoubleFloats
-using AllocCheck: check_allocs
 
 @testset "exp!" begin
     n = 100
@@ -903,39 +902,26 @@ end
     end
 end
 
-@testset "AllocCheck static analysis of the Krylov hot path" begin
-    # AllocCheck's `check_allocs` runs a whole-method static allocation analysis.
-    # It CANNOT report zero for these entry points, and that is expected: the
-    # first call for a given subspace size lazily builds the `exponential!`
-    # workspace via `LinearSolve.init` (hundreds of static allocation sites), and
-    # the Padé denominator solve goes through `LinearSolve.solve!`; inlining
-    # attributes those to the caller and they cannot be filtered from the truly
-    # per-call code. Static analysis therefore cannot certify the reuse — the
-    # runtime size-independence testset above is the authoritative allocation
-    # guard. This testset keeps AllocCheck wired in and documents the situation;
-    # the `broken = true` markers record that a clean static zero is not
-    # achievable while LinearSolve is on the path.
-    m = 30
-    n = 120
-    A = collect(-2.0I(n) + 0.05 .* [1.0 / (1 + abs(i - j)) for i in 1:n, j in 1:n])
-    b = [1.0 / i for i in 1:n]
-    Ks = arnoldi(A, b; m = m)
-
-    w = Matrix{Float64}(undef, n, 4)
-    pcache = ExponentialUtilities.PhivCache(b, m, 4)
-    phiv!(w, 0.1, Ks, 3; cache = pcache)  # warm the workspace
-    phiv_warm(w, Ks, c) = phiv!(w, 0.1, Ks, 3; cache = c)
-    phiv_allocs = check_allocs(
-        phiv_warm, (typeof(w), typeof(Ks), typeof(pcache)); ignore_throw = true
-    )
-    @test isempty(phiv_allocs) broken = true
-
-    wv = zeros(n)
-    ecache = ExponentialUtilities.ExpvCache{Float64}(m)
-    expv!(wv, 0.1, Ks; cache = ecache)  # warm
-    expv_warm(wv, Ks, c) = expv!(wv, 0.1, Ks; cache = c)
-    expv_allocs = check_allocs(
-        expv_warm, (typeof(wv), typeof(Ks), typeof(ecache)); ignore_throw = true
-    )
-    @test isempty(expv_allocs) broken = true
+@testset "ExpMethodHigham2005Base across BlasFloat types" begin
+    # exponential!(_, ExpMethodHigham2005Base) is defined for every
+    # `T <: BlasFloat`. The Padé coefficients are stored once as `Float64` tuples
+    # and converted to `T` in `_pade_evaluate!`, and `gebal_noalloc!` has a method
+    # per BLAS element type (d/s/z/c). Exercise all four types across every Padé
+    # norm range (the scale factor selects the branch) plus the scaling-squaring
+    # path, checking against a high-precision reference.
+    meth = ExpMethodHigham2005Base()
+    Random.seed!(7)
+    for T in (Float64, Float32, ComplexF64, ComplexF32)
+        tol = real(T) == Float32 ? 1.0f-4 : 1.0e-11
+        for scale in (3.0, 1.5, 0.5, 0.1, 0.005)  # C13, C9, C7, C5, C3 branches
+            n = 40
+            A0 = T <: Complex ? (randn(real(T), n, n) + im * randn(real(T), n, n)) :
+                randn(T, n, n)
+            A = T(scale) .* A0 ./ opnorm(A0, 1)
+            ref = exp(Matrix{ComplexF64}(A))
+            E = exponential!(copy(A), meth)
+            @test E isa Matrix{T}
+            @test norm(ComplexF64.(E) - ref) / norm(ref) < tol
+        end
+    end
 end
