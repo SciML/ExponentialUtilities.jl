@@ -64,7 +64,8 @@ function phiv_dense!(
         w::AbstractMatrix{T}, A::AbstractMatrix{T},
         v::AbstractVector{T}, k::Integer;
         cache = nothing,
-        expmethod = ExpMethodHigham2005Base()
+        expmethod = ExpMethodHigham2005Base(),
+        expcache = nothing
     ) where {T <: Number}
     @assert size(w, 1) == size(A, 1) == size(A, 2) == length(v) "Dimension mismatch"
     @assert size(w, 2) == k + 1 "Dimension mismatch"
@@ -81,7 +82,7 @@ function phiv_dense!(
     for i in (m + 1):(m + k - 1)
         cache[i, i + 1] = one(T)
     end
-    P = exponential!(cache, expmethod)
+    P = _exponential!(cache, expmethod, expcache)
     # Extract results
     @views mul!(w[:, 1], P[1:m, 1:m], v)
     @inbounds for i in 1:k

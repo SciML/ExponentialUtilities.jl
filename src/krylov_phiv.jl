@@ -29,12 +29,31 @@ expv!(similar(b), 0.1, arnoldi(A, b); cache)
   - `mem::Vector{T}`: flat storage of length `maxiter^2` reshaped on demand into
     the `m`×`m` working copy of the Hessenberg matrix.
 """
-mutable struct ExpvCache{T}
+mutable struct ExpvCache{T, W}
     mem::Vector{T}
-    ExpvCache{T}(maxiter::Int) where {T} = new{T}(Vector{T}(undef, maxiter^2))
+    # exponential! workspaces (see `alloc_mem`) keyed by extended-matrix size.
+    # `W` is a single concrete type: the workspace type is fixed by the element
+    # type `T` and the default `ExpMethodHigham2005Base`, and is independent of
+    # the matrix size (LinearSolve's DefaultLinearSolver is a size-independent
+    # wrapper), so a cache spanning several subspace sizes stores one concrete
+    # type -- only the instances (one per size) differ. `W === Nothing` when `T`
+    # has no `alloc_mem` preallocation (e.g. BigFloat), and exponential! is then
+    # called without a workspace.
+    expcache::Vector{Tuple{Int, W}}
+    # First column of exp(H), copied out so the final `mul!` consumes a
+    # contiguous vector rather than a column view of the reshaped `mem` buffer
+    # (that view does not elide and would allocate a SubArray each call).
+    expcol::Vector{T}
+end
+function ExpvCache{T}(maxiter::Int) where {T}
+    W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
+    return ExpvCache{T, W}(
+        Vector{T}(undef, maxiter^2), Tuple{Int, W}[], Vector{T}(undef, maxiter)
+    )
 end
 function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
     C.mem = Vector{T}(undef, maxiter^2 * 2)
+    length(C.expcol) < maxiter && resize!(C.expcol, maxiter)
     return C
 end
 function get_cache(C::ExpvCache, m::Int)
@@ -160,24 +179,38 @@ function expv!(
         return w
     end
     if isnothing(cache)
-        cache = Matrix{U}(undef, m, m)
+        Hcopy = Matrix{U}(undef, m, m)
+        expwork = nothing
     elseif isa(cache, ExpvCache)
-        cache = get_cache(cache, m)
+        Hcopy = get_cache(cache, m)
+        expwork = get_expcache!(cache, Hcopy, expmethod)
     else
         throw(ArgumentError("Cache must be an ExpvCache"))
     end
-    copyto!(cache, @view(H[1:m, :]))
-    if ishermitian(cache)
+    copyto!(Hcopy, @view(H[1:m, :]))
+    Vm = @view(V[:, 1:m])
+    if ishermitian(Hcopy)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(cache))
+        F = eigen!(SymTridiagonal(Hcopy))
         expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        return lmul!(beta, mul!(w, Vm, expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
     else
-        lmul!(t, cache)
-        expH = cache
-        exponential!(expH, expmethod)
-        expHe = @view(expH[:, 1])
+        lmul!(t, Hcopy)
+        _exponential!(Hcopy, expmethod, expwork)
+        # Consume the first column of exp(H) as a contiguous vector. A column
+        # view of `Hcopy` (a reshape of the cache buffer) does not elide; copying
+        # into the cache's `expcol` keeps the mul! input allocation-free.
+        if cache isa ExpvCache
+            expcol = cache.expcol
+            length(expcol) < m && resize!(expcol, m)
+            @inbounds for i in 1:m
+                expcol[i] = Hcopy[i, 1]
+            end
+            return lmul!(beta, mul!(w, Vm, @view(expcol[1:m])))
+        else
+            return lmul!(beta, mul!(w, Vm, @view(Hcopy[:, 1])))
+        end
     end
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # NOTE: Tw can be Float64, while t is ComplexF64 and T is Float32
@@ -245,7 +278,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(typeof(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # GPU expv! for Complex t (allocates in hermitian branch due to Real->Complex conversion)
@@ -279,7 +312,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(typeof(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
@@ -321,17 +354,75 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
   - `mem::Vector{T}`: flat storage that is carved (by `get_caches`) into the
     subspace vector, a Hessenberg working copy, and the two augmented matrices
     used by the phi-function recurrence.
+  - `expcache::Vector{Tuple{Int, W}}`: `exponential!` workspaces (see
+    `alloc_mem`) keyed by extended-matrix size, reused across calls. `W` is a
+    single concrete workspace type; see [`ExpvCache`](@ref) for why one type
+    covers all sizes.
 """
-mutable struct PhivCache{useview, T}
+mutable struct PhivCache{useview, T, W}
     mem::Vector{T}
+    expcache::Vector{Tuple{Int, W}}
+    # Reusable t^l/l! coefficient scratch for phiv_timestep! (which threads this
+    # cache in). Kept here so phiv_timestep! need not allocate it per call; plain
+    # phiv! does not touch it. `coeffs[1]` stays one(T); the rest are overwritten.
+    coeffs::Vector{T}
+    # Length-1 `ts` scratch for the scalar-time phiv_timestep!/expv_timestep!
+    # wrappers, so they need not allocate a `[t]` per call.
+    ts1::Vector{Float64}
 end
 
 function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
     mem = Vector{T}(undef, numelems)
-    return PhivCache{!(w isa GPUArraysCore.AbstractGPUArray), T}(mem)
+    W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
+    useview = !(w isa GPUArraysCore.AbstractGPUArray)
+    return PhivCache{useview, T, W}(
+        mem, Tuple{Int, W}[], ones(T, max(p, 1)), Vector{Float64}(undef, 1)
+    )
 end
+
+"""
+    get_expcache!(C, A, expmethod) -> workspace or nothing
+
+Return a reusable `exponential!` workspace (as produced by `alloc_mem(A,
+expmethod)`) stored in the cache `C`, allocating one the first time each
+distinct extended-matrix size is requested. A small list of workspaces is kept
+because a single integrator step may evaluate phi functions of several
+different orders (and hence sizes) against the same cache; they all share the
+one concrete workspace type `W` the cache was built for.
+
+The typed store only holds workspaces for the default `ExpMethodHigham2005Base`
+(the method the cache's `W` was derived from); every other method dispatches to
+the fallback returning `nothing`, so the caller uses the two-argument
+`exponential!`. `nothing` is likewise returned for element types with no
+`alloc_mem` preallocation (`W === Nothing`, e.g. `BigFloat`). Dispatching on the
+method type keeps the return concretely typed (`W` or `Nothing`, never a union).
+"""
+function get_expcache!(
+        C::Union{ExpvCache{T, W}, PhivCache{<:Any, T, W}}, A,
+        expmethod::ExpMethodHigham2005Base
+    ) where {T, W}
+    W === Nothing && return nothing  # nothing::Nothing === W, so return stays concrete
+    n = size(A, 1)
+    entries = C.expcache
+    for (nc, work) in entries
+        nc == n && return work
+    end
+    work = alloc_mem(A, expmethod)::W
+    # Bound the store: adaptive Krylov can wander over many subspace sizes, and
+    # each workspace holds several n×n matrices. Resetting is cheap and rare.
+    length(entries) >= 16 && empty!(entries)
+    push!(entries, (n, work))
+    return work
+end
+# Non-default methods are not cached; the caller allocates via two-arg exponential!.
+get_expcache!(::Union{ExpvCache, PhivCache}, A, expmethod) = nothing
+
+# Call exponential! with the reusable workspace when one is available; the
+# two-argument form allocates its own.
+_exponential!(A, method, ::Nothing) = exponential!(A, method)
+_exponential!(A, method, work) = exponential!(A, method, work)
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     C.mem = similar(C.mem, numelems * 2)
@@ -443,9 +534,21 @@ the output matrix.
 The mutated `w`, or `(w, estimate)` when `errest=true`.
 """
 function phiv!(
-        w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer;
+        w::AbstractMatrix, t::Number, Ks::KrylovSubspace, k::Integer;
         cache = nothing, correct = false,
-        errest = false
+        errest = false, expmethod = ExpMethodHigham2005Base()
+    )
+    w, err = _phiv!(w, t, Ks, k, cache, correct, expmethod)
+    # Split the error estimate out into an internal helper that always returns
+    # `(w, err)`: returning either `w` or `(w, err)` from `phiv!` directly makes
+    # the return type a union, which boxes (an allocation) at internal callers
+    # such as `phiv_timestep!` that always request the estimate.
+    return errest ? (w, err) : w
+end
+
+function _phiv!(
+        w::AbstractMatrix, t::Number, Ks::KrylovSubspace{T, U}, k::Integer,
+        cache, correct, expmethod
     ) where {T <: Number, U <: Number}
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1) == size(V, 1) "Dimension mismatch"
@@ -456,11 +559,14 @@ function phiv!(
         throw(ArgumentError("Cache must be a PhivCache"))
     end
     e, Hcopy, C1, C2 = get_caches(cache, m, k)
+    expwork = get_expcache!(cache, C1, expmethod)
     lmul!(t, copyto!(Hcopy, @view(H[1:m, :])))
     fill!(e, zero(T))
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
-    phiv_dense!(C2, Hcopy, e, k; cache = C1) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
-    aC2 = Adapt.adapt(typeof(w), C2)
+    phiv_dense!(C2, Hcopy, e, k; cache = C1, expmethod = expmethod, expcache = expwork) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
+    # C2 is a strided reshape of the flat cache buffer: BLAS can consume it
+    # directly, so only adapt (which copies) when w needs another storage type.
+    aC2 = w isa Array ? C2 : Adapt.adapt(parameterless_type(w), C2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost
@@ -471,10 +577,6 @@ function phiv!(
             axpy!(betah * C2[end, i + 1], vlast, @view(w[:, i]))
         end
     end
-    if errest
-        err = abs(beta * H[end, end] * t * C2[end, end])
-        return w, err
-    else
-        return w
-    end
+    err = abs(beta * H[end, end] * t * C2[end, end])
+    return w, err
 end

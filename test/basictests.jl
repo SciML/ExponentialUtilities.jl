@@ -573,6 +573,33 @@ end
     @test w ≈ w2
 end
 
+@testset "exponential! workspace reuse in phiv!/expv!" begin
+    Random.seed!(0)
+    n, m = 40, 10
+    A = randn(n, n) / 5
+    b = randn(n)
+    Ks = arnoldi(A, b; m = m)
+    cache = ExponentialUtilities.PhivCache(b, m, 5)
+    # Alternating phi orders (as the ETDRK/EPIRK integrators do) must reuse
+    # one workspace per extended-matrix size and stay correct
+    for k in (1, 3, 1, 3)
+        w = Matrix{Float64}(undef, n, k + 1)
+        phiv!(w, 0.1, Ks, k; cache = cache)
+        @test w ≈ phiv(0.1, Ks, k)
+    end
+    entries = cache.expcache
+    @test isconcretetype(eltype(entries)) # concretely-typed store, not Vector{Any}
+    @test length(entries) == 2 # one per distinct size, not one per call
+    # expv! with an ExpvCache reuses its workspace and stays correct
+    ecache = ExponentialUtilities.ExpvCache{Float64}(m)
+    w1 = zeros(n)
+    expv!(w1, 0.1, Ks; cache = ecache)
+    entries1 = ecache.expcache
+    expv!(w1, 0.1, Ks; cache = ecache)
+    @test ecache.expcache === entries1
+    @test w1 ≈ expv(0.1, Ks)
+end
+
 @testset "Complex Value" begin
     n = 20
     m = 10
@@ -766,4 +793,135 @@ end
     # Test scalar case (which doesn't need opnorm)
     scalar_result = exponential!(Double64(1.0), ExpMethodGeneric{Val{13}()}())
     @test Float64(scalar_result) ≈ exp(1.0) rtol = 1.0e-14
+end
+
+@testset "Krylov cache reuse is non-allocating and size-independent" begin
+    # Regression guard for the workspace-reuse fixes (PhivCache/ExpvCache no
+    # longer reallocate the phiv/exp scratch buffers on every call). AllocCheck's
+    # static check_allocs cannot certify this: the workspace is allocated lazily
+    # on the first cache miss and reused afterwards, which is a runtime/temporal
+    # property invisible to static analysis (and LinearSolve/BLAS/the dynamic
+    # dispatch over the heterogeneous expcache store are flagged regardless). The
+    # meaningful invariant is instead measured at runtime: after warmup the
+    # per-call allocation is a small constant that does NOT grow with the problem
+    # size n. Before the fix it scaled as O(n^2) plus a LinearSolve init per call.
+    m = 30
+
+    # Deterministic, non-symmetric operator so arnoldi takes the general (Higham)
+    # path rather than the Lanczos/eigen path that the workspace fix does not touch.
+    mkA(n) = [
+        i == j ? -2.0 : 0.1 / (1 + abs(i - j)) * (i < j ? 1.0 : 0.5)
+            for i in 1:n, j in 1:n
+    ]
+
+    # `minimum` over repeated calls filters one-off JIT/first-execution
+    # allocations; the buffers are all preallocated before the measured loop.
+    function phiv_alloc(n; k = 3)
+        A = mkA(n)
+        b = [1.0 / i for i in 1:n]
+        Ks = arnoldi(A, b; m = m)
+        w = Matrix{Float64}(undef, n, k + 1)
+        cache = ExponentialUtilities.PhivCache(b, m, k + 1)
+        for _ in 1:3
+            phiv!(w, 0.1, Ks, k; cache = cache)
+        end
+        return minimum(@allocated(phiv!(w, 0.1, Ks, k; cache = cache)) for _ in 1:5)
+    end
+
+    function expv_alloc(n)
+        A = mkA(n)
+        b = [1.0 / i for i in 1:n]
+        Ks = arnoldi(A, b; m = m)
+        w = zeros(n)
+        cache = ExponentialUtilities.ExpvCache{Float64}(m)
+        for _ in 1:3
+            expv!(w, 0.1, Ks; cache = cache)
+        end
+        return minimum(@allocated(expv!(w, 0.1, Ks; cache = cache)) for _ in 1:5)
+    end
+
+    function phiv_timestep_alloc(n; p = 1)
+        A = mkA(n)
+        B = [1.0 / (i + j) for i in 1:n, j in 1:(p + 1)]
+        u = zeros(n)
+        caches = ExponentialUtilities._phiv_timestep_caches(u, m, p)
+        kws = (; m = m, caches = caches, tau = 0.0, tol = 1.0e-7, adaptive = false)
+        for _ in 1:3
+            phiv_timestep!(u, 0.05, A, B; kws...)
+        end
+        return minimum(@allocated(phiv_timestep!(u, 0.05, A, B; kws...)) for _ in 1:5)
+    end
+
+    # Structural reuse check -- the primary, version- and dependency-independent
+    # guard. After warmup, repeated calls must neither grow the exponential!
+    # workspace store nor swap out the flat scratch buffer. This directly tests
+    # the fixes for per-call PhivCache buffer reallocation and per-call workspace
+    # reallocation (which a byte count cannot reliably catch, since a reallocated
+    # workspace is a size-independent ~15 KB constant that varies by Julia and
+    # LinearSolve version).
+    @testset "workspace and scratch buffers keep their identity across calls" begin
+        A = mkA(300)
+        b = [1.0 / i for i in 1:300]
+        Ks = arnoldi(A, b; m = m)
+
+        w = Matrix{Float64}(undef, 300, 4)
+        pcache = ExponentialUtilities.PhivCache(b, m, 4)
+        phiv!(w, 0.1, Ks, 3; cache = pcache)  # warm
+        pmem = pointer(pcache.mem)
+        pworkspaces = length(pcache.expcache)
+        for _ in 1:5
+            phiv!(w, 0.1, Ks, 3; cache = pcache)
+        end
+        @test pointer(pcache.mem) == pmem              # flat buffer not reallocated
+        @test length(pcache.expcache) == pworkspaces   # no new workspace per call
+
+        wv = zeros(300)
+        ecache = ExponentialUtilities.ExpvCache{Float64}(m)
+        expv!(wv, 0.1, Ks; cache = ecache)  # warm
+        emem = pointer(ecache.mem)
+        eworkspaces = length(ecache.expcache)
+        for _ in 1:5
+            expv!(wv, 0.1, Ks; cache = ecache)
+        end
+        @test pointer(ecache.mem) == emem
+        @test length(ecache.expcache) == eworkspaces
+    end
+
+    # Size-independence: equal per-call allocation at a small and a large n proves
+    # the scratch buffers do not scale with the problem size (before the fix this
+    # scaled as O(n^2)/call). Holds on every Julia version and platform.
+    #
+    # No absolute byte ceiling is asserted: the per-call constant is 0 on modern
+    # x86 but a few KB where the compiler does not fully optimize the very large
+    # (~1200-character) concrete workspace-cache type (Julia 1.10, and some macOS
+    # builds). That constant is size-independent and does not indicate a
+    # reallocation regression -- the structural check above is the guard for that.
+    for f in (phiv_alloc, expv_alloc, phiv_timestep_alloc)
+        f(32)                         # compile the whole path before measuring
+        @test f(64) == f(1024)        # independent of n -> buffers reused
+    end
+end
+
+@testset "ExpMethodHigham2005Base across BlasFloat types" begin
+    # exponential!(_, ExpMethodHigham2005Base) is defined for every
+    # `T <: BlasFloat`. The Padé coefficients are stored once as `Float64` tuples
+    # and converted to `T` in `_pade_evaluate!`, and `gebal_noalloc!` has a method
+    # per BLAS element type (d/s/z/c). Exercise all four types across every Padé
+    # norm range (the scale factor selects the branch) plus the scaling-squaring
+    # path, checking against a high-precision reference.
+    meth = ExpMethodHigham2005Base()
+    Random.seed!(7)
+    for T in (Float64, Float32, ComplexF64, ComplexF32)
+        tol = real(T) == Float32 ? 1.0f-4 : 1.0e-11
+        for scale in (3.0, 1.5, 0.5, 0.1, 0.005)  # C13, C9, C7, C5, C3 branches
+            n = 40
+            A0 = T <: Complex ? (randn(real(T), n, n) + im * randn(real(T), n, n)) :
+                randn(T, n, n)
+            A = T(scale) .* A0 ./ opnorm(A0, 1)
+            ref = exp(Matrix{ComplexF64}(A))
+            E = exponential!(copy(A), meth)
+            @test E isa Matrix{T}
+            @test norm(ComplexF64.(E) - ref) / norm(ref) < tol
+        end
+    end
 end

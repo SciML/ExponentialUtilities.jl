@@ -1,5 +1,40 @@
 using LinearSolve: LinearSolve, LinearProblem
 
+# LAPACK GEBAL wrapper that writes the balancing permutation/scale into a
+# caller-supplied buffer instead of allocating one, unlike
+# `LinearAlgebra.LAPACK.gebal!` and `GenericSchur.balance!` (the latter allocates
+# ~15 KB per call even for a small matrix). Used for the strided-BlasFloat matrix
+# exponential so that balancing — and therefore the Krylov phi/exp hot path — is
+# allocation-free on the CPU. Non-BlasFloat / non-strided inputs keep the generic
+# `GenericSchur.balance!` fallback.
+const _LIBLAPACK = BLAS.libblastrampoline
+for (gebal, elty, relty) in (
+        (:dgebal_, :Float64, :Float64),
+        (:sgebal_, :Float32, :Float32),
+        (:zgebal_, :ComplexF64, :Float64),
+        (:cgebal_, :ComplexF32, :Float32),
+    )
+    @eval function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
+        BLAS.chkstride1(A)
+        n = LinearAlgebra.checksquare(A)
+        LinearAlgebra.LAPACK.chkfinite(A)
+        ilo = Ref{LinearAlgebra.BlasInt}()
+        ihi = Ref{LinearAlgebra.BlasInt}()
+        info = Ref{LinearAlgebra.BlasInt}()
+        ccall(
+            (BLAS.@blasfunc($gebal), _LIBLAPACK), Cvoid,
+            (
+                Ref{UInt8}, Ref{LinearAlgebra.BlasInt}, Ptr{$elty},
+                Ref{LinearAlgebra.BlasInt}, Ptr{LinearAlgebra.BlasInt},
+                Ptr{LinearAlgebra.BlasInt}, Ptr{$relty}, Ptr{LinearAlgebra.BlasInt}, Clong,
+            ),
+            job, n, A, max(1, stride(A, 2)), ilo, ihi, scale, info, 1
+        )
+        LinearAlgebra.LAPACK.chklapackerror(info[])
+        return ilo[], ihi[], scale
+    end
+end
+
 """
     ExpMethodHigham2005Base()
 
@@ -32,7 +67,8 @@ function alloc_mem(
         LinearProblem(Abuf, Bbuf);
         alias = LinearSolve.LinearAliasSpecifier(alias_A = true, alias_b = true)
     )
-    return (A2, P, U, V, temp, linsolve)
+    scale = Vector{real(T)}(undef, n)  # balancing scale, filled by gebal_noalloc!
+    return (A2, P, U, V, temp, linsolve, scale)
 end
 
 # X .= temp \ X through the cached LinearSolve workspace: refill the
@@ -54,6 +90,52 @@ function _pade_linsolve!(
     return X
 end
 
+# Padé numerator/denominator coefficients for the Higham (2005) scaling-and-
+# squaring orders used below. Stored as `const` tuples so no coefficient vector
+# is allocated per `exponential!` call; the values are converted to the working
+# element type inside `_pade_evaluate!`.
+const _PADE_C3 = (120.0, 60.0, 12.0, 1.0)
+const _PADE_C5 = (30240.0, 15120.0, 3360.0, 420.0, 30.0, 1.0)
+const _PADE_C7 = (17297280.0, 8648640.0, 1995840.0, 277200.0, 25200.0, 1512.0, 56.0, 1.0)
+const _PADE_C9 = (
+    17643225600.0, 8821612800.0, 2075673600.0, 302702400.0,
+    30270240.0, 2162160.0, 110880.0, 3960.0, 90.0, 1.0,
+)
+const _PADE_C13 = (
+    64764752532480000.0, 32382376266240000.0, 7771770303897600.0,
+    1187353796428800.0, 129060195264000.0, 10559470521600.0,
+    670442572800.0, 33522128640.0, 1323241920.0,
+    40840800.0, 960960.0, 16380.0, 182.0, 1.0,
+)
+
+# Evaluate the Padé numerator `U` and denominator `V` for the coefficient set
+# `C`, then solve `(V - U) X = (V + U)`. `C` is passed as a concrete `NTuple`
+# so this specializes on its length (the caller dispatches each norm range to
+# the matching tuple), keeping the loop type-stable and allocation-free. The
+# `P`/`temp`/`U` swaps are local buffer rebindings; only `X` carries the result.
+@inline function _pade_evaluate!(
+        X, U, V, P, A2, temp, A, C::NTuple{N, Float64}, linsolve, ::Type{T}
+    ) where {N, T}
+    mul!(A2, A, A)
+    @. U = convert(T, C[2]) * P
+    @. V = convert(T, C[1]) * P
+    @inbounds for k in 1:(N ÷ 2 - 1)
+        k2 = 2 * k
+        mul!(temp, P, A2)
+        P, temp = temp, P # equivalent to P *= A2
+        cu = convert(T, C[k2 + 2])
+        cv = convert(T, C[k2 + 1])
+        @. U += cu * P
+        @. V += cv * P
+    end
+    mul!(temp, A, U)
+    U, temp = temp, U # equivalent to U = A * U
+    @. X = V + U
+    @. temp = V - U
+    _pade_linsolve!(X, temp, linsolve)
+    return X
+end
+
 ## Destructive matrix exponential using algorithm from Higham, 2008,
 ## "Functions of Matrices: Theory and Computation", SIAM
 ##
@@ -69,51 +151,28 @@ function exponential!(
     # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
 
-    A2, P, U, V, temp, linsolve = cache
+    A2, P, U, V, temp, linsolve, scale = cache
 
     fill!(P, zero(T))
     fill!(@diagview(P), one(T)) # P = Inn
 
-    A, bal = GenericSchur.balance!(A)
-    ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
+    # `A` is a strided BlasFloat matrix here (method signature), so LAPACK
+    # balancing applies; the non-allocating wrapper writes into the cache's
+    # `scale` buffer instead of allocating one (as GenericSchur.balance! would).
+    ilo, ihi, scale = gebal_noalloc!('B', A, scale)    # modifies A and scale
 
     nA = opnorm(A, 1)
     ## For sufficiently small nA, use lower order Padé-Approximations
     if (nA <= 2.1)
         if nA > 0.95
-            C = T[
-                17643225600.0, 8821612800.0, 2075673600.0, 302702400.0,
-                30270240.0, 2162160.0, 110880.0, 3960.0,
-                90.0, 1.0,
-            ]
+            _pade_evaluate!(X, U, V, P, A2, temp, A, _PADE_C9, linsolve, T)
         elseif nA > 0.25
-            C = T[
-                17297280.0, 8648640.0, 1995840.0, 277200.0,
-                25200.0, 1512.0, 56.0, 1.0,
-            ]
+            _pade_evaluate!(X, U, V, P, A2, temp, A, _PADE_C7, linsolve, T)
         elseif nA > 0.015
-            C = T[
-                30240.0, 15120.0, 3360.0,
-                420.0, 30.0, 1.0,
-            ]
+            _pade_evaluate!(X, U, V, P, A2, temp, A, _PADE_C5, linsolve, T)
         else
-            C = T[120.0, 60.0, 12.0, 1.0]
+            _pade_evaluate!(X, U, V, P, A2, temp, A, _PADE_C3, linsolve, T)
         end
-        mul!(A2, A, A)
-        @. U = C[2] * P
-        @. V = C[1] * P
-        for k in 1:(div(size(C, 1), 2) - 1)
-            k2 = 2 * k
-            mul!(temp, P, A2)
-            P, temp = temp, P # equivalent to P *= A2
-            @. U += C[k2 + 2] * P
-            @. V += C[k2 + 1] * P
-        end
-        mul!(temp, A, U)
-        U, temp = temp, U # equivalent to U = A * U
-        @. X = V + U
-        @. temp = V - U
-        _pade_linsolve!(X, temp, linsolve)
     else
         s = log2(nA / 5.4)               # power of 2 later reversed by squaring
         si = 0                           # always defined so the s > 0 squaring loop is type-stable
@@ -121,28 +180,7 @@ function exponential!(
             si = ceil(Int, s)
             A ./= convert(T, 2^si)
         end
-        C = T[
-            64764752532480000.0, 32382376266240000.0, 7771770303897600.0,
-            1187353796428800.0, 129060195264000.0, 10559470521600.0,
-            670442572800.0, 33522128640.0, 1323241920.0,
-            40840800.0, 960960.0, 16380.0,
-            182.0, 1.0,
-        ]
-        mul!(A2, A, A)
-        @. U = C[2] * P
-        @. V = C[1] * P
-        for k in 1:6
-            k2 = 2 * k
-            mul!(temp, P, A2)
-            P, temp = temp, P # equivalent to P *= A2
-            @. U += C[k2 + 2] * P
-            @. V += C[k2 + 1] * P
-        end
-        mul!(temp, A, U)
-        U, temp = temp, U # equivalent to U = A * U
-        @. X = V + U
-        @. temp = V - U
-        _pade_linsolve!(X, temp, linsolve)
+        _pade_evaluate!(X, U, V, P, A2, temp, A, _PADE_C13, linsolve, T)
 
         if s > 0            # squaring to reverse dividing by power of 2
             for t in 1:si
@@ -163,14 +201,16 @@ function exponential!(
         end
     end
 
+    # LAPACK gebal encodes the row/column permutations in the `scale` array
+    # itself (unlike GenericSchur, which returns separate prow/pcol).
     if ilo > 1       # apply lower permutations in reverse order
         for j in (ilo - 1):-1:1
-            rcswap!(j, bal.prow[j], X)
+            rcswap!(j, Int(scale[j]), X)
         end
     end
     if ihi < n       # apply upper permutations in forward order
         for j in (ihi + 1):n
-            rcswap!(j, bal.pcol[j - ihi], X)
+            rcswap!(j, Int(scale[j]), X)
         end
     end
 
