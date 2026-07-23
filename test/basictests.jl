@@ -600,6 +600,30 @@ end
     @test w1 ≈ expv(0.1, Ks)
 end
 
+@testset "get_expcache! keeps workspaces across many sizes (no thrash)" begin
+    # Adaptive Krylov (phiv_timestep! with adaptive_krylov) evaluates the reduced
+    # matrix exponential at a range of extended-matrix sizes as it adapts the
+    # subspace dimension. The workspace store must keep the already-seen sizes
+    # warm; wiping it once it exceeds a small bound made the whole working set
+    # reallocate every so often, which showed up as multi-KB-per-step allocations
+    # at large state sizes. This guards that a size seen earlier is still cached
+    # after many distinct sizes have been requested (>16, the old wipe bound).
+    m = ExponentialUtilities.ExpMethodHigham2005Base()
+    cache = ExponentialUtilities.ExpvCache{Float64}(64)
+    ge!(n) = ExponentialUtilities.get_expcache!(cache, zeros(n, n), m)
+    first_work = ge!(4)
+    for n in 5:34            # 30 further distinct sizes, all past the old bound of 16
+        ge!(n)
+    end
+    # The size-4 workspace must be the very same object, not a reallocated one.
+    @test ge!(4) === first_work
+    # And a hit for an already-cached size does not allocate.
+    A4 = zeros(4, 4)
+    ge_hit() = ExponentialUtilities.get_expcache!(cache, A4, m)
+    ge_hit()
+    @test (@allocated ge_hit()) == 0
+end
+
 @testset "Complex Value" begin
     n = 20
     m = 10
