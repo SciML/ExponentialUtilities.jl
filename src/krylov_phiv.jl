@@ -2,6 +2,10 @@
 
 ############################
 # Cache for expv
+mutable struct _ExponentialWorkspace{W}
+    value::W
+end
+
 """
     ExpvCache{T}(maxiter::Int)
 
@@ -39,7 +43,7 @@ mutable struct ExpvCache{T, W}
     # type -- only the instances (one per size) differ. `W === Nothing` when `T`
     # has no `alloc_mem` preallocation (e.g. BigFloat), and exponential! is then
     # called without a workspace.
-    expcache::Vector{Tuple{Int, Base.RefValue{W}}}
+    expcache::Vector{Tuple{Int, _ExponentialWorkspace{W}}}
     # First column of exp(H), copied out so the final `mul!` consumes a
     # contiguous vector rather than a column view of the reshaped `mem` buffer
     # (that view does not elide and would allocate a SubArray each call).
@@ -48,7 +52,9 @@ end
 function ExpvCache{T}(maxiter::Int) where {T}
     W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
     return ExpvCache{T, W}(
-        Vector{T}(undef, maxiter^2), Tuple{Int, Base.RefValue{W}}[], Vector{T}(undef, maxiter)
+        Vector{T}(undef, maxiter^2),
+        Tuple{Int, _ExponentialWorkspace{W}}[],
+        Vector{T}(undef, maxiter)
     )
 end
 function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
@@ -354,14 +360,14 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
   - `mem::Vector{T}`: flat storage that is carved (by `get_caches`) into the
     subspace vector, a Hessenberg working copy, and the two augmented matrices
     used by the phi-function recurrence.
-  - `expcache::Vector{Tuple{Int, W}}`: `exponential!` workspaces (see
+  - `expcache`: `exponential!` workspaces (see
     `alloc_mem`) keyed by extended-matrix size, reused across calls. `W` is a
     single concrete workspace type; see [`ExpvCache`](@ref) for why one type
     covers all sizes.
 """
 mutable struct PhivCache{useview, T, W}
     mem::Vector{T}
-    expcache::Vector{Tuple{Int, Base.RefValue{W}}}
+    expcache::Vector{Tuple{Int, _ExponentialWorkspace{W}}}
     # Reusable t^l/l! coefficient scratch for phiv_timestep! (which threads this
     # cache in). Kept here so phiv_timestep! need not allocate it per call; plain
     # phiv! does not touch it. `coeffs[1]` stays one(T); the rest are overwritten.
@@ -378,7 +384,10 @@ function PhivCache(w, maxiter::Int, p::Int)
     W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
     useview = !(w isa GPUArraysCore.AbstractGPUArray)
     return PhivCache{useview, T, W}(
-        mem, Tuple{Int, Base.RefValue{W}}[], ones(T, max(p, 1)), Vector{Float64}(undef, 1)
+        mem,
+        Tuple{Int, _ExponentialWorkspace{W}}[],
+        ones(T, max(p, 1)),
+        Vector{Float64}(undef, 1)
     )
 end
 
@@ -419,7 +428,7 @@ function get_expcache!(
     # the recently seen sizes warm makes the adaptive path allocation-free at
     # steady state once its size set has been visited.
     length(entries) >= 64 && popfirst!(entries)
-    workref = Base.RefValue{W}(work)
+    workref = _ExponentialWorkspace{W}(work)
     push!(entries, (n, workref))
     return workref
 end
@@ -429,7 +438,7 @@ get_expcache!(::Union{ExpvCache, PhivCache}, A, expmethod) = nothing
 # Call exponential! with the reusable workspace when one is available; the
 # two-argument form allocates its own.
 _exponential!(A, method, ::Nothing) = exponential!(A, method)
-_exponential!(A, method, work::Base.RefValue) = exponential!(A, method, work[])
+_exponential!(A, method, work::_ExponentialWorkspace) = exponential!(A, method, work.value)
 _exponential!(A, method, work) = exponential!(A, method, work)
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
