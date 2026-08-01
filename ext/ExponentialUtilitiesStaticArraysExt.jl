@@ -2,7 +2,7 @@ module ExponentialUtilitiesStaticArraysExt
 
 export default_tolerance, theta, THETA32, THETA64
 
-using StaticArrays
+using StaticArrays: StaticArrays, SMatrix, SVector
 import Base: @propagate_inbounds
 import LinearAlgebra: tr, I, opnorm, norm
 import ExponentialUtilities
