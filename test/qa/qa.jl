@@ -6,6 +6,14 @@ using AllocCheck: check_allocs
 # StaticArrays here is what puts ExponentialUtilitiesStaticArraysExt under QA.
 using StaticArrays
 
+# ExplicitImports silently skips an extension that fails to load, so assert the
+# extension modules actually exist rather than trusting a green run_qa.
+@testset "Extensions loaded" begin
+    @test Base.get_extension(
+        ExponentialUtilities, :ExponentialUtilitiesStaticArraysExt
+    ) !== nothing
+end
+
 run_qa(
     ExponentialUtilities;
     ei_kwargs = (;
