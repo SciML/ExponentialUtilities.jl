@@ -285,8 +285,8 @@ Take the `j` 'th step of the Lanczos iteration.
 function arnoldi_step!(
         j::Integer, iop::Integer, A::AT,
         V::AbstractMatrix{T}, H::AbstractMatrix{U},
-        n::Int = -1, p::Int = -1,
-        reorth::Bool,
+        n::Int = -1, p::Int = -1;
+        reorth::Bool=false,
     ) where {AT, T, U}
     x, y = @view(V[:, j]), @view(V[:, j + 1])
     applyA!(y, A, x, V, j, n, p)
@@ -364,7 +364,7 @@ function arnoldi!(
     iszero(Ks.beta) && return Ks
     iszero(iop) && (iop = m)
     for j in init:m
-        beta = arnoldi_step!(j, iop, A, V, H, n, p, reorth)
+        beta = arnoldi_step!(j, iop, A, V, H, n, p; reorth=reorth)
         if beta < tol # happy-breakdown
             Ks.m = j
             Ks.wasbreakdown = true
