@@ -42,6 +42,14 @@ intuitive interface (vector `b` instead of a n-by-1 matrix `B`).
 
 A vector for scalar `t`, or a matrix whose column `j` corresponds to `ts[j]`.
 
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+expv_timestep(0.1, A, b; tol = 1.0e-8)
+```
+
 [^1]: Niesen, J., & Wright, W. (2009). A Krylov subspace algorithm for
     evaluating the φ-functions in exponential integrators. arXiv preprint
     arXiv:0907.4631.
@@ -69,9 +77,24 @@ Non-allocating version of [`expv_timestep`](@ref).
   - `A`: square matrix or matrix-free operator.
   - `b`: initial vector.
 
+# Keywords
+
+  - `caches`: optional reusable workspace tuple from the internal timestep-cache
+    constructor.
+  - Remaining keywords have the same meaning as for [`expv_timestep`](@ref).
+
 # Returns
 
 The mutated `u` or `U`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+u = similar(b)
+expv_timestep!(u, 0.1, A, b; tol = 1.0e-8)
+```
 """
 function expv_timestep!(
         u::AbstractVector{T}, t::tType, A, b::AbstractVector{T};
@@ -149,6 +172,14 @@ internally.
 
 A vector for scalar `t`, or a matrix whose column `j` is the requested linear
 combination at `ts[j]`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+B = [1.0 0.5; 0.0 0.0]
+phiv_timestep(0.1, A, B; tol = 1.0e-8)
+```
 """
 function phiv_timestep(ts::Vector{tType}, A, B; kwargs...) where {tType <: Real}
     U = Matrix{eltype(B)}(undef, size(A, 1), length(ts))
@@ -177,6 +208,15 @@ The keywords are the same as for [`phiv_timestep`](@ref).
 # Returns
 
 The mutated `u` or `U`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+B = [1.0 0.5; 0.0 0.0]
+u = similar(B, size(B, 1))
+phiv_timestep!(u, 0.1, A, B; tol = 1.0e-8)
+```
 """
 function phiv_timestep!(
         u::AbstractVector{T}, t::tType, A, B::AbstractMatrix{T};

@@ -1,38 +1,145 @@
-using LinearSolve: LinearSolve, LinearProblem
+using LinearSolve: LinearSolve
+using SciMLBase: LinearProblem, successful_retcode
 
-# LAPACK GEBAL wrapper that writes the balancing permutation/scale into a
-# caller-supplied buffer instead of allocating one, unlike
-# `LinearAlgebra.LAPACK.gebal!` and `GenericSchur.balance!` (the latter allocates
-# ~15 KB per call even for a small matrix). Used for the strided-BlasFloat matrix
-# exponential so that balancing — and therefore the Krylov phi/exp hot path — is
-# allocation-free on the CPU. Non-BlasFloat / non-strided inputs keep the generic
-# `GenericSchur.balance!` fallback.
-const _LIBLAPACK = BLAS.libblastrampoline
-for (gebal, elty, relty) in (
-        (:dgebal_, :Float64, :Float64),
-        (:sgebal_, :Float32, :Float32),
-        (:zgebal_, :ComplexF64, :Float64),
-        (:cgebal_, :ComplexF32, :Float32),
-    )
-    @eval function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
-        BLAS.chkstride1(A)
-        n = LinearAlgebra.checksquare(A)
-        LinearAlgebra.LAPACK.chkfinite(A)
-        ilo = Ref{LinearAlgebra.BlasInt}()
-        ihi = Ref{LinearAlgebra.BlasInt}()
-        info = Ref{LinearAlgebra.BlasInt}()
-        ccall(
-            (BLAS.@blasfunc($gebal), _LIBLAPACK), Cvoid,
-            (
-                Ref{UInt8}, Ref{LinearAlgebra.BlasInt}, Ptr{$elty},
-                Ref{LinearAlgebra.BlasInt}, Ptr{LinearAlgebra.BlasInt},
-                Ptr{LinearAlgebra.BlasInt}, Ptr{$relty}, Ptr{LinearAlgebra.BlasInt}, Clong,
-            ),
-            job, n, A, max(1, stride(A, 2)), ilo, ihi, scale, info, 1
-        )
-        LinearAlgebra.LAPACK.chklapackerror(info[])
-        return ilo[], ihi[], scale
+# Allocation-free translation of the balancing transform used by LAPACK GEBAL.
+# The caller-owned `scale` array stores both permutations and diagonal scales.
+function gebal_noalloc!(A::StridedMatrix{T}, scale::AbstractVector{R}) where {T, R <: Real}
+    n = checksquare(A)
+    length(scale) == n || throw(DimensionMismatch("scale must have length $n"))
+    stride(A, 1) == 1 || throw(ArgumentError("matrix does not have unit stride in its first dimension"))
+    for a in A
+        isfinite(a) || throw(ArgumentError("matrix contains Infs or NaNs"))
     end
+
+    fill!(scale, one(R))
+    ilo = 1
+    ihi = n
+
+    # Isolate rows with no off-diagonal entries at the lower-right corner.
+    ihi = n + 1
+    @inbounds while ihi > 1
+        ihi -= 1
+        exchange = false
+        source = 0
+        for j in ihi:-1:1
+            exchange = true
+            source = j
+            for i in 1:ihi
+                if i != j && !iszero(A[j, i])
+                    exchange = false
+                    break
+                end
+            end
+            exchange && break
+        end
+        exchange || break
+        scale[ihi] = source
+        if source != ihi
+            for i in 1:ihi
+                A[i, source], A[i, ihi] = A[i, ihi], A[i, source]
+            end
+            for j in ilo:n
+                A[source, j], A[ihi, j] = A[ihi, j], A[source, j]
+            end
+        end
+    end
+
+    # Isolate columns with no off-diagonal entries at the upper-left corner.
+    if ihi > 1
+        ilo = 0
+        @inbounds while ilo < n
+            ilo += 1
+            exchange = false
+            source = 0
+            for j in ilo:ihi
+                exchange = true
+                source = j
+                for i in ilo:ihi
+                    if i != j && !iszero(A[i, j])
+                        exchange = false
+                        break
+                    end
+                end
+                exchange && break
+            end
+            exchange || break
+            scale[ilo] = source
+            if source != ilo
+                for i in 1:ihi
+                    A[i, source], A[i, ilo] = A[i, ilo], A[i, source]
+                end
+                for j in ilo:n
+                    A[source, j], A[ilo, j] = A[ilo, j], A[source, j]
+                end
+            end
+        end
+    end
+
+    radix = R(2)
+    factor = R(0.95)
+    sfmin1 = floatmin(R) / eps(R)
+    sfmin2 = sfmin1 * radix
+    sfmax2 = inv(sfmin2)
+    converged = false
+    while !converged
+        converged = true
+        @inbounds for i in ilo:ihi
+            column_norm = zero(R)
+            column_max = zero(R)
+            row_norm = zero(R)
+            row_max = zero(R)
+            for j in ilo:ihi
+                column_entry = abs(A[j, i])
+                row_entry = abs(A[i, j])
+                column_norm = hypot(column_norm, column_entry)
+                row_norm = hypot(row_norm, row_entry)
+                column_max = max(column_max, column_entry)
+                row_max = max(row_max, row_entry)
+            end
+            (iszero(column_norm) || iszero(row_norm)) && continue
+
+            g = row_norm / radix
+            original_sum = column_norm + row_norm
+            f = one(R)
+            while column_norm < row_norm / radix
+                if column_norm >= g || max(f, column_norm, column_max) >= sfmax2 ||
+                        min(row_norm, g, row_max) <= sfmin2
+                    break
+                end
+                f *= radix
+                column_norm *= radix
+                column_max *= radix
+                row_norm /= radix
+                g /= radix
+                row_max /= radix
+            end
+            g = column_norm / radix
+            while row_norm <= column_norm / radix
+                if g < row_norm || max(row_norm, row_max) >= sfmax2 ||
+                        min(f, column_norm, g, column_max) <= sfmin2
+                    break
+                end
+                f /= radix
+                column_norm /= radix
+                g /= radix
+                column_max /= radix
+                row_norm *= radix
+                row_max *= radix
+            end
+            column_norm + row_norm >= factor * original_sum && continue
+
+            converged = false
+            scale[i] *= f
+            invf = inv(f)
+            for j in ilo:n
+                A[i, j] *= invf
+            end
+            for j in 1:ihi
+                A[j, i] *= f
+            end
+        end
+    end
+    return ilo, ihi, scale
 end
 
 """
@@ -43,6 +150,18 @@ implementation.
 
 This is primarily the default reduced-matrix method used by the Krylov APIs.
 It has no fields or constructor arguments.
+
+# Returns
+
+An `ExpMethodHigham2005Base` algorithm object for use with
+[`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+exponential!(copy(A), ExpMethodHigham2005Base())
+```
 """
 struct ExpMethodHigham2005Base end
 function alloc_mem(
@@ -83,7 +202,7 @@ function _pade_linsolve!(
     sol = LinearSolve.solve!(linsolve)
     # exp! historically threw on a singular denominator;
     # keep that contract rather than propagating a failed factorization.
-    if !LinearSolve.SciMLBase.successful_retcode(sol.retcode)
+    if !successful_retcode(sol.retcode)
         throw(SingularException(0))
     end
     copyto!(X, sol.u)
@@ -154,12 +273,12 @@ function exponential!(
     A2, P, U, V, temp, linsolve, scale = cache
 
     fill!(P, zero(T))
-    fill!(@diagview(P), one(T)) # P = Inn
+    fill!(@_diagview(P), one(T)) # P = Inn
 
     # `A` is a strided BlasFloat matrix here (method signature), so LAPACK
     # balancing applies; the non-allocating wrapper writes into the cache's
     # `scale` buffer instead of allocating one (as GenericSchur.balance! would).
-    ilo, ihi, scale = gebal_noalloc!('B', A, scale)    # modifies A and scale
+    ilo, ihi, scale = gebal_noalloc!(A, scale)    # modifies A and scale
 
     nA = opnorm(A, 1)
     ## For sufficiently small nA, use lower order Padé-Approximations

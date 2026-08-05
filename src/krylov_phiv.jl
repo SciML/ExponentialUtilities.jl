@@ -21,9 +21,15 @@ larger subspace than the one it was allocated for.
   - `T`: element type of the Krylov Hessenberg workspace.
   - `maxiter`: largest Krylov dimension expected for repeated calls.
 
-# Example
+# Returns
+
+An `ExpvCache` sized for Krylov dimensions through `maxiter`.
+
+# Examples
 
 ```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
 cache = ExpvCache{Float64}(30)
 expv!(similar(b), 0.1, arnoldi(A, b); cache)
 ```
@@ -32,6 +38,9 @@ expv!(similar(b), 0.1, arnoldi(A, b); cache)
 
   - `mem::Vector{T}`: flat storage of length `maxiter^2` reshaped on demand into
     the `m`×`m` working copy of the Hessenberg matrix.
+  - `expcache`: typed, size-keyed reduced matrix-exponential workspaces.
+  - `expcol::Vector{T}`: contiguous storage for the first column of the reduced
+    matrix exponential.
 """
 mutable struct ExpvCache{T, W}
     mem::Vector{T}
@@ -50,7 +59,7 @@ mutable struct ExpvCache{T, W}
     expcol::Vector{T}
 end
 function ExpvCache{T}(maxiter::Int) where {T}
-    W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
+    W = typeof(alloc_mem(Matrix{T}(undef, 0, 0), ExpMethodHigham2005Base()))
     return ExpvCache{T, W}(
         Vector{T}(undef, maxiter^2),
         Tuple{Int, _ExponentialWorkspace{W}}[],
@@ -94,6 +103,14 @@ Compute the matrix-exponential-vector product with a Krylov approximation.
 # Returns
 
 The vector approximating ``\\exp(t A)b``.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+expv(0.1, A, b; m = 2)
+```
 
 A Krylov subspace is constructed using `arnoldi` and `exp!` is called
 on the Hessenberg matrix. Consult `arnoldi` for the values of the
@@ -169,6 +186,16 @@ output vector.
 # Returns
 
 The mutated `w`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+Ks = arnoldi(A, b; m = 2)
+w = similar(b)
+expv!(w, 0.1, Ks)
+```
 """
 function expv!(
         w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
@@ -284,7 +311,7 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(w, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 # GPU expv! for Complex t (allocates in hermitian branch due to Real->Complex conversion)
@@ -318,10 +345,17 @@ function ExponentialUtilities.expv!(
         expHe = @view(expH[:, 1])
     end
 
-    return lmul!(beta, mul!(w, @view(V[:, 1:m]), Adapt.adapt(parameterless_type(w), expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
+    return lmul!(beta, mul!(w, @view(V[:, 1:m]), compatible_multiplicative_operand(w, expHe))) # exp(A) ≈ norm(b) * V * exp(H)e
 end
 
 compatible_multiplicative_operand(::AbstractArray, source::AbstractArray) = source
+function compatible_multiplicative_operand(
+        prototype::GPUArraysCore.AbstractGPUArray, source::AbstractArray
+    )
+    destination = similar(prototype, eltype(source), size(source))
+    copyto!(destination, copy(source))
+    return destination
+end
 
 ############################
 # Cache for phiv
@@ -348,9 +382,16 @@ allocated reshaped copies instead).
   - `maxiter`: largest Krylov dimension expected for repeated calls.
   - `p`: highest phi-function order expected for repeated calls.
 
-# Example
+# Returns
+
+A `PhivCache` sized for Krylov dimensions through `maxiter` and phi orders
+through `p`.
+
+# Examples
 
 ```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
 cache = PhivCache(similar(b, length(b), 3), 30, 2)
 phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
 ```
@@ -364,6 +405,8 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
     `alloc_mem`) keyed by extended-matrix size, reused across calls. `W` is a
     single concrete workspace type; see [`ExpvCache`](@ref) for why one type
     covers all sizes.
+  - `coeffs::Vector{T}`: coefficient scratch used by timestep evaluations.
+  - `ts1::Vector{Float64}`: one-element time buffer used by scalar-time wrappers.
 """
 mutable struct PhivCache{useview, T, W}
     mem::Vector{T}
@@ -381,7 +424,7 @@ function PhivCache(w, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
     T = eltype(w)
     mem = Vector{T}(undef, numelems)
-    W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
+    W = typeof(alloc_mem(Matrix{T}(undef, 0, 0), ExpMethodHigham2005Base()))
     useview = !(w isa GPUArraysCore.AbstractGPUArray)
     return PhivCache{useview, T, W}(
         mem,
@@ -496,6 +539,14 @@ Compute matrix-phi-vector products with a Krylov approximation. `k >= 1`.
 An `n` by `k + 1` matrix whose columns are ``\\varphi_j(tA)b`` for
 `j = 0:k`, or that matrix paired with an error estimate when `errest=true`.
 
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+phiv(0.1, A, b, 2; m = 2)
+```
+
 The phi functions are defined as
 
 ```math
@@ -549,6 +600,16 @@ the output matrix.
 # Returns
 
 The mutated `w`, or `(w, estimate)` when `errest=true`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+Ks = arnoldi(A, b; m = 2)
+w = similar(b, length(b), 3)
+phiv!(w, 0.1, Ks, 2)
+```
 """
 function phiv!(
         w::AbstractMatrix, t::Number, Ks::KrylovSubspace, k::Integer;
@@ -582,8 +643,8 @@ function _phiv!(
     allowed_setindex!(e, one(T), 1) # e is the [1,0,...,0] basis vector
     phiv_dense!(C2, Hcopy, e, k; cache = C1, expmethod = expmethod, expcache = expwork) # C2 = [ϕ0(H)e ϕ1(H)e ... ϕk(H)e]
     # C2 is a strided reshape of the flat cache buffer: BLAS can consume it
-    # directly, so only adapt (which copies) when w needs another storage type.
-    aC2 = w isa Array ? C2 : Adapt.adapt(parameterless_type(w), C2)
+    # directly, so copy only when w needs another storage type.
+    aC2 = compatible_multiplicative_operand(w, C2)
     lmul!(beta, mul!(w, @view(V[:, 1:m]), aC2)) # f(A) ≈ norm(b) * V * f(H)e
     if correct
         # Use the last Arnoldi vector for correction with little additional cost

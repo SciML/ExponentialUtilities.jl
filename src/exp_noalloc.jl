@@ -14,6 +14,18 @@ algorithm and generated evaluation kernels.
 # Fields
 
   - `do_balancing::Bool`: whether to apply matrix balancing.
+
+# Returns
+
+An `ExpMethodHigham2005` algorithm object for use with [`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+method = ExpMethodHigham2005(A)
+exponential!(copy(A), method)
+```
 """
 struct ExpMethodHigham2005
     do_balancing::Bool

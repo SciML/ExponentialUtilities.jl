@@ -14,17 +14,20 @@ LinearAlgebra interfaces in the module that owns the operator type:
     the length of vectors accepted by `A`.
   - `LinearAlgebra.mul!(y, A, x)`, overwriting `y` with `A * x`. It must accept
     vectors with the promoted element type used by the Krylov basis and return
-    `y`.
+    `y`. It must not mutate `A` or `x`, and it must support `y` and `x` being
+    distinct views into Krylov-basis storage.
 
 The same operator can be passed to `arnoldi`, `expv`, `phiv`,
 `expv_timestep`, and `phiv_timestep`. The methods do not require indexing or
-materializing a matrix.
+materializing a matrix. The starting vector must support `similar(b, T, dims)`
+for the basis storage requested by these methods.
 
 ## Optional operations
 
 `LinearAlgebra.ishermitian(A)` selects the Lanczos path when it returns `true`.
 Only report `true` when the operator is Hermitian for the scalar product used
-by `mul!`; an incorrect answer invalidates the approximation.
+by `mul!`; an incorrect answer invalidates the approximation. If this method is
+not defined, pass `ishermitian = false` or `true` explicitly.
 
 `LinearAlgebra.opnorm(A, p)` is optional. `arnoldi`, `expv`, and `phiv` accept
 an `opnorm` keyword instead, which may be a scalar bound or callable
