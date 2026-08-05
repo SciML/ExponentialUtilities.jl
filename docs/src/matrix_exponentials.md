@@ -17,7 +17,7 @@ ExpMethodNative
 ExpMethodDiagonalization
 ```
 
-## Utilities
+## Workspace API
 
 ```@docs
 ExponentialUtilities.alloc_mem

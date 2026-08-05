@@ -1,7 +1,7 @@
 name = "ExponentialUtilities"
 uuid = "d4d017d3-3776-5f7e-afef-a10c40355c18"
 authors = ["Chris Rackauckas <accounts@chrisrackauckas.com>", "José E. Cruz Serrallés <Jose.CruzSerralles@nyulangone.org>"]
-version = "1.33.4"
+version = "1.34.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -12,6 +12,7 @@ LinearSolve = "7ed4a6bd-45f5-4d41-b270-4a48e9bafcae"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+SciMLPublic = "431bcebd-1456-4ced-9d72-93c2757fff0b"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [weakdeps]
@@ -35,6 +36,7 @@ Printf = "1.10"
 Random = "1"
 SafeTestsets = "0.1, 1"
 SciMLTesting = "2.4"
+SciMLPublic = "1"
 SparseArrays = "1.10"
 StaticArrays = "1.9.8"
 Test = "1"
