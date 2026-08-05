@@ -5,7 +5,7 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
 using ForwardDiff, StaticArrays, DoubleFloats
 
 @testset "alloc_mem public API" begin
-    A = randn(3, 3)
+    A = [1.0 0.0; 0.0 1.0]
     @test ExponentialUtilities.alloc_mem(A, ExpMethodGeneric()) === nothing
 
     @static if isdefined(Base.Docs, :hasdoc)
