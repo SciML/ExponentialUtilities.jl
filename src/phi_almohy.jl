@@ -22,7 +22,8 @@
 #   * `_phi_almohy_generic` -- out-of-place and element-container-preserving, so
 #                        a static input (e.g. `SMatrix`) stays static.
 
-using LinearSolve: LinearSolve, LinearProblem, GenericLUFactorization
+using LinearSolve: LinearSolve, GenericLUFactorization
+using SciMLBase: LinearProblem, ReturnCode
 
 # theta[m, p] = theta_{m,p} from Table 3.1 of the paper (largest 1-norm of the
 # scaled matrix for which the [m/m] Pade approximant is backward stable to
@@ -131,6 +132,10 @@ the step rather than abort.
   - `A`: representative strided `Float64` or `ComplexF64` square matrix.
   - `p`: largest phi-function order needed in subsequent [`phi!`](@ref) calls.
 
+# Returns
+
+A `PhiPadeCache` sized for matrices matching `A` and orders through `p`.
+
 # Fields
 
   - `As`, `Apow`, `Nm`, `Dm`, `Dfact`, `rhs`, `Naux`, `Daux`, `tmp`, `pow1`,
@@ -139,6 +144,15 @@ the step rather than abort.
   - `absA`, `rvec1`, `rvec2`, `Ncoef`, `Dcoef`, `Amat`, `eta`, `alpha`,
     `tvals`, and `Cost`: real-valued parameter-selection work buffers.
   - `info`: result code from the most recent evaluation (`0` on success).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+cache = PhiPadeCache(A, 2)
+out = [similar(A) for _ in 0:2]
+phi!(out, A, 2; caches = cache)
+```
 """
 struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}, LS}
     As::MT
@@ -436,7 +450,7 @@ function _phi_solve!(cache::PhiPadeCache, Dm, Nm, X)
     linsolve.A = cache.Dfact
     linsolve.b = cache.rhs
     sol = LinearSolve.solve!(linsolve)
-    if sol.retcode == LinearSolve.ReturnCode.Success
+    if sol.retcode == ReturnCode.Success
         copyto!(X, sol.u)
         return 0
     else

@@ -37,6 +37,18 @@ Matrix-exponential method based on diagonalization with `eigen`.
 # Fields
 
   - `enforce_real::Bool`: whether real input receives a real-valued result.
+
+# Returns
+
+An `ExpMethodDiagonalization` algorithm object for use with
+[`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+exponential!(copy(A), ExpMethodDiagonalization())
+```
 """
 struct ExpMethodDiagonalization
     enforce_real::Bool
@@ -68,7 +80,7 @@ If no `method` is given, immutable matrices (e.g. StaticArrays' `SMatrix`) are
 computed out-of-place with [`ExpMethodGeneric`](@ref) and the result is returned
 without modifying `A`.
 
-Example
+# Examples
 
 ```julia-repl
 julia> A = randn(50, 50);
@@ -99,6 +111,17 @@ end
     ExpMethodNative()
 
 Matrix-exponential method that delegates to `Base.exp`.
+
+# Returns
+
+An `ExpMethodNative` algorithm object for use with [`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+exponential!(copy(A), ExpMethodNative())
+```
 """
 struct ExpMethodNative end
 function exponential!(A, method::ExpMethodNative, cache = nothing)

@@ -1,11 +1,11 @@
 module ExponentialUtilitiesStaticArraysExt
 
-export default_tolerance, theta, THETA32, THETA64
-
 using StaticArrays: StaticArrays, SMatrix, SVector
 import Base: @propagate_inbounds
 import LinearAlgebra: tr, I, opnorm, norm
 import ExponentialUtilities
+
+_arithmetic_closure(::Type{T}) where {T} = typeof((one(T) * zero(T) + zero(T)) / one(T))
 
 # Look-Up Table Generation
 default_tolerance(::Type{T}) where {T <: AbstractFloat} = eps(T) / 2
@@ -133,7 +133,7 @@ end
 @propagate_inbounds function ExponentialUtilities.expv(
         t::Number, A::SMatrix{N, N, T}, v::SVector{N}; kwarg...
     ) where {N, T}
-    Ti = promote_type(StaticArrays.arithmetic_closure(T), eltype(v))
+    Ti = promote_type(_arithmetic_closure(T), eltype(v))
     N ≤ 4 && return exp(t * A) * v
     Ai::SMatrix{N, N, Ti} = A
 

@@ -2,7 +2,8 @@
 # that are used by the exponential integrators.
 
 """
-    phi(z,k[;cache]) -> [phi_0(z),phi_1(z),...,phi_k(z)]
+    phi(z, k; cache = nothing, expmethod = ExpMethodHigham2005Base())
+        -> [phi_0(z), phi_1(z), ..., phi_k(z)]
 
 Compute the scalar phi functions for all orders up to k.
 
@@ -16,6 +17,26 @@ Instead of using the recurrence relation, which is numerically unstable, a
 formula given by Sidje is used (Sidje, R. B. (1998). Expokit: a software
 package for computing matrix exponentials. ACM Transactions on Mathematical
 Software (TOMS), 24(1), 130-156. Theorem 1).
+
+# Arguments
+
+  - `z::Number`: scalar at which the phi functions are evaluated.
+  - `k::Integer`: highest phi-function order to return. It must be nonnegative.
+
+# Keywords
+
+  - `cache`: optional `(k + 1)` by `(k + 1)` matrix overwritten as workspace.
+  - `expmethod`: matrix-exponential algorithm used on the augmented matrix.
+
+# Returns
+
+A vector whose entry `j + 1` is ``\\varphi_j(z)`` for `j = 0:k`.
+
+# Examples
+
+```julia
+phi(0.5, 3)
+```
 """
 function phi(
         z::T, k::Integer; cache = nothing,
@@ -115,7 +136,7 @@ Compute matrix phi functions for all orders up to `k`. `k >= 1`.
 A vector `out` where `out[j + 1]` approximates ``\\varphi_j(A)`` for
 `j = 0:k`. For diagonal input, every result is diagonal.
 
-# Example
+# Examples
 
 ```julia
 A = [0.0 1.0; -1.0 0.0]
@@ -164,6 +185,8 @@ Compute matrix phi functions without allocating the output matrices.
 # Returns
 
 The mutated `out`.
+
+# Examples
 
 For dense `Float64`/`ComplexF64` matrices, pass a reusable
 [`PhiPadeCache`](@ref) as `caches` to make repeated evaluations of the same

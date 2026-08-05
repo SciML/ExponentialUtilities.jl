@@ -1,19 +1,17 @@
 module ExponentialUtilities
 import LinearAlgebra
 import LinearAlgebra: BLAS, Diagonal, Hermitian, I, SingularException,
-    SymTridiagonal, UniformScaling, axpy!, diagind, diagview, dot, eigen!,
+    SymTridiagonal, UniformScaling, axpy!, diagind, dot, eigen!,
     ishermitian, ldiv!, lmul!, lu!, mul!, norm, opnorm, rdiv!, rmul!
 import SparseArrays
 import SparseArrays: AbstractSparseArray, AbstractSparseMatrix, SparseMatrixCSC, nnz
 import Printf
 import Printf: @printf
-using ArrayInterface: ismutable, allowed_setindex!, fast_scalar_indexing,
-    parameterless_type
+using ArrayInterface: ismutable, allowed_setindex!, fast_scalar_indexing
 import PrecompileTools
 import PrecompileTools: @compile_workload, @setup_workload
 import GenericSchur
 import GPUArraysCore
-import Adapt
 
 const BlasFloat = Union{Float32, Float64, ComplexF32, ComplexF64}
 
@@ -35,9 +33,9 @@ function rcswap!(i::Integer, j::Integer, A::AbstractMatrix)
 end
 
 """
-    @diagview(A,d) -> view of the `d`th diagonal of `A`.
+    @_diagview(A,d) -> view of the `d`th diagonal of `A`.
 """
-macro diagview(A, d::Integer = 0)
+macro _diagview(A, d::Integer = 0)
     s = d <= 0 ? 1 + abs(d) : :(m + $d)
     return quote
         m = size($(esc(A)), 1)

@@ -1,4 +1,5 @@
 using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
+import GenericSchur
 using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
@@ -32,6 +33,38 @@ using ForwardDiff, StaticArrays, DoubleFloats
             @test E1 ≈ expA1
         end
     end
+end
+
+@testset "Allocation-free matrix balancing" begin
+    rng = Random.Xoshiro(91)
+    function balance!(matrix, workspace)
+        ExponentialUtilities.gebal_noalloc!(matrix, workspace)
+        return nothing
+    end
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        A = randn(rng, T, 12, 12)
+        actual = copy(A)
+        scale = Vector{real(T)}(undef, size(A, 1))
+        ilo, ihi, returned_scale = ExponentialUtilities.gebal_noalloc!(actual, scale)
+        expected, transform = GenericSchur.balance!(copy(A))
+
+        @test actual ≈ expected
+        @test ilo == transform.ilo
+        @test ihi == transform.ihi
+        @test returned_scale === scale
+        @test scale[ilo:ihi] == transform.D[ilo:ihi]
+
+        balance!(actual, scale)
+        @test (@allocated balance!(actual, scale)) == 0
+    end
+
+    A = [1.0 2.0 0.0; 0.0 3.0 0.0; 0.0 4.0 5.0]
+    actual = copy(A)
+    scale = similar(A, size(A, 1))
+    ilo, ihi, _ = ExponentialUtilities.gebal_noalloc!(actual, scale)
+    expected, transform = GenericSchur.balance!(copy(A))
+    @test actual == expected
+    @test (ilo, ihi) == (transform.ilo, transform.ihi)
 end
 
 @testset "Exp generated" begin
@@ -786,9 +819,19 @@ end
         Ks = arnoldi(Op, b; ishermitian, tol = 1.0e-12)
         pv = phiv(0.01, Ks, 2)
         pv′ = hcat(map(A -> A * b, phi(0.01Op.data, 2))...)
+        expv_reference = exp(0.01M) * b
 
         @test pv ≈ pv′ atol = 1.0e-12
-        @test expv(0.01, Op, b; m = n, ishermitian) ≈ exp(0.01M) * b atol = 1.0e-12
+        @test phiv(0.01, Op, b, 2; m = n, ishermitian) ≈ pv′ atol = 1.0e-12
+        @test expv(0.01, Op, b; m = n, ishermitian) ≈ expv_reference atol = 1.0e-12
+        @test expv_timestep(
+            0.01, Op, b; m = n, ishermitian, adaptive = false
+        ) ≈ expv_reference atol = 1.0e-12
+
+        B = hcat(b, zero(b))
+        @test phiv_timestep(
+            0.01, Op, B; m = n, ishermitian, adaptive = false
+        ) ≈ expv_reference atol = 1.0e-12
     end
 end
 
