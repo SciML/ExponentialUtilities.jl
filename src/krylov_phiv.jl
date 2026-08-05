@@ -353,7 +353,7 @@ function compatible_multiplicative_operand(
         prototype::GPUArraysCore.AbstractGPUArray, source::AbstractArray
     )
     destination = similar(prototype, eltype(source), size(source))
-    copyto!(destination, source)
+    copyto!(destination, copy(source))
     return destination
 end
 

@@ -75,3 +75,10 @@ E2 = Array(expv_timestep(ts, A_gpu, b_gpu))
     ExponentialUtilities.expv!(cuv0, dt, cuKs)
     @test v0 ≈ collect(cuv0)
 end
+
+@testset "GPU Krylov projection transfer" begin
+    A = Float32[-2 1; 0 -1]
+    b = Float32[1, 0]
+
+    @test Array(expv(0.1f0, cu(A), cu(b); m = 2)) ≈ expv(0.1f0, A, b; m = 2)
+end
