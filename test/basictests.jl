@@ -4,6 +4,27 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays, DoubleFloats
 
+@testset "alloc_mem public API" begin
+    A = [1.0 0.0; 0.0 1.0]
+    @test ExponentialUtilities.alloc_mem(A, ExpMethodGeneric()) === nothing
+
+    @static if isdefined(Base.Docs, :hasdoc)
+        @test Base.Docs.hasdoc(ExponentialUtilities, :alloc_mem)
+    else
+        @test Base.Docs.doc(ExponentialUtilities, :alloc_mem) !== nothing
+    end
+
+    @static if isdefined(Base, :isexported)
+        @test !Base.isexported(ExponentialUtilities, :alloc_mem)
+    else
+        @test :alloc_mem ∉ names(ExponentialUtilities)
+    end
+
+    @static if VERSION >= v"1.11.0-DEV.469"
+        @test Base.ispublic(ExponentialUtilities, :alloc_mem)
+    end
+end
+
 @testset "exp!" begin
     n = 100
     A1 = randn(n, n)
@@ -28,7 +49,7 @@ using ForwardDiff, StaticArrays, DoubleFloats
 
             # With preallocation
             mem = alloc_mem(A1, m)
-            E1 = exponential!(copy(A1), m)
+            E1 = exponential!(copy(A1), m, mem)
             @test E1 ≈ expA1
         end
     end

@@ -2,9 +2,43 @@
 
 # Fallback
 """
-    cache = alloc_mem(A, method)
+    alloc_mem(A, method)
 
-Pre-allocates memory associated with matrix exponential function `method` and matrix `A`. To be used in combination with [`exponential!`](@ref).
+Allocate reusable workspace for [`exponential!`](@ref).
+
+`alloc_mem` is the public allocation hook for matrix-exponential methods. Method
+implementations may specialize it together with `exponential!(A, method, cache)`
+to separate workspace allocation from repeated evaluations. Treat the returned
+cache as opaque and pass it back only for inputs compatible with the prototype
+`A` and the same method configuration.
+
+# Arguments
+
+  - `A`: prototype input that determines the workspace's shape, element type,
+    storage type, and execution device.
+  - `method`: matrix-exponential method whose workspace should be allocated.
+
+# Returns
+
+A method-specific cache accepted as the third argument to `exponential!`, or
+`nothing` when `method` does not require reusable workspace.
+
+# Examples
+
+```jldoctest
+julia> using ExponentialUtilities, LinearAlgebra
+
+julia> A = [0.0 1.0; -1.0 0.0];
+
+julia> reference = exp(A);
+
+julia> method = ExpMethodHigham2005();
+
+julia> cache = ExponentialUtilities.alloc_mem(A, method);
+
+julia> exponential!(A, method, cache) ≈ reference
+true
+```
 """
 function alloc_mem(A, method)
     return nothing
