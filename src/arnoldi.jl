@@ -126,7 +126,7 @@ Perform Arnoldi iterations to obtain the Krylov subspace ``K_m(A, b)``.
   - `ishermitian`: select Lanczos for a Hermitian operator; defaults to
     `LinearAlgebra.ishermitian(A)`.
   - Additional keywords are forwarded to [`arnoldi!`](@ref), including `tol`,
-    `iop`, and `opnorm`.
+    `iop`, `opnorm`, and `reorth`.
 
 # Returns
 
@@ -285,7 +285,8 @@ Take the `j` 'th step of the Lanczos iteration.
 function arnoldi_step!(
         j::Integer, iop::Integer, A::AT,
         V::AbstractMatrix{T}, H::AbstractMatrix{U},
-        n::Int = -1, p::Int = -1
+        n::Int = -1, p::Int = -1;
+        reorth::Bool=false,
     ) where {AT, T, U}
     x, y = @view(V[:, j]), @view(V[:, j + 1])
     applyA!(y, A, x, V, j, n, p)
@@ -297,6 +298,14 @@ function arnoldi_step!(
     @inbounds for i in max(1, j - iop + 1):j
         α = H[i, j] = coeff(U, dot(@view(V[:, i]), y))
         axpy!(-α, @view(V[:, i]), y)
+    end
+
+    if reorth # simple re-orthogonalisation applied to the same window as above
+        @inbounds for i in max(1, j - iop + 1):j
+            α = coeff(U, dot(@view(V[:, i]), y))
+            H[i, j] += α
+            axpy!(-α, @view(V[:, i]), y)
+        end
     end
     β = H[j + 1, j] = norm(y)
     @. y /= β
@@ -324,6 +333,7 @@ Populate an existing [`KrylovSubspace`](@ref) without allocating its basis.
   - `iop`: incomplete-orthogonalization length; `0` performs full Arnoldi.
   - `init`, `t`, `mu`, `l`: advanced controls for continuing or augmented
     Krylov constructions.
+  - `reorth`: re-orthogonalise each new basis vector after construction
 
 # Returns
 
@@ -335,7 +345,8 @@ function arnoldi!(
         ishermitian::Bool = LinearAlgebra.ishermitian(A isa Tuple ? first(A) : A),
         opnorm = nothing, iop::Int = 0,
         init::Int = 0, t::Number = NaN, mu::Number = NaN,
-        l::Int = -1
+        l::Int = -1,
+        reorth = false,
     ) where {T1 <: Number, U <: Number, AT}
     Ks.wasbreakdown = false
 
@@ -353,7 +364,7 @@ function arnoldi!(
     iszero(Ks.beta) && return Ks
     iszero(iop) && (iop = m)
     for j in init:m
-        beta = arnoldi_step!(j, iop, A, V, H, n, p)
+        beta = arnoldi_step!(j, iop, A, V, H, n, p; reorth=reorth)
         if beta < tol # happy-breakdown
             Ks.m = j
             Ks.wasbreakdown = true
