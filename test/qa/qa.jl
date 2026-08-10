@@ -1,5 +1,6 @@
 using SciMLTesting, ExponentialUtilities, JET, Test, LinearAlgebra
 using AllocCheck: check_allocs
+using ExplicitImports
 
 # ExplicitImports only sees a package extension once its trigger weakdep is
 # loaded (`Base.get_extension` returns `nothing` otherwise), so loading
@@ -31,7 +32,15 @@ run_qa(
         # ArrayInterface.parameterless_type is not declared public but is the
         # standard way to adapt a host array to the GPU array type of `w`.
         all_explicit_imports_are_public = (;
-            ignore = (:parameterless_type,),
+            ignore = (:diagview, :parameterless_type),
+        ),
+    ),
+)
+run_explicit_imports(
+    Base.get_extension(ExponentialUtilities, :ExponentialUtilitiesStaticArraysExt), ExplicitImports;
+    ei_kwargs = (;
+        all_qualified_accesses_are_public = (;
+            ignore = (:arithmetic_closure,),
         ),
     ),
 )

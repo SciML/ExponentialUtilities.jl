@@ -38,18 +38,14 @@ or [`lanczos!`](@ref).
 An uninitialized `KrylovSubspace`. Call `arnoldi!` or `lanczos!` before using
 its basis or coefficients.
 
-    getV(Ks) -> V
-    getH(Ks) -> H
+# Examples
 
-Access methods for the (extended) orthonormal basis `V` and the (extended)
-Gram-Schmidt coefficients `H`. Both methods return a view into the storage
-arrays and has the correct dimensions as indicated by `Ks.m`.
-
-    resize!(Ks, maxiter) -> Ks
-
-Resize `Ks` to a different `maxiter`, destroying its contents.
-
-This is an expensive operation and should be used scarcely.
+```julia
+A = [-2.0 1.0; 1.0 -2.0]
+b = [1.0, 0.0]
+Ks = KrylovSubspace{Float64}(length(b), 2)
+arnoldi!(Ks, A, b)
+```
 """
 mutable struct KrylovSubspace{
         T, U, B, VType <: AbstractMatrix{T},
@@ -133,8 +129,16 @@ Perform Arnoldi iterations to obtain the Krylov subspace ``K_m(A, b)``.
 A populated [`KrylovSubspace`](@ref). Its `m` can be smaller than requested
 after a happy breakdown.
 
-The n x (m + 1) basis vectors `getV(Ks)` and the (m + 1) x m upper Hessenberg
-matrix `getH(Ks)` are related by the recurrence formula
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+Ks = arnoldi(A, b; m = 2)
+```
+
+The first `m + 1` columns of `Ks.V` and the leading `(m + 1)` by `m` block of
+`Ks.H` are related by the recurrence formula
 
 ```
 v_1=b,\\quad Av_j = \\sum_{i=1}^{j+1}h_{ij}v_i\\quad(j = 1,2,\\ldots,m)
@@ -328,6 +332,15 @@ Populate an existing [`KrylovSubspace`](@ref) without allocating its basis.
 # Returns
 
 The mutated `Ks`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+Ks = KrylovSubspace{Float64}(length(b), 2)
+arnoldi!(Ks, A, b; m = 2)
+```
 """
 function arnoldi!(
         Ks::KrylovSubspace{T1, U}, A::AT, b;
@@ -428,6 +441,17 @@ implemented by `mul!`.
 # Returns
 
 The mutated `Ks`.
+
+# Examples
+
+```julia
+using LinearAlgebra
+
+A = Hermitian([-2.0 1.0; 1.0 -2.0])
+b = [1.0, 0.0]
+Ks = KrylovSubspace{Float64, Float64}(length(b), 2)
+lanczos!(Ks, A, b; m = 2)
+```
 """
 function lanczos!(
         Ks::KrylovSubspace{T1, U, B}, A::AT, b;

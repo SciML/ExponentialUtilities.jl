@@ -129,7 +129,9 @@ end
         J = ForwardDiff.jacobian(exponential!, A)
         Jref = ForwardDiff.jacobian(exp_generic, Matrix(A))
         @test !any(isnan, J)
-        @test J ≈ Jref
+        # ForwardDiff widens this Jacobian, but the balancing and Padé arithmetic
+        # retain the static matrix's precision; use the primal type's bound.
+        @test J ≈ Jref rtol = sqrt(eps(T))
     end
 end
 

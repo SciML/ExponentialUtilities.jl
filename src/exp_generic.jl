@@ -85,6 +85,18 @@ by Higham, Nicholas J. in 2005 for algorithm details.
 # Fields
 
   - `T`: a `Val{k}` type parameter storing the selected Padé order.
+
+# Returns
+
+An `ExpMethodGeneric` algorithm object for use with [`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = BigFloat[0 1; -1 0]
+method = ExpMethodGeneric(BigFloat)
+exponential!(A, method)
+```
 """
 struct ExpMethodGeneric{T} end
 ExpMethodGeneric() = ExpMethodGeneric{Val(13)}()
