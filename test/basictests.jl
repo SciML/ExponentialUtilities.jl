@@ -950,8 +950,8 @@ end
 @testset "ExpMethodHigham2005Base across BlasFloat types" begin
     # exponential!(_, ExpMethodHigham2005Base) is defined for every
     # `T <: BlasFloat`. The Padé coefficients are stored once as `Float64` tuples
-    # and converted to `T` in `_pade_evaluate!`, and `gebal_noalloc!` has a method
-    # per BLAS element type (d/s/z/c). Exercise all four types across every Padé
+    # and converted to `T` in `_pade_evaluate!`, and the balancing workspace is
+    # element-type specific. Exercise all four types across every Padé
     # norm range (the scale factor selects the branch) plus the scaling-squaring
     # path, checking against a high-precision reference.
     meth = ExpMethodHigham2005Base()

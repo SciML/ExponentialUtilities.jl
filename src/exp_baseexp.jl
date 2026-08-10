@@ -1,39 +1,5 @@
 using LinearSolve: LinearSolve, LinearProblem
-
-# LAPACK GEBAL wrapper that writes the balancing permutation/scale into a
-# caller-supplied buffer instead of allocating one, unlike
-# `LinearAlgebra.LAPACK.gebal!` and `GenericSchur.balance!` (the latter allocates
-# ~15 KB per call even for a small matrix). Used for the strided-BlasFloat matrix
-# exponential so that balancing — and therefore the Krylov phi/exp hot path — is
-# allocation-free on the CPU. Non-BlasFloat / non-strided inputs keep the generic
-# `GenericSchur.balance!` fallback.
-const _LIBLAPACK = BLAS.libblastrampoline
-for (gebal, elty, relty) in (
-        (:dgebal_, :Float64, :Float64),
-        (:sgebal_, :Float32, :Float32),
-        (:zgebal_, :ComplexF64, :Float64),
-        (:cgebal_, :ComplexF32, :Float32),
-    )
-    @eval function gebal_noalloc!(job::AbstractChar, A::AbstractMatrix{$elty}, scale)
-        BLAS.chkstride1(A)
-        n = LinearAlgebra.checksquare(A)
-        LinearAlgebra.LAPACK.chkfinite(A)
-        ilo = Ref{LinearAlgebra.BlasInt}()
-        ihi = Ref{LinearAlgebra.BlasInt}()
-        info = Ref{LinearAlgebra.BlasInt}()
-        ccall(
-            (BLAS.@blasfunc($gebal), _LIBLAPACK), Cvoid,
-            (
-                Ref{UInt8}, Ref{LinearAlgebra.BlasInt}, Ptr{$elty},
-                Ref{LinearAlgebra.BlasInt}, Ptr{LinearAlgebra.BlasInt},
-                Ptr{LinearAlgebra.BlasInt}, Ptr{$relty}, Ptr{LinearAlgebra.BlasInt}, Clong,
-            ),
-            job, n, A, max(1, stride(A, 2)), ilo, ihi, scale, info, 1
-        )
-        LinearAlgebra.LAPACK.chklapackerror(info[])
-        return ilo[], ihi[], scale
-    end
-end
+using PureGebal: PureGebal
 
 """
     ExpMethodHigham2005Base()
@@ -67,8 +33,10 @@ function alloc_mem(
         LinearProblem(Abuf, Bbuf);
         alias = LinearSolve.LinearAliasSpecifier(alias_A = true, alias_b = true)
     )
-    scale = Vector{real(T)}(undef, n)  # balancing scale, filled by gebal_noalloc!
-    return (A2, P, U, V, temp, linsolve, scale)
+    # PureGebal.balance! writes the permutation and the scale factors into this
+    # caller-owned workspace, keeping balancing off the allocation path.
+    balancer = PureGebal.GebalWorkspace(T, n)
+    return (A2, P, U, V, temp, linsolve, balancer)
 end
 
 # X .= temp \ X through the cached LinearSolve workspace: refill the
@@ -151,15 +119,12 @@ function exponential!(
     # return copytri!(parent(exp(Hermitian(A))), 'U', true)
     # end
 
-    A2, P, U, V, temp, linsolve, scale = cache
+    A2, P, U, V, temp, linsolve, balancer = cache
 
     fill!(P, zero(T))
     fill!(@diagview(P), one(T)) # P = Inn
 
-    # `A` is a strided BlasFloat matrix here (method signature), so LAPACK
-    # balancing applies; the non-allocating wrapper writes into the cache's
-    # `scale` buffer instead of allocating one (as GenericSchur.balance! would).
-    ilo, ihi, scale = gebal_noalloc!('B', A, scale)    # modifies A and scale
+    PureGebal.balance!(A, balancer)   # modifies both A and balancer
 
     nA = opnorm(A, 1)
     ## For sufficiently small nA, use lower order Padé-Approximations
@@ -190,29 +155,7 @@ function exponential!(
         end
     end
 
-    # Undo the balancing
-    for j in ilo:ihi
-        scj = scale[j]
-        for i in 1:n
-            X[j, i] *= scj
-        end
-        for i in 1:n
-            X[i, j] /= scj
-        end
-    end
-
-    # LAPACK gebal encodes the row/column permutations in the `scale` array
-    # itself (unlike GenericSchur, which returns separate prow/pcol).
-    if ilo > 1       # apply lower permutations in reverse order
-        for j in (ilo - 1):-1:1
-            rcswap!(j, Int(scale[j]), X)
-        end
-    end
-    if ihi < n       # apply upper permutations in forward order
-        for j in (ihi + 1):n
-            rcswap!(j, Int(scale[j]), X)
-        end
-    end
+    PureGebal.unbalance!(X, balancer)
 
     return X
 end

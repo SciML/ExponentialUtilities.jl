@@ -17,10 +17,8 @@ end
 run_qa(
     ExponentialUtilities;
     ei_kwargs = (;
-        # Non-public LinearAlgebra/BLAS/LAPACK names used by the non-allocating
-        # LAPACK balancing wrapper `gebal_noalloc!` (which keeps the CPU matrix
-        # exponential allocation-free), plus `Base.promote_op` used to infer the
-        # exponential! workspace type at cache construction without allocating.
+        # `Base.promote_op` infers the exponential! workspace type at cache
+        # construction without allocating one.
         # `arithmetic_closure` (owned by StaticArrays) is the only spelling of
         # "type you get from doing arithmetic on this eltype", which the
         # StaticArrays extension needs to pick the working eltype for `expv` on
@@ -28,16 +26,7 @@ run_qa(
         # demonstrates `import StaticArrays.arithmetic_closure` -- but StaticArrays
         # has not declared it `public`, and there is no public equivalent.
         all_qualified_accesses_are_public = (;
-            ignore = (
-                Symbol("@blasfunc"), :BlasInt, :arithmetic_closure, :chkfinite,
-                :chklapackerror, :chkstride1, :libblastrampoline, :promote_op,
-            ),
-        ),
-        # `chkstride1` (owned by LinearAlgebra) and `libblastrampoline` (owned by
-        # libblastrampoline_jll) are reached through the `LinearAlgebra.BLAS`
-        # re-exporter in the same balancing wrapper.
-        all_qualified_accesses_via_owners = (;
-            ignore = (:chkstride1, :libblastrampoline),
+            ignore = (:arithmetic_closure, :promote_op),
         ),
         # ArrayInterface.parameterless_type is not declared public but is the
         # standard way to adapt a host array to the GPU array type of `w`.
