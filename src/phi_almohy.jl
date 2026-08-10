@@ -131,6 +131,10 @@ the step rather than abort.
   - `A`: representative strided `Float64` or `ComplexF64` square matrix.
   - `p`: largest phi-function order needed in subsequent [`phi!`](@ref) calls.
 
+# Returns
+
+A `PhiPadeCache` sized for matrices matching `A` and orders through `p`.
+
 # Fields
 
   - `As`, `Apow`, `Nm`, `Dm`, `Dfact`, `rhs`, `Naux`, `Daux`, `tmp`, `pow1`,
@@ -139,6 +143,15 @@ the step rather than abort.
   - `absA`, `rvec1`, `rvec2`, `Ncoef`, `Dcoef`, `Amat`, `eta`, `alpha`,
     `tvals`, and `Cost`: real-valued parameter-selection work buffers.
   - `info`: result code from the most recent evaluation (`0` on success).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+cache = PhiPadeCache(A, 2)
+out = [similar(A) for _ in 0:2]
+phi!(out, A, 2; caches = cache)
+```
 """
 struct PhiPadeCache{T, RT, MT <: AbstractMatrix{T}, RMT <: AbstractMatrix{RT}, LS}
     As::MT
