@@ -12,8 +12,23 @@
 # where `using CUDA` errors with "CUDA driver not functional".
 
 [Core]
-versions = ["lts", "1", "pre"]
+versions = ["lts", "1"]
 os = ["ubuntu-latest", "macos-latest", "windows-latest", "macOS-15-intel"]
+
+# "pre" (Julia 1.13-rc) is split out and non-blocking: the test env's
+# DoubleFloats -> GenericLinearAlgebra fails to precompile with "Method
+# overwriting is not permitted during Module precompilation". GenericLinearAlgebra
+# guards its `LinearAlgebra.eigencopy_oftype(::UpperHessenberg, S)` override with
+# `VERSION < v"1.14"`, but Julia 1.13 already split LinearAlgebra into its own
+# standalone stdlib package that defines that same method, so the guard no
+# longer prevents the clash. This is an upstream GenericLinearAlgebra/Julia
+# incompatibility, not an ExponentialUtilities issue; drop this split once
+# GenericLinearAlgebra ships a fix (JuliaLinearAlgebra/GenericLinearAlgebra.jl).
+[Core-pre]
+group = "Core"
+versions = ["pre"]
+os = ["ubuntu-latest", "macos-latest", "windows-latest", "macOS-15-intel"]
+continue_on_error = true
 
 [QA]
 versions = ["lts", "1"]
