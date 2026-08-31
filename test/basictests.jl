@@ -766,10 +766,12 @@ end
     w = expv(-im, dt * A, b, m = m, tol = atol, rtol = rtol, mode = :error_estimate)
 
     function fullexp(A, v)
-        w = similar(v)
+        # a distinct name: assigning to `w` here would capture and overwrite
+        # the testset-local `w` above, making the comparison below vacuous
+        wfull = similar(v)
         eA = exp(A)
-        mul!(w, eA, v)
-        w
+        mul!(wfull, eA, v)
+        wfull
     end
 
     w′ = fullexp(-im * dt * A, b)
