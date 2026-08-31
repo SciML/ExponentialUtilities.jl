@@ -188,7 +188,7 @@ function expv!(
 
     for j in 1:m
         lanczos_step!(j, A, V, α, β)
-        expT!(@view(α[1:j]), @view(β[1:j]), t, cache)
+        expT!(@view(α[1:j]), @view(β[1:(j - 1)]), t, cache)
 
         # This is practical error estimate Er₂ from
         #
