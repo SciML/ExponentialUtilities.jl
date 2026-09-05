@@ -785,6 +785,69 @@ end
     @test norm(wz) == 0
 end
 
+@testset "Preallocated symmetric tridiagonal eigensolver" begin
+    using ExponentialUtilities: StegrCache, expT!, symtridiag_eigen!
+
+    function tridiag_case(R, n)
+        α = randn(R, n)
+        β = randn(R, n)
+        return α, β, SymTridiagonal(α, β[1:(n - 1)])
+    end
+
+    # measured inside functions so the calls are statically dispatched; at
+    # testset scope the loop variables are boxed and the dispatch itself allocates
+    alloc_eigen(d, e, Z) = @allocated symtridiag_eigen!(d, e, Z)
+    alloc_expT(α, β, t, cache) = @allocated expT!(α, β, t, cache)
+
+    Random.seed!(5)
+    @testset "matches eigen ($R, n=$n)" for R in (Float64, Float32), n in (1, 2, 3, 7, 30)
+        α, β, T = tridiag_case(R, n)
+        d = copy(α)
+        e = copy(β)
+        Z = Matrix{R}(I, n, n)
+        symtridiag_eigen!(d, e, Z)
+        @test sort(d) ≈ eigvals(T)
+        @test Z' * Z ≈ I
+        @test Z * Diagonal(d) * Z' ≈ Matrix(T)
+        @test alloc_eigen(d, e, Z) == 0
+    end
+
+    @testset "degenerate matrices" begin
+        # already diagonal, and clusters of equal eigenvalues
+        for T in (
+                SymTridiagonal([1.0, 2.0, 3.0], [0.0, 0.0]),
+                SymTridiagonal(fill(2.0, 5), zeros(4)),
+                SymTridiagonal([1.0, 1.0, 1.0, 1.0], [1.0, 0.0, 1.0]),
+            )
+            n = size(T, 1)
+            d = copy(T.dv)
+            e = vcat(T.ev, 0.0)
+            Z = Matrix{Float64}(I, n, n)
+            symtridiag_eigen!(d, e, Z)
+            @test sort(d) ≈ eigvals(T)
+            @test Z * Diagonal(d) * Z' ≈ Matrix(T)
+        end
+    end
+
+    @testset "expT! ($T)" for T in (Float64, ComplexF64, Float32, ComplexF32)
+        R = real(T)
+        n = 30
+        cache = StegrCache(T, n)
+        t = T <: Complex ? -im * R(0.7) : R(0.7)
+        for j in (1, 2, 5, 13, n)
+            α, β, Tj = tridiag_case(R, j)
+            α0, β0 = copy(α), copy(β)
+            expT!(α, β, t, cache)
+            @test α == α0
+            @test β == β0
+            ref = exp(t * Matrix(Tj))[:, 1]
+            @test cache.v[1:j] ≈ ref rtol = 100 * eps(R) * j
+        end
+        α, β, _ = tridiag_case(R, n)
+        @test alloc_expT(α, β, t, cache) == 0
+    end
+end
+
 module ExternalMatrixFreeOperator
     using LinearAlgebra
     export Operator

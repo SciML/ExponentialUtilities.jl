@@ -13,9 +13,9 @@ abstract type HermitianSubspaceCache{T} <: SubspaceCache{T} end
 Subspace-exponential cache for the error-estimate variant of [`expv!`](@ref)
 (the `mode = :error_estimate` path) on Hermitian operators with element type
 `T`. It is a concrete `HermitianSubspaceCache` sized for a Lanczos subspace of
-dimension up to `n`, and it uses the symmetric-tridiagonal eigensolver to
-compute the exponential of the tridiagonal subspace matrix on each iteration.
-Construct one directly, or let
+dimension up to `n`. Every iteration diagonalizes the tridiagonal subspace
+matrix with a preallocated implicit-QL eigensolver, so applying the subspace
+exponential allocates nothing. Construct one directly, or let
 [`get_subspace_cache`](@ref) build the right cache for a given
 `KrylovSubspace`.
 
@@ -33,6 +33,10 @@ A `StegrCache` sized for subspaces through dimension `n`.
   - `v::Vector{T}`: the subspace-propagated vector (length `n`) that holds the
     result of applying the subspace exponential.
   - `w::Vector{T}`: scratch vector (length `n`) for intermediate values.
+  - `d::Vector{R}`, `e::Vector{R}`: working copies (length `n`) of the
+    tridiagonal diagonal and off-diagonal, overwritten by the eigensolver, where
+    `R = real(T)`.
+  - `Z::Matrix{R}`: `n × n` eigenvector workspace.
 
 # Examples
 
@@ -43,9 +47,86 @@ cache = StegrCache(ComplexF64, 30)
 mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
     v::Vector{T} # Subspace-propagated vector
     w::Vector{T}
+    d::Vector{R}
+    e::Vector{R}
+    Z::Matrix{R}
     function StegrCache(::Type{T}, n::Integer) where {T}
-        return new{T, real(T)}(Vector{T}(undef, n), Vector{T}(undef, n))
+        R = real(T)
+        return new{T, R}(
+            Vector{T}(undef, n), Vector{T}(undef, n),
+            Vector{R}(undef, n), Vector{R}(undef, n), Matrix{R}(undef, n, n)
+        )
     end
+end
+
+"""
+    symtridiag_eigen!(d, e, Z)
+
+Diagonalize the real symmetric tridiagonal matrix with diagonal `d` and
+off-diagonal `e` (`e[i]` couples rows `i` and `i + 1`; `e[end]` is scratch)
+by implicit QL iteration with Wilkinson shifts. On return `d` holds the
+eigenvalues, in no particular order, and `Z` holds the corresponding
+eigenvectors in its columns, provided `Z` was the identity on entry. The
+rotations are accumulated into whatever `Z` contains, so passing a
+non-identity `Z` yields `Z * Q`. Works in place on the given buffers and
+allocates nothing.
+"""
+function symtridiag_eigen!(
+        d::AbstractVector{R}, e::AbstractVector{R}, Z::AbstractMatrix{R}
+    ) where {R <: Real}
+    n = length(d)
+    n == 0 && return d, Z
+    @inbounds e[n] = zero(R)
+    @inbounds for l in 1:n
+        iter = 0
+        while true
+            m = l
+            while m < n
+                abs(e[m]) <= eps(R) * (abs(d[m]) + abs(d[m + 1])) && break
+                m += 1
+            end
+            m == l && break
+            (iter += 1) > 30n && error("symtridiag_eigen!: no convergence after 30n QL iterations")
+            g = (d[l + 1] - d[l]) / (2 * e[l])
+            r = hypot(g, one(R))
+            g = d[m] - d[l] + e[l] / (g + copysign(r, g))
+            s = one(R)
+            c = one(R)
+            p = zero(R)
+            underflow = false
+            i = m - 1
+            while i >= l
+                f = s * e[i]
+                b = c * e[i]
+                r = hypot(f, g)
+                e[i + 1] = r
+                if iszero(r)
+                    d[i + 1] -= p
+                    e[m] = zero(R)
+                    underflow = true
+                    break
+                end
+                s = f / r
+                c = g / r
+                g = d[i + 1] - p
+                r = (d[i] - g) * s + 2 * c * b
+                p = s * r
+                d[i + 1] = g + p
+                g = c * r - b
+                for k in 1:n
+                    zk = Z[k, i + 1]
+                    Z[k, i + 1] = s * Z[k, i] + c * zk
+                    Z[k, i] = c * Z[k, i] - s * zk
+                end
+                i -= 1
+            end
+            underflow && continue
+            d[l] -= p
+            e[l] = g
+            e[m] = zero(R)
+        end
+    end
+    return d, Z
 end
 
 """
@@ -53,18 +134,28 @@ end
 
 Calculate the subspace exponential `exp(t*T)` for a tridiagonal
 subspace matrix `T` with `α` on the diagonal and `β` on the
-super-/subdiagonal.
+super-/subdiagonal. `α` and `β` are copied into the cache first and are not
+modified.
 """
 function expT!(
         α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
         cache::StegrCache{T, R}
     ) where {T, R <: Real}
-    F = eigen(SymTridiagonal(α, β))
     sel = 1:length(α)
+    d = @view cache.d[sel]
+    e = @view cache.e[sel]
+    Z = @view cache.Z[sel, sel]
+    copyto!(d, α)
+    copyto!(e, β)
+    fill!(Z, zero(R))
     @inbounds for i in sel
-        cache.w[i] = exp(t * F.values[i]) * F.vectors[1, i]
+        Z[i, i] = one(R)
     end
-    return mul!(@view(cache.v[sel]), @view(F.vectors[sel, sel]), @view(cache.w[sel]))
+    symtridiag_eigen!(d, e, Z)
+    @inbounds for i in sel
+        cache.w[i] = exp(t * d[i]) * Z[1, i]
+    end
+    return mul!(@view(cache.v[sel]), Z, @view(cache.w[sel]))
 end
 
 """
@@ -73,7 +164,8 @@ end
 Construct the subspace-exponential cache appropriate for the Krylov subspace
 `Ks`, for use with the error-estimate variant of [`expv!`](@ref). For a real
 (Hermitian) subspace this returns a [`StegrCache`](@ref) sized to `Ks.maxiter`,
-which uses a symmetric-tridiagonal eigensolver. Non-Hermitian
+which diagonalizes the tridiagonal subspace matrix with a preallocated
+implicit-QL eigensolver. Non-Hermitian
 (complex) subspaces are not yet supported and raise an error.
 
 # Arguments
