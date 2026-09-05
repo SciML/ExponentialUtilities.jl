@@ -176,11 +176,28 @@ function exponential!(
     (Vk === Val{13}() && x isa AbstractMatrix && ismutable(x)) &&
         return exp_generic_mutable(x, s, Val{13}())
     if s >= 1
-        return exponential!(x / (2^s), method, cache)^(2^s)
+        return _square(exponential!(x / (2^s), method, cache), s)
     else
         return exp_pade_p(x, Vk, Vk) / exp_pade_q(x, Vk, Vk)
     end
 end
+
+# Every product on the immutable-matrix path goes through `_mul` so the StaticArrays
+# extension can substitute a kernel that Julia 1.12 does not miscompile (see there).
+_mul(x, y) = x * y
+
+_square(x::Number, s) = x^(2^s)
+function _square(x, s)
+    for _ in 1:s
+        x = _mul(x, x)
+    end
+    return x
+end
+
+# `@evalpoly` with the products routed through `_mul`; `c[1]` is the constant term.
+@inline _horner(x, c::Tuple) = _horner(x, c[end], Base.front(c))
+@inline _horner(x, y, ::Tuple{}) = y
+@inline _horner(x, y, c::Tuple) = _horner(x, _mul(x, y) + c[end], Base.front(c))
 
 # Specialized (13,13) Padé numerator for the immutable-matrix path. The coefficient
 # type is taken from `eltype(x)` at runtime (rather than hardcoded `Float64`) so that a
@@ -190,22 +207,24 @@ end
 # blocked, so ForwardDiff differentiation would fail.
 function exp_pade_p(x, ::Val{13}, ::Val{13})
     T = float(eltype(x))
-    return @evalpoly(
+    return _horner(
         x,
-        UniformScaling(T(1 // 1)),
-        UniformScaling(T(1 // 2)),
-        UniformScaling(T(3 // 25)),
-        UniformScaling(T(11 // 600)),
-        UniformScaling(T(11 // 5520)),
-        UniformScaling(T(3 // 18400)),
-        UniformScaling(T(1 // 96600)),
-        UniformScaling(T(1 // 1932000)),
-        UniformScaling(T(1 // 48944000)),
-        UniformScaling(T(1 // 1585785600)),
-        UniformScaling(T(1 // 67395888000)),
-        UniformScaling(T(1 // 3953892096000)),
-        UniformScaling(T(1 // 355850288640000)),
-        UniformScaling(T(1 // 64764752532480000))
+        (
+            UniformScaling(T(1 // 1)),
+            UniformScaling(T(1 // 2)),
+            UniformScaling(T(3 // 25)),
+            UniformScaling(T(11 // 600)),
+            UniformScaling(T(11 // 5520)),
+            UniformScaling(T(3 // 18400)),
+            UniformScaling(T(1 // 96600)),
+            UniformScaling(T(1 // 1932000)),
+            UniformScaling(T(1 // 48944000)),
+            UniformScaling(T(1 // 1585785600)),
+            UniformScaling(T(1 // 67395888000)),
+            UniformScaling(T(1 // 3953892096000)),
+            UniformScaling(T(1 // 355850288640000)),
+            UniformScaling(T(1 // 64764752532480000)),
+        )
     )
 end
 
@@ -289,7 +308,7 @@ end
         den = factorial(k + m) * factorial(k - j) * factorial(j)
         (float ∘ eltype)(x)(num // den) * (x <: Number ? 1 : I)
     end
-    return :(@evalpoly(x, $(p...)))
+    return x <: Number ? :(@evalpoly(x, $(p...))) : :(_horner(x, ($(p...),)))
 end
 
 exp_pade_q(x, k, m) = exp_pade_p(-x, m, k)

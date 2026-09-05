@@ -121,6 +121,22 @@ end
     end
 end
 
+# Julia 1.12 (LLVM 18) miscompiles StaticArrays' `mul_loop` product kernel at -O2 for
+# element types carrying 16-lane Float32 partials (ForwardDiff `Dual{T, Float32, 16}`),
+# corrupting the last partial of some entries. Forming each entry as an independent
+# `muladd` chain avoids the affected code shape.
+@generated function ExponentialUtilities._mul(a::SMatrix{M, K}, b::SMatrix{K, N}) where {M, K, N}
+    K == 0 && return :(a * b)
+    exprs = [
+        foldl(
+            (acc, j) -> :(muladd(a[$(k1 + (j - 1) * M)], b[$(j + (k2 - 1) * K)], $acc)), 2:K;
+            init = :(a[$k1] * b[$(1 + (k2 - 1) * K)])
+        )
+            for k1 in 1:M, k2 in 1:N
+    ]
+    return :(@inbounds SMatrix{$M, $N}(tuple($(exprs...))))
+end
+
 # exponential matrix-vector product for SArray types
 """
     expv(t::Number,A::SMatrix{N,N},v::SVector{N};kwarg...) → exp(t*A)*v
