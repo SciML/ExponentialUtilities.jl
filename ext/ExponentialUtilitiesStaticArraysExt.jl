@@ -121,12 +121,19 @@ end
     end
 end
 
-# Julia 1.12 (LLVM 18) miscompiles StaticArrays' `mul_loop` product kernel at -O2 for
-# element types carrying 16-lane Float32 partials (ForwardDiff `Dual{T, Float32, 16}`),
-# corrupting the last partial of some entries. Forming each entry as an independent
-# `muladd` chain avoids the affected code shape.
-@generated function ExponentialUtilities._mul(a::SMatrix{M, K}, b::SMatrix{K, N}) where {M, K, N}
-    K == 0 && return :(a * b)
+const IEEEFloat = Union{Float16, Float32, Float64}
+
+# TEMPORARY WORKAROUND for https://github.com/JuliaLang/julia/issues/62368: Julia 1.12
+# (LLVM 18) miscompiles StaticArrays' `mul_loop` kernel at -O2 for element types such as
+# ForwardDiff `Dual{T, Float32, 16}`, corrupting a partials lane of some entries. Plain
+# float matrices are unaffected and keep StaticArrays' kernel; other element types get a
+# fully unrolled `muladd` chain per entry, which is correct but 1.7x to 4x slower.
+# Remove these three methods (and the hooks in src/exp_generic.jl) once the minimum
+# supported Julia includes the LLVM backport of llvm/llvm-project@5d7cf504; see AGENTS.md.
+@generated function ExponentialUtilities._mul(
+        a::SMatrix{M, K, T}, b::SMatrix{K, N, T}
+    ) where {M, K, N, T}
+    (K == 0 || T <: IEEEFloat) && return :(a * b)
     exprs = [
         foldl(
             (acc, j) -> :(muladd(a[$(k1 + (j - 1) * M)], b[$(j + (k2 - 1) * K)], $acc)), 2:K;
@@ -135,6 +142,24 @@ end
             for k1 in 1:M, k2 in 1:N
     ]
     return :(@inbounds SMatrix{$M, $N}(tuple($(exprs...))))
+end
+
+function ExponentialUtilities._square(x::SMatrix{M, M, T}, s) where {M, T}
+    T <: IEEEFloat && return x^(2^s)
+    for _ in 1:s
+        x = ExponentialUtilities._mul(x, x)
+    end
+    return x
+end
+
+@generated function ExponentialUtilities._horner(x::SMatrix{M, M, T}, c::Tuple) where {M, T}
+    T <: IEEEFloat && return :(Base.evalpoly(x, c))
+    n = length(c.parameters)
+    ex = :(c[$n])
+    for i in (n - 1):-1:1
+        ex = :(ExponentialUtilities._mul(x, $ex) + c[$i])
+    end
+    return ex
 end
 
 # exponential matrix-vector product for SArray types

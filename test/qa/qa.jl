@@ -29,7 +29,7 @@ run_qa(
         # `_mul` is the package-internal product hook the StaticArrays extension
         # overrides.
         all_qualified_accesses_are_public = (;
-            ignore = (:arithmetic_closure, :promote_op, :_mul),
+            ignore = (:arithmetic_closure, :promote_op, :_mul, :_square, :_horner),
         ),
         # ArrayInterface.parameterless_type is not declared public but is the
         # standard way to adapt a host array to the GPU array type of `w`.
@@ -42,7 +42,7 @@ run_explicit_imports(
     Base.get_extension(ExponentialUtilities, :ExponentialUtilitiesStaticArraysExt), ExplicitImports;
     ei_kwargs = (;
         all_qualified_accesses_are_public = (;
-            ignore = (:arithmetic_closure, :_mul),
+            ignore = (:arithmetic_closure, :_mul, :_square, :_horner),
         ),
     ),
 )

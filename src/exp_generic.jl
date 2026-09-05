@@ -182,22 +182,12 @@ function exponential!(
     end
 end
 
-# Every product on the immutable-matrix path goes through `_mul` so the StaticArrays
-# extension can substitute a kernel that Julia 1.12 does not miscompile (see there).
+# TEMPORARY hooks for the StaticArrays extension's Julia 1.12 miscompile workaround; the
+# defaults are exactly what the immutable-matrix path did before it. See the extension
+# and AGENTS.md for the removal condition.
 _mul(x, y) = x * y
-
-_square(x::Number, s) = x^(2^s)
-function _square(x, s)
-    for _ in 1:s
-        x = _mul(x, x)
-    end
-    return x
-end
-
-# `@evalpoly` with the products routed through `_mul`; `c[1]` is the constant term.
-@inline _horner(x, c::Tuple) = _horner(x, c[end], Base.front(c))
-@inline _horner(x, y, ::Tuple{}) = y
-@inline _horner(x, y, c::Tuple) = _horner(x, _mul(x, y) + c[end], Base.front(c))
+_square(x, s) = x^(2^s)
+_horner(x, c::Tuple) = Base.evalpoly(x, c)
 
 # Specialized (13,13) Padé numerator for the immutable-matrix path. The coefficient
 # type is taken from `eltype(x)` at runtime (rather than hardcoded `Float64`) so that a
