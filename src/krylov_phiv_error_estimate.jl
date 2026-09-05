@@ -59,7 +59,7 @@ function expT!(
         α::AbstractVector{R}, β::AbstractVector{R}, t::Number,
         cache::StegrCache{T, R}
     ) where {T, R <: Real}
-    F = eigen!(SymTridiagonal(α, β))
+    F = eigen(SymTridiagonal(α, β))
     sel = 1:length(α)
     @inbounds for i in sel
         cache.w[i] = exp(t * F.values[i]) * F.vectors[1, i]
