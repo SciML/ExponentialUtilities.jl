@@ -73,22 +73,19 @@ const THETA64 = Tuple(calc_thetas(M_MAX, Float64))
 @propagate_inbounds theta(x::Number, m::Integer) = theta(typeof(x), m)
 
 # runtime parameter search
-@propagate_inbounds @inline function calculate_s(α::T, m::I)::I where {
-        T <: Number, I <: Integer,
-    }
-    return ceil(I, α / theta(T, m))
+# Use Int64 for scaling parameters: on 32-bit Julia, `Int === Int32` and
+# `m * ceil(α/θ)` routinely overflows Int32 (InexactError in parameter_search).
+@propagate_inbounds @inline function calculate_s(α::T, m::Integer)::Int64 where {T <: Number}
+    return ceil(Int64, α / theta(T, m))
 end
-@propagate_inbounds @inline function parameter_search(nA::Number, m::I)::I where {
-        I <:
-        Integer,
-    }
-    return m * calculate_s(nA, m)
+@propagate_inbounds @inline function parameter_search(nA::Number, m::Integer)::Int64
+    return Int64(m) * calculate_s(nA, m)
 end
 @propagate_inbounds @inline function parameters(
         A::SMatrix{
             N, N, T,
         }
-    )::Tuple{Int, Int} where {N, T}
+    )::Tuple{Int64, Int64} where {N, T}
     1 ≤ N ≤ 50 || throw(
         DomainError(
             N,
@@ -96,27 +93,27 @@ end
         )
     )
     nA = opnorm(A, 1)
-    iszero(nA) && return (0, 1)
+    iszero(nA) && return (Int64(0), Int64(1))
     @inbounds if nA ≤ 4theta(T, M_MAX) * P_MAX * (P_MAX + 3) / (M_MAX * 1)
-        mo = argmin(Base.Fix1(parameter_search, nA), 1:M_MAX)
+        mo = argmin(Base.Fix1(parameter_search, nA), Int64(1):Int64(M_MAX))
         s = calculate_s(nA, mo)
         return (mo, s)
     else
         Aᵐ = A * A
         pη = √(opnorm(Aᵐ, 1))
-        (Cmo::Int, mo::Int) = (typemax(Int), 1)
+        (Cmo::Int64, mo::Int64) = (typemax(Int64), Int64(1))
         for p in 2:P_MAX
             Aᵐ *= A
             η = opnorm(Aᵐ, 1)^inv(p + 1)
             α = max(pη, η)
             pη = η
             (
-                Cmp::Int,
-                mp::Int,
-            ) = findmin(Base.Fix1(parameter_search, α), (p * (p - 1) - 1):M_MAX)
+                Cmp::Int64,
+                mp::Int64,
+            ) = findmin(Base.Fix1(parameter_search, α), Int64(p * (p - 1) - 1):Int64(M_MAX))
             (Cmo, mo) = min((Cmp, mp), (Cmo, mo))
         end
-        s = max(Cmo ÷ mo, 1)
+        s = max(Cmo ÷ mo, Int64(1))
         return (mo, s)
     end
 end
