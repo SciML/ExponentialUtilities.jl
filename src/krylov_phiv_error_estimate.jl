@@ -70,6 +70,11 @@ eigenvectors in its columns, provided `Z` was the identity on entry. The
 rotations are accumulated into whatever `Z` contains, so passing a
 non-identity `Z` yields `Z * Q`. Works in place on the given buffers and
 allocates nothing.
+
+Accumulating the rotations costs `O(n^3)`, against `O(n^2)` for LAPACK's MRRR
+(`stegr!`). It is nonetheless the faster choice on the Lanczos tridiagonals this
+path produces, whose decaying off-diagonals deflate in few sweeps; on generic
+tridiagonals it falls behind LAPACK past `n` of roughly 130.
 """
 function symtridiag_eigen!(
         d::AbstractVector{R}, e::AbstractVector{R}, Z::AbstractMatrix{R}
