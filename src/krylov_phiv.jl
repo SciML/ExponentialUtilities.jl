@@ -151,7 +151,7 @@ function _expv_ee(
     n = size(A, 1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
-    Ks = KrylovSubspace{T, U}(n, m)
+    Ks = _krylov_subspace(b, T, U, n, m)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     return expv!(
         w, t, A, b, Ks, get_subspace_cache(Ks); atol = tol, rtol = rtol,

@@ -75,6 +75,19 @@ end
 KrylovSubspace{T}(args...) where {T} = KrylovSubspace{T, T}(args...)
 KrylovSubspace{T, U}(args...) where {T, U} = KrylovSubspace{T, U, Matrix{T}}(args...)
 
+# Build a subspace whose basis matches the storage of `prototype`, so a device-backed
+# input keeps its array type instead of silently falling back to a host `Matrix`.
+function _krylov_subspace(
+        prototype::AbstractArray, ::Type{T}, ::Type{U},
+        n::Integer, maxiter::Integer, augmented::Integer = false
+    ) where {T, U}
+    V = similar(prototype, T, (n + augmented, maxiter + 1))
+    H = fill(zero(U), maxiter + 1, maxiter + !iszero(augmented))
+    return KrylovSubspace{T, U, real(T), typeof(V), Matrix{U}}(
+        maxiter, maxiter, augmented, zero(real(T)), false, V, H
+    )
+end
+
 getV(Ks::KrylovSubspace) = @view(Ks.V[:, 1:(Ks.m + 1)])
 getH(Ks::KrylovSubspace) = @view(Ks.H[1:(Ks.m + 1), 1:(Ks.m + !iszero(Ks.augmented))])
 function Base.resize!(Ks::KrylovSubspace{T, U}, maxiter::Integer) where {T, U}

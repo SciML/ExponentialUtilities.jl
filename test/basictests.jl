@@ -3,6 +3,7 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays, DoubleFloats
+using JLArrays
 
 @testset "alloc_mem public API" begin
     A = [1.0 0.0; 0.0 1.0]
@@ -846,6 +847,30 @@ end
         α, β, _ = tridiag_case(R, n)
         @test alloc_expT(α, β, t, cache) == 0
     end
+end
+
+@testset "expv error-estimate mode preserves the input array type" begin
+    # JLArrays is the reference GPUArrays backend and disallows scalar indexing, so a
+    # host-backed Krylov basis makes these calls throw rather than silently work.
+    Random.seed!(11)
+    n = 120
+    A = Matrix(Hermitian(rand(n, n))) ./ 10
+    b = rand(ComplexF64, n)
+    kw = (m = 30, tol = 1.0e-10, rtol = 1.0e-10, mode = :error_estimate)
+    wref = expv(-im, A, b; kw...)
+
+    w = expv(-im, JLArray(A), JLArray(b); kw...)
+    @test w isa JLArray
+    @test Array(w) ≈ wref rtol = 1.0e-10
+
+    # the in-place entry point with an explicitly device-resident subspace
+    Ks = KrylovSubspace{ComplexF64, Float64, JLArray{ComplexF64, 2}}(n, 30)
+    wd = JLArray(similar(b))
+    expv!(
+        wd, -im, JLArray(A), JLArray(b), Ks, get_subspace_cache(Ks);
+        atol = 1.0e-10, rtol = 1.0e-10, ishermitian = true
+    )
+    @test Array(wd) ≈ wref rtol = 1.0e-10
 end
 
 module ExternalMatrixFreeOperator
