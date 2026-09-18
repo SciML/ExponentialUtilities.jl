@@ -388,7 +388,10 @@ function phiv_timestep!(
         end
         _, epsilon = _phiv!(P, tau, Ks, p + 1, phiv_cache, correct, ExpMethodHigham2005Base())
         verbose && println("t = $t, m = $m, tau = $tau, error estimate = $epsilon")
-        if adaptive
+        # A happy breakdown means the Krylov subspace is already A-invariant, so
+        # `_phiv!` is exact and the error estimate carries no information to adapt on:
+        # `m` no longer changes it, which would leave `kappa == 1` below.
+        if adaptive && !Ks.wasbreakdown
             omega = (tend / tau) * (epsilon / abstol)
             epsilon_old = epsilon
             m_old = m
