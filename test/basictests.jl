@@ -662,6 +662,37 @@ end
             @test exp(t * A) * b ≈ expv(t, A, b; m = m)
         end
     end
+    # An exactly Hermitian Hessenberg of complex eltype: a happy breakdown after one
+    # step, and a tridiagonal one whose off-diagonals are complex
+    b = ones(ComplexF64, 8)
+    Ks = KrylovSubspace{ComplexF64, ComplexF64}(8, 8)
+    arnoldi!(Ks, Diagonal(ones(ComplexF64, 8)), b)
+    @test expv!(similar(b), 1.0, Ks) ≈ exp(1.0) * b
+    Ks = KrylovSubspace{ComplexF64, ComplexF64}(8, 4)
+    Ks.beta = 2.0
+    Ks.V .= Matrix{ComplexF64}(I, 8, 5)
+    Ks.H .= 0
+    Tm = Matrix(Tridiagonal(ComplexF64[0.3 - 0.4im, 0.1im, 0.2], ComplexF64[1.0, -0.5, 0.25, 2.0], ComplexF64[0.3 + 0.4im, -0.1im, 0.2]))
+    Ks.H[1:4, :] .= Tm
+    for t in (0.3, 0.3 + 0.2im)
+        @test expv!(similar(b), t, Ks) ≈ 2.0 * Ks.V[:, 1:4] * exp(t * Tm)[:, 1]
+    end
+    Kg = KrylovSubspace{ComplexF64, ComplexF64, JLArray{ComplexF64, 2}}(8, 4)
+    Kg.beta = 2.0
+    Kg.V .= JLArray(Matrix{ComplexF64}(I, 8, 5))
+    Kg.H .= 0
+    Kg.H[1:4, :] .= Tm
+    for t in (0.3, 0.3 + 0.2im)
+        @test Array(expv!(JLArray(zeros(ComplexF64, 8)), t, Kg)) ≈
+            2.0 * Matrix{ComplexF64}(I, 8, 4) * exp(t * Tm)[:, 1]
+    end
+    # a complex cache over a real Hessenberg
+    Ar = Matrix(SymTridiagonal([-2.0, -1.0, -3.0, -0.5], [0.4, 0.3, 0.2]))
+    br = [1.0, 0.5, -0.2, 0.3]
+    Kr = arnoldi(Ar, br; m = 4)
+    for t in (0.3, 0.3 + 0.2im)
+        @test expv!(zeros(ComplexF64, 4), t, Kr; cache = ExpvCache{ComplexF64}(4)) ≈ exp(t * Ar) * br
+    end
 end
 
 @testset "Adaptive Krylov" begin

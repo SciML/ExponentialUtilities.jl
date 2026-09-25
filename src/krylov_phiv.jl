@@ -224,8 +224,8 @@ function expv!(
     Vm = @view(V[:, 1:m])
     if ishermitian(Hcopy)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(Hcopy))
-        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        F = eigen!(U <: Real ? SymTridiagonal(real(Hcopy)) : Hermitian(Hcopy))
+        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* conj.(@view(F.vectors[1, :])))
         return lmul!(beta, mul!(w, Vm, expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
     else
         lmul!(t, Hcopy)
@@ -269,8 +269,8 @@ function expv!(
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(real(cache)))
-        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
+        expHe = F.vectors * (exp.(t * F.values) .* conj.(@view(F.vectors[1, :])))
     else
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
@@ -302,9 +302,9 @@ function ExponentialUtilities.expv!(
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(cache))
+        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
         # Use lmul! to avoid allocation (modifies F.values in place)
-        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* conj.(@view(F.vectors[1, :])))
     else
         lmul!(t, cache)
         expH = exponential!(cache, expmethod)
@@ -337,9 +337,9 @@ function ExponentialUtilities.expv!(
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(cache))
+        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
         # Must allocate here: F.values is Real, t is Complex
-        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(t * F.values) .* conj.(@view(F.vectors[1, :])))
     else
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
