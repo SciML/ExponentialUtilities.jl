@@ -383,7 +383,9 @@ function phiv_timestep!(
             end
             verbose && println("Absolute tolerance (Arnoldi estimate): $abstol")
         end
-        if Ks.wasbreakdown
+        # A zero Krylov vector spans an invariant subspace too, and its term is exactly zero.
+        breakdown = Ks.wasbreakdown || iszero(Ks.beta)
+        if breakdown
             tau = tend - t
         end
         _, epsilon = _phiv!(P, tau, Ks, p + 1, phiv_cache, correct, ExpMethodHigham2005Base())
@@ -391,7 +393,7 @@ function phiv_timestep!(
         # A happy breakdown means the Krylov subspace is already A-invariant, so
         # `_phiv!` is exact and the error estimate carries no information to adapt on:
         # `m` no longer changes it, which would leave `kappa == 1` below.
-        if adaptive && !Ks.wasbreakdown
+        if adaptive && !breakdown
             omega = (tend / tau) * (epsilon / abstol)
             epsilon_old = epsilon
             m_old = m

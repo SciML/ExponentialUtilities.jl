@@ -624,6 +624,11 @@ function _phiv!(
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1) == size(V, 1) "Dimension mismatch"
     @assert size(w, 2) == k + 1 "Dimension mismatch"
+    if iszero(beta)
+        # As in `expv!`: V and H are never filled for a zero input, and the result is zero.
+        w .= false
+        return w, abs(beta * zero(U) * t * zero(eltype(w)))
+    end
     if isnothing(cache)
         cache = PhivCache(w, m, k)
     elseif !isa(cache, PhivCache)
