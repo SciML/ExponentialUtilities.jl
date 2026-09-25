@@ -648,6 +648,18 @@ end
     @test (@allocated ge_hit()) == 0
 end
 
+@testset "kiops element types" begin
+    A = [-2.0 1.0; 0.5 -1.0]
+    b = [1.0, 0.5]
+    ref = exp(0.3 * A) * b
+    w32 = kiops(0.3f0, Float32.(A), Float32.(b))[1]
+    @test eltype(w32) == Float32
+    @test w32 ≈ ref rtol = 1.0e-5
+    Ac, bc = A + [0.2im 0.1; -0.1im 0.3im], b .+ [0.5im, -0.2im]
+    @test kiops(0.3, Ac, bc)[1] ≈ exp(0.3 * Ac) * bc
+    @test kiops(0.3, A, [1, 0])[1] ≈ exp(0.3 * A) * [1.0, 0.0]
+end
+
 @testset "Complex Value" begin
     n = 20
     m = 10
