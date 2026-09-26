@@ -83,7 +83,7 @@ function kiops(
     tau_end = abs(tau_out[end])
     j = 0
 
-    numSteps = size(tau_out, 2)
+    numSteps = length(tau_out)
 
     # Initial condition
     w = zeros(T, n, numSteps)
@@ -136,8 +136,8 @@ function kiops(
     while tau_now < tau_end
         oldj = Ks.m
         arnoldi!(
-            Ks, (A, u_flip), (w, w_aug); opnorm = opnorm, ishermitian = ishermitian,
-            iop = iop, init = j, t = tau_now, mu = mu, l = l, m = m
+            Ks, (A, u_flip), (@view(w[:, l]), w_aug); opnorm = opnorm,
+            ishermitian = ishermitian, iop = iop, init = j, t = tau_now, mu = mu, l = 1, m = m
         )
         V = getfield(Ks, :V)
         H = getfield(Ks, :H)
