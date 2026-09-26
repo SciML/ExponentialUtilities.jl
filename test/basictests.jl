@@ -707,6 +707,25 @@ end
     end
 end
 
+@testset "kiops at several output times" begin
+    A = [-2.0 1.0; 0.5 -1.0]
+    b = [1.0, 0.5]
+    for ts in ([0.2, 0.5], [0.2 0.5])
+        w = kiops(ts, A, b)[1]
+        @test size(w) == (2, 2)
+        @test w[:, 1] ≈ exp(0.2 * A) * b
+        @test w[:, 2] ≈ exp(0.5 * A) * b
+    end
+    # enough Krylov substeps that output times are passed between restarts
+    n = 60
+    A = 50 * Matrix(SymTridiagonal(-2 * ones(n), ones(n - 1)))
+    b = collect(range(-1, 1; length = n))
+    ts = collect(range(0.5, 5.0; length = 10))
+    w, stats = kiops(ts, A, b; mmax = 12)
+    @test stats[1] > 1
+    @test all(w[:, i] ≈ exp(ts[i] * A) * b for i in eachindex(ts))
+end
+
 @testset "Adaptive Krylov" begin
     # Internal time-stepping for Krylov (with adaptation)
     n = 100
