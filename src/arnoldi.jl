@@ -207,10 +207,7 @@ end
         # V[1:n, j + 1] = A * @view(V[1:n, j]) + B * @view(V[n+1:n+p, j])
         mul!(@view(V[1:n, j + 1]), A, @view(V[1:n, j]))
 
-        BLAS.gemm!(
-            'N', 'N', 1.0, B, @view(V[(n + 1):(n + p), j]), 1.0,
-            @view(V[1:n, j + 1])
-        )
+        mul!(@view(V[1:n, j + 1]), B, @view(V[(n + 1):(n + p), j]), true, true)
         copyto!(@view(V[(n + 1):(n + p - 1), j + 1]), @view(V[(n + 2):(n + p), j]))
         V[end, j + 1] = 0
     end

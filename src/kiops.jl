@@ -70,7 +70,7 @@ function kiops(
 
     # Preallocate matrix
     TA, Tb = eltype(A), eltype(u)
-    T = promote_type(TA, Tb)
+    T = float(promote_type(TA, Tb))
     Ks = KrylovSubspace{T, ishermitian ? real(T) : T}(n, m, p)
 
     step = 0
@@ -86,8 +86,8 @@ function kiops(
     numSteps = size(tau_out, 2)
 
     # Initial condition
-    w = zeros(n, numSteps)
-    w_aug = zeros(p)
+    w = zeros(T, n, numSteps)
+    w_aug = zeros(T, p)
     copyto!(@view(w[:, 1]), @view(u[:, 1]))
 
     # Normalization factors
@@ -102,7 +102,7 @@ function kiops(
     end
 
     # Flip the rest of the u matrix
-    u_flip = reverse(@view(u[:, 2:end]), dims = 2)
+    u_flip = reverse!(T.(@view(u[:, 2:end])); dims = 2)
     rmul!(u_flip, nu)
 
     # Compute and initial starting approximation for the step size

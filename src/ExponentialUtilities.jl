@@ -1,6 +1,6 @@
 module ExponentialUtilities
 import LinearAlgebra
-import LinearAlgebra: BLAS, Diagonal, Hermitian, I, SingularException,
+import LinearAlgebra: Diagonal, Hermitian, I, SingularException,
     SymTridiagonal, UniformScaling, axpy!, diagind, diagview, dot, eigen!,
     ishermitian, ldiv!, lmul!, lu!, mul!, norm, opnorm, rdiv!, rmul!
 import SparseArrays
