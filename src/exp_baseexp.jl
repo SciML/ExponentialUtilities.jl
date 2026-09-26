@@ -104,6 +104,12 @@ const _PADE_C13 = (
     return X
 end
 
+# The LAPACK-backed method below only takes BLAS element types; anything else, such
+# as ForwardDiff duals, uses the generic Higham 2005 implementation.
+function exponential!(A::AbstractMatrix, ::ExpMethodHigham2005Base, cache = nothing)
+    return exponential!(A, ExpMethodHigham2005(A))
+end
+
 ## Destructive matrix exponential using algorithm from Higham, 2008,
 ## "Functions of Matrices: Theory and Computation", SIAM
 ##

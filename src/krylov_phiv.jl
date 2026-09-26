@@ -222,7 +222,7 @@ function expv!(
     end
     copyto!(Hcopy, @view(H[1:m, :]))
     Vm = @view(V[:, 1:m])
-    if ishermitian(Hcopy)
+    if U <: BlasFloat && ishermitian(Hcopy)
         # Optimize the case for symtridiagonal H
         F = eigen!(SymTridiagonal(Hcopy))
         expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
@@ -267,7 +267,7 @@ function expv!(
         return w
     end
     copyto!(cache, @view(H[1:m, :]))
-    if ishermitian(cache)
+    if U <: BlasFloat && ishermitian(cache)
         # Optimize the case for symtridiagonal H
         F = eigen!(SymTridiagonal(real(cache)))
         expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
@@ -565,7 +565,7 @@ function phiv(
         kwargs_arnoldi...
     )
     Ks = arnoldi(A, b; kwargs_arnoldi...)
-    w = Matrix{eltype(b)}(undef, length(b), k + 1)
+    w = Matrix{promote_type(typeof(t), eltype(A), eltype(b))}(undef, length(b), k + 1)
     return phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
 end
 function phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) where {T, U}
