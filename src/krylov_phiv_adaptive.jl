@@ -295,6 +295,11 @@ function phiv_timestep!(
     # Initialization
     n = size(U, 1)
     sort!(ts)
+    # Every term is a linear combination of the columns of `B`, so a zero `B` gives zero.
+    if iszero(B)
+        fill!(U, false)
+        return U
+    end
     tend = ts[end]
     # In the matrix-free default the operator-norm scale is unknown until the
     # first Krylov step, so both `abstol` and the initial `tau` are seeded then

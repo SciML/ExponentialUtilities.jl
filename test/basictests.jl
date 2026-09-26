@@ -552,6 +552,10 @@ end
     Ksz = arnoldi(A, z)
     wz = expv(t, A, z; m = m)
     @test norm(wz) == 0.0
+    # matrix-free default: the zero Hessenberg gives no tolerance scale to seed a step from
+    U = phiv_timestep!(fill(NaN, n, 2), [t / 2, t], A, zeros(n, 3))
+    @test iszero(U)
+    @test iszero(phiv_timestep(t, A, zeros(n, 3)))
 
     # Arnoldi vs Lanczos
     A = Hermitian(randn(n, n))
