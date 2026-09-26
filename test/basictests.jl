@@ -552,6 +552,10 @@ end
     Ksz = arnoldi(A, z)
     wz = expv(t, A, z; m = m)
     @test norm(wz) == 0.0
+    Ksz = KrylovSubspace{Float64}(n, m)
+    fill!(Ksz.V, NaN) # `arnoldi!` never fills V for a zero input
+    arnoldi!(Ksz, A, z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
 
     # Arnoldi vs Lanczos
     A = Hermitian(randn(n, n))
