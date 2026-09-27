@@ -743,6 +743,8 @@ end
     U = phiv_timestep([t / 2, t], A, B; adaptive = true, tol = tol)
     @test norm(U[:, 1] - uhalf_exact) / norm(uhalf_exact) < tol
     @test norm(U[:, 2] - u_exact) / norm(u_exact) < tol
+    # a sorted range needs no `sort!`, which it does not support
+    @test phiv_timestep!(similar(U), range(t / 2, t; length = 2), A, B; adaptive = true, tol = tol) == U
     # p = 0 special case (expv_timestep)
     u_exact = Phi[1] * B[:, 1]
     u = expv_timestep(t, A, B[:, 1]; adaptive = true, tol = tol, opnorm = opnorm)

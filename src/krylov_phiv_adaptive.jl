@@ -294,7 +294,7 @@ function phiv_timestep!(
     verbose && abstol !== nothing && println("Absolute tolerance: $abstol")
     # Initialization
     n = size(U, 1)
-    sort!(ts)
+    issorted(ts) || sort!(ts)
     tend = ts[end]
     # In the matrix-free default the operator-norm scale is unknown until the
     # first Krylov step, so both `abstol` and the initial `tau` are seeded then
