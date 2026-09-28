@@ -136,6 +136,34 @@ end
     end
 end
 
+@testset "Krylov products with ForwardDiff duals" begin
+    v = [0.3, 0.7, -0.2]
+    A = [0.1 0.2 0.0; 0.3 0.4 0.1; 0.0 0.2 -0.3]
+    E(u) = exp_generic(reshape(u, 3, 3))
+    Jref = ForwardDiff.jacobian(u -> E(u) * v, vec(A))
+    @test ForwardDiff.jacobian(u -> expv(1.0, reshape(u, 3, 3), v), vec(A)) ≈ Jref
+    # p * S keeps the Hessenberg exactly Hermitian, partials included, which reaches the eigen path
+    S = [-1.0 0.3 0.0; 0.3 -0.5 0.2; 0.0 0.2 -0.8]
+    dref = ForwardDiff.derivative(p -> exp_generic(p * S) * v, 0.7)
+    @test ForwardDiff.derivative(p -> expv(1.0, p * S, v), 0.7) ≈ dref
+    # `using DoubleFloats` above loads GenericLinearAlgebra's `eigen!` for duals, so the
+    # same derivative is checked in a process without it.
+    code = """
+    using ExponentialUtilities, ForwardDiff
+    S = [-1.0 0.3 0.0; 0.3 -0.5 0.2; 0.0 0.2 -0.8]
+    print(repr(ForwardDiff.derivative(p -> expv(1.0, p * S, [0.3, 0.7, -0.2]), 0.7)))
+    """
+    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) -e $code`
+    @test eval(Meta.parse(readchomp(cmd))) ≈ dref
+    Jref = ForwardDiff.jacobian(u -> reshape(u, 3, 3) \ ((E(u) - I) * v), vec(A))
+    @test ForwardDiff.jacobian(u -> phiv(1.0, reshape(u, 3, 3), v, 1)[:, 2], vec(A)) ≈ Jref
+    # the output takes the promoted type, so a complex t with a real b works too
+    @test phiv(0.1im, A, v, 1)[:, 1] ≈ exp(0.1im * A) * v
+    Ab, vb = big.(A), big.(v)
+    @test expv(big(1.0), Ab, vb) ≈ exp_generic(Ab) * vb
+    @test phiv(big(1.0), Ab, vb, 1)[:, 2] ≈ Ab \ ((exp_generic(Ab) - I) * vb)
+end
+
 @testset "ExpMethodGeneric preserves element type (immutable matrices)" begin
     # https://discourse.julialang.org/t/137880 : ExpMethodGeneric silently promoted
     # Float32 static matrices to Float64. The (13,13) Padé path must keep the input type.
