@@ -552,6 +552,20 @@ end
     Ksz = arnoldi(A, z)
     wz = expv(t, A, z; m = m)
     @test norm(wz) == 0.0
+    Ksz = KrylovSubspace{Float64}(n, m)
+    fill!(Ksz.V, NaN) # `arnoldi!` never fills V for a zero input
+    arnoldi!(Ksz, A, z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
+    fill!(Ksz.V, NaN)
+    arnoldi!(Ksz, randn(n, n), z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
+    # A zero Krylov vector, from a zero input or from starting at an equilibrium,
+    # takes the whole interval in one step.
+    @test iszero(phiv_timestep!(fill(NaN, n, 2), [t / 2, t], A, zeros(n, 3)))
+    @test iszero(expv_timestep(t, A, zeros(n)))
+    b0 = randn(n)
+    @test phiv_timestep(t, A, hcat(b0, -A * b0)) ≈ b0
+    @test phiv_timestep(t, zeros(n, n), hcat(b0, zeros(n, 2))) ≈ b0
 
     # Arnoldi vs Lanczos
     A = Hermitian(randn(n, n))
