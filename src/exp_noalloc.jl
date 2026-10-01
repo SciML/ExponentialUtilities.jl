@@ -131,14 +131,14 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
         prow, pcol = bal.prow, bal.pcol
     end
 
-    # Make the call to the appropriate exp_gen! function
-    d = 13
-    for d in 1:12
-        if nA < RHO_V[d]
-            break
-        end
+    # RHO_V and kernels 1 to 12 are tuned for double precision, so a type that resolves
+    # more digits keeps kernel 13, which has the smallest truncation error. Otherwise
+    # use the first d with nA < RHO_V[d], or 13 if there is none.
+    X = if eps(real(eltype(A))) < eps(Float64)
+        exp_gen!(cache, A, Val(13))
+    else
+        @nif 13 d -> nA < RHO_V[d] d -> exp_gen!(cache, A, Val(d))
     end
-    X = exp_gen!(cache, A, Val(d))
 
     # Undo the balancing
     if method.do_balancing

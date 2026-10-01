@@ -79,6 +79,35 @@ end
     end
 end
 
+@testset "ExpMethodHigham2005 picks the kernel for the norm" begin
+    method = ExpMethodHigham2005(false)
+    rho = ExponentialUtilities.RHO_V
+    B = [0.5 0.25; -0.5 0.5]  # opnorm(r * B, 1) == r exactly
+    for d in 1:13
+        lo = d == 1 ? 0.0 : rho[d - 1]
+        hi = d == 13 ? 2 * rho[12] : prevfloat(rho[d])
+        for r in (lo, hi)
+            A = r * B
+            @test opnorm(A, 1) == r
+            cache, _ = alloc_mem(A, method)
+            @test exponential!(copy(A), method) ==
+                ExponentialUtilities.exp_gen!(cache, copy(A), Val(d))
+        end
+    end
+end
+
+@testset "ExpMethodHigham2005 accuracy at small norms" begin
+    rng = Xoshiro(0)
+    for r in (0.0, 0.01, 0.1, 0.5, 1.0, 3.0), _ in 1:5
+        A = randn(rng, 6, 6)
+        A *= r / opnorm(A, 1)
+        expA = exp(A)
+        @test exponential!(copy(A)) ≈ expA rtol = 5.0e-15
+        @test exponential!(Float32.(A)) ≈ expA rtol = 2.0e-6
+        @test exponential!(big.(A)) ≈ exponential!(big.(A), ExpMethodGeneric())
+    end
+end
+
 #
 #@testset "Exp" begin
 #    n = 100
