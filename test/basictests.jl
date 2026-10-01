@@ -108,6 +108,15 @@ end
     end
 end
 
+@testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
+    rng = Xoshiro(1)
+    for _ in 1:10
+        D = Diagonal(exp10.(2 .* randn(rng, 6)))
+        A = D * (0.5 .* randn(rng, 6, 6)) / D
+        @test exponential!(copy(A)) ≈ exp(A) rtol = 2.0e-15
+    end
+end
+
 #
 #@testset "Exp" begin
 #    n = 100

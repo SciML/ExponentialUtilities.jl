@@ -114,7 +114,6 @@ end
 function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, method))
     cache, _scale = _cache
     n = checksquare(A)
-    nA = opnorm(A, 1)
 
     # Maybe to balancing. `ilo`/`ihi`/`scale` are seeded with no-op defaults so they are
     # always defined before the symmetric undo block below; the two `do_balancing`
@@ -130,6 +129,7 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
         ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
         prow, pcol = bal.prow, bal.pcol
     end
+    nA = opnorm(A, 1)  # after balancing, since the kernel runs on the balanced matrix
 
     # RHO_V and kernels 1 to 12 are tuned for double precision, so a type that resolves
     # more digits keeps kernel 13, which has the smallest truncation error. Otherwise
