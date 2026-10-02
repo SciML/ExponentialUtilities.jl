@@ -162,7 +162,8 @@ internally.
 
   - `tau`: initial internal step size. `0` selects an estimate.
   - `m`: maximum Krylov dimension per internal step.
-  - `tol`: requested relative tolerance for adaptive stepping.
+  - `tol`: requested relative tolerance for adaptive stepping, also used to estimate
+    `tau` when it is `0`. Must be positive unless `tau` is given and `adaptive = false`.
   - `opnorm`: `nothing`, a scalar bound, or callable `(A, Inf) -> bound`.
   - `adaptive`: enable joint step-size and Krylov-dimension adaptation.
   - `iop`, `correct`, `caches`, `delta`, `ishermitian`, `gamma`, `NA`, and
@@ -268,6 +269,10 @@ function phiv_timestep!(
         gamma::Real = 0.8, NA::Int = 0,
         verbose = false
     ) where {T <: Number, tType <: Real}
+    # A zero `tol` seeds a zero step, so time never advances
+    if !(tol > 0) && (adaptive || iszero(tau))
+        throw(ArgumentError("tol must be positive when it sets or adapts the step size, got $tol"))
+    end
     # The adaptive tolerance is `tol` times a scalar operator-norm scale of `A`.
     # By default (`opnorm === nothing`) that scale is estimated matrix-free from
     # the Arnoldi Hessenberg on the first Krylov step (below): it needs no
