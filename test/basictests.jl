@@ -79,6 +79,70 @@ end
     end
 end
 
+@testset "ExpMethodHigham2005 picks the kernel for the norm" begin
+    method = ExpMethodHigham2005(false)
+    rho = ExponentialUtilities.RHO_V
+    B = [0.5 0.25; -0.5 0.5]  # opnorm(r * B, 1) == r exactly
+    for d in 1:4
+        for r in (d == 1 ? 0.0 : rho[d - 1], prevfloat(rho[d]))
+            A = r * B
+            @test opnorm(A, 1) == r
+            cache, _ = alloc_mem(A, method)
+            @test exponential!(copy(A), method) ==
+                ExponentialUtilities.exp_gen!(cache, copy(A), Val(d))
+        end
+    end
+    # Degree 13 on 2^-s * A, squared s times, for nA in [rho[5] * 2^(s - 1), rho[5] * 2^s).
+    # A rotation generator keeps exp(A) bounded at these norms.
+    C = [0.0 1.0; -1.0 0.0]  # opnorm(r * C, 1) == r exactly
+    for s in 0:12
+        for r in (s == 0 ? rho[4] : ldexp(rho[5], s - 1), prevfloat(ldexp(rho[5], s)))
+            A = r * C
+            @test opnorm(A, 1) == r
+            @test ExponentialUtilities.pade13_squarings(r) == s
+            @test invoke(ExponentialUtilities.pade13_squarings, Tuple{Any}, r) == s
+            cache, _ = alloc_mem(A, method)
+            X = ExponentialUtilities.exp_gen!(cache, ldexp.(A, -s), Val(5))
+            for _ in 1:s
+                X = X * X
+            end
+            @test exponential!(copy(A), method) == X
+        end
+    end
+end
+
+@testset "ExpMethodHigham2005 accuracy at small norms" begin
+    rng = Xoshiro(0)
+    for r in (0.0, 0.01, 0.1, 0.5, 1.0, 3.0), _ in 1:5
+        A = randn(rng, 6, 6)
+        A *= r / opnorm(A, 1)
+        expA = exp(A)
+        @test exponential!(copy(A)) ≈ expA rtol = 5.0e-15
+        @test exponential!(Float32.(A)) ≈ expA rtol = 2.0e-6
+        @test exponential!(big.(A)) ≈ exponential!(big.(A), ExpMethodGeneric())
+    end
+end
+
+@testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
+    rng = Xoshiro(1)
+    for _ in 1:10
+        D = Diagonal(exp10.(2 .* randn(rng, 6)))
+        A = D * (0.5 .* randn(rng, 6, 6)) / D
+        @test exponential!(copy(A)) ≈ exp(A) rtol = 2.0e-15
+    end
+end
+
+@testset "ExpMethodHigham2005 at norms beyond 2^8 * 5.4" begin
+    @test exponential!(fill(-1.0e10, 1, 1)) == fill(0.0, 1, 1)
+    rng = Xoshiro(2)
+    for r in (2.0e3, 1.0e4, 1.0e5), _ in 1:3
+        A = randn(rng, 6, 6)
+        A = (A - A') / 2  # exp(A) is orthogonal, so it stays representable
+        A *= r / opnorm(A, 1)
+        @test exponential!(copy(A)) ≈ exp(A) rtol = 1.0e-10
+    end
+end
+
 #
 #@testset "Exp" begin
 #    n = 100
