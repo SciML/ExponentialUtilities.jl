@@ -1,10 +1,9 @@
 # Generates the files exp_generated/exp_X.jl using the GraphMatFun package
 using GraphMatFun, LinearAlgebra
 
+# One kernel per Padé degree 3, 5, 7, 9 and 13. Larger norms reuse the degree-13
+# kernel with scaling and squaring at runtime, see `exp_pade13!` in exp_noalloc.jl.
 rhov = [0; 0.015; 0.25; 0.95; 2.1; 5.4];
-for s in 1:8
-    push!(rhov, rhov[end] * 2)
-end
 
 for i in 1:(size(rhov, 1) - 1)
     r = (rhov[i] + rhov[i + 1]) / 2
