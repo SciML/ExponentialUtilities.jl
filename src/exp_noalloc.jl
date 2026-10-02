@@ -94,7 +94,7 @@ end
 const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4)
 
 # The smallest s ≥ 0 with nA < RHO_V[5] * 2^s, read off the binary representation
-function pade13_squarings(nA::Union{Base.IEEEFloat, BigFloat})
+function pade13_squarings(nA::Union{Float16, Float32, Float64, BigFloat})
     θ = RHO_V[5]
     if isfinite(nA) && nA >= θ
         return exponent(nA) - exponent(θ) + (significand(nA) >= significand(θ))
