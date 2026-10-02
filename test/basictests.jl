@@ -617,8 +617,9 @@ end
 end
 
 @testset "Time steppers reject a tol that sets a zero step" begin
-    A = -2I + 0.3 * randn(Xoshiro(1), 6, 6)
-    b = randn(Xoshiro(2), 6)
+    Random.seed!(1)
+    A = -2I + 0.3 * randn(6, 6)
+    b = randn(6)
     for kw in (
             NamedTuple(), (; opnorm = opnorm(A, Inf)),
             (; adaptive = true), (; tau = 0.1, adaptive = true),
