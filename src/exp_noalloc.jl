@@ -134,7 +134,7 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
     # RHO_V and kernels 1 to 12 are tuned for double precision, so a type that resolves
     # more digits keeps kernel 13, which has the smallest truncation error. Otherwise
     # use the first d with nA < RHO_V[d], or 13 if there is none.
-    X = if eps(real(eltype(A))) < eps(Float64)
+    X = if precision(float(real(eltype(A)))) > precision(Float64)
         exp_gen!(cache, A, Val(13))
     else
         @nif 13 d -> nA < RHO_V[d] d -> exp_gen!(cache, A, Val(d))
