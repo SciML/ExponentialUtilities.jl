@@ -616,6 +616,22 @@ end
     @test Q[:, 2] ≈ (t * A) \ (exp(t * A) - I) * ones(n)
 end
 
+@testset "Time steppers reject a tol that sets a zero step" begin
+    Random.seed!(1)
+    A = -2I + 0.3 * randn(6, 6)
+    b = randn(6)
+    err(tol) = ArgumentError("tol must be positive when it sets or adapts the step size, got $tol")
+    for kw in (
+            NamedTuple(), (; opnorm = opnorm(A, Inf)),
+            (; adaptive = true), (; tau = 0.1, adaptive = true),
+        )
+        @test_throws err(0.0) expv_timestep(1.0, A, b; tol = 0.0, kw...)
+    end
+    @test_throws err(-1.0e-8) phiv_timestep(1.0, A, hcat(b, b); tol = -1.0e-8)
+    @test_throws err(NaN) expv_timestep(1.0, A, b; tol = NaN)
+    @test expv_timestep(1.0, A, b; tol = 0.0, tau = 0.1) ≈ exp(A) * b
+end
+
 @testset "PhivCache reuse (issue: cache reallocated every call)" begin
     Random.seed!(0)
     n, m, k = 40, 10, 3
