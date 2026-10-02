@@ -97,9 +97,9 @@ end
 end
 
 @testset "ExpMethodHigham2005 accuracy at small norms" begin
-    rng = Xoshiro(0)
+    Random.seed!(0)
     for r in (0.0, 0.01, 0.1, 0.5, 1.0, 3.0), _ in 1:5
-        A = randn(rng, 6, 6)
+        A = randn(6, 6)
         A *= r / opnorm(A, 1)
         expA = exp(A)
         @test exponential!(copy(A)) ≈ expA rtol = 5.0e-15
@@ -109,10 +109,10 @@ end
 end
 
 @testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
-    rng = Xoshiro(1)
+    Random.seed!(1)
     for _ in 1:10
-        D = Diagonal(exp10.(2 .* randn(rng, 6)))
-        A = D * (0.5 .* randn(rng, 6, 6)) / D
+        D = Diagonal(exp10.(2 .* randn(6)))
+        A = D * (0.5 .* randn(6, 6)) / D
         @test exponential!(copy(A)) ≈ exp(A) rtol = 2.0e-15
     end
 end
