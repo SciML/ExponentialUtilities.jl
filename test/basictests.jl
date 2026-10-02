@@ -861,6 +861,9 @@ end
 end
 
 @testset "Alternative Lanczos expv Interface" begin
+    # Seeded: unseeded rand occasionally yields δw just over atol=1e-10 (~1% of
+    # draws; max≈1.06e-10 over 1000 seeds). Seed 969 is near the median δw.
+    Random.seed!(969)
     n = 300
     m = 30
 
