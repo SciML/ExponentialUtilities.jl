@@ -271,7 +271,7 @@ function phiv_timestep!(
     ) where {T <: Number, tType <: Real}
     # A zero `tol` seeds a zero step, so time never advances
     if !(tol > 0) && (adaptive || iszero(tau))
-        throw(ArgumentError("tol must be positive when it sets or adapts the step size, got $tol"))
+        throw(ArgumentError(lazy"tol must be positive when it sets or adapts the step size, got $tol"))
     end
     # The adaptive tolerance is `tol` times a scalar operator-norm scale of `A`.
     # By default (`opnorm === nothing`) that scale is estimated matrix-free from

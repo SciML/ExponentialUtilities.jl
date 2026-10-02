@@ -620,14 +620,15 @@ end
     Random.seed!(1)
     A = -2I + 0.3 * randn(6, 6)
     b = randn(6)
+    err(tol) = ArgumentError("tol must be positive when it sets or adapts the step size, got $tol")
     for kw in (
             NamedTuple(), (; opnorm = opnorm(A, Inf)),
             (; adaptive = true), (; tau = 0.1, adaptive = true),
         )
-        @test_throws ArgumentError expv_timestep(1.0, A, b; tol = 0.0, kw...)
+        @test_throws err(0.0) expv_timestep(1.0, A, b; tol = 0.0, kw...)
     end
-    @test_throws ArgumentError phiv_timestep(1.0, A, hcat(b, b); tol = -1.0e-8)
-    @test_throws ArgumentError expv_timestep(1.0, A, b; tol = NaN)
+    @test_throws err(-1.0e-8) phiv_timestep(1.0, A, hcat(b, b); tol = -1.0e-8)
+    @test_throws err(NaN) expv_timestep(1.0, A, b; tol = NaN)
     @test expv_timestep(1.0, A, b; tol = 0.0, tau = 0.1) ≈ exp(A) * b
 end
 
