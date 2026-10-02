@@ -861,7 +861,7 @@ end
 end
 
 @testset "Alternative Lanczos expv Interface" begin
-    # Fixed seed covers a previously-failing input under absolute-only expv.
+    # Fixed seed so this input exercises the absolute bound.
     Random.seed!(903)
     n = 300
     m = 30
