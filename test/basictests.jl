@@ -127,11 +127,10 @@ end
 @testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
     rng = Xoshiro(1)
     method = ExpMethodHigham2005(true)
-    # Mirrors the dispatch in exponential!: kernel d when nA < RHO_V[d], else
-    # the degree-13 kernel with s squarings.
     function kernel_choice(nA)
         d = findfirst(r -> nA < r, ExponentialUtilities.RHO_V)
-        return d === nothing ? (5, ExponentialUtilities.pade13_squarings(nA)) : (d, 0)
+        return d === nothing ?
+            (d = 5, s = ExponentialUtilities.pade13_squarings(nA)) : (d = d, s = 0)
     end
     discriminates = false
     for _ in 1:10
@@ -143,13 +142,11 @@ end
         # of two, so undoing the similarity is exact and `==` does not flake.
         @test bal.ilo == 1 && bal.ihi == size(A, 1)
         k = kernel_choice(opnorm(Ab, 1))
-        X = k[2] > 0 ?
-            ExponentialUtilities.exp_pade13!(cache, Ab, k[2]) :
-            ExponentialUtilities.exp_gen!(cache, Ab, Val(k[1]))
+        X = k.s > 0 ?
+            ExponentialUtilities.exp_pade13!(cache, Ab, k.s) :
+            ExponentialUtilities.exp_gen!(cache, Ab, Val(k.d))
         @test exponential!(copy(A), method) == Diagonal(bal.D) * X / Diagonal(bal.D)
-        # The Padé result and LAPACK's exp differ by at most ~4.5e-15 normwise
-        # on these draws; 1e-13 keeps ~20x margin over that noise while still
-        # catching a missed or inverted unbalancing.
+        # measured normwise noise floor ~7e-15 on these draws, so 1e-13 keeps >10x margin
         @test exponential!(copy(A), method) ≈ exp(A) rtol = 1.0e-13
         discriminates |= kernel_choice(opnorm(A, 1)) != k
     end
