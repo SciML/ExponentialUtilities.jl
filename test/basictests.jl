@@ -3,6 +3,7 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays, DoubleFloats
+using GenericSchur
 using JLArrays
 
 @testset "alloc_mem public API" begin
@@ -125,11 +126,34 @@ end
 
 @testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
     rng = Xoshiro(1)
+    method = ExpMethodHigham2005(true)
+    # Mirrors the dispatch in exponential!: kernel d when nA < RHO_V[d], else
+    # the degree-13 kernel with s squarings.
+    function kernel_choice(nA)
+        d = findfirst(r -> nA < r, ExponentialUtilities.RHO_V)
+        return d === nothing ? (5, ExponentialUtilities.pade13_squarings(nA)) : (d, 0)
+    end
+    discriminates = false
     for _ in 1:10
         D = Diagonal(exp10.(2 .* randn(rng, 6)))
         A = D * (0.5 .* randn(rng, 6, 6)) / D
-        @test exponential!(copy(A)) ≈ exp(A) rtol = 2.0e-15
+        cache, _ = alloc_mem(A, method)
+        Ab, bal = GenericSchur.balance!(copy(A))
+        # Dense matrices never permute under balancing, and bal.D holds powers
+        # of two, so undoing the similarity is exact and `==` does not flake.
+        @test bal.ilo == 1 && bal.ihi == size(A, 1)
+        k = kernel_choice(opnorm(Ab, 1))
+        X = k[2] > 0 ?
+            ExponentialUtilities.exp_pade13!(cache, Ab, k[2]) :
+            ExponentialUtilities.exp_gen!(cache, Ab, Val(k[1]))
+        @test exponential!(copy(A), method) == Diagonal(bal.D) * X / Diagonal(bal.D)
+        # The Padé result and LAPACK's exp differ by at most ~4.5e-15 normwise
+        # on these draws; 1e-13 keeps ~20x margin over that noise while still
+        # catching a missed or inverted unbalancing.
+        @test exponential!(copy(A), method) ≈ exp(A) rtol = 1.0e-13
+        discriminates |= kernel_choice(opnorm(A, 1)) != k
     end
+    @test discriminates
 end
 
 @testset "ExpMethodHigham2005 at norms beyond 2^8 * 5.4" begin
