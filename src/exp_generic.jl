@@ -189,46 +189,6 @@ _mul(x, y) = x * y
 _square(x, s) = x^(2^s)
 _horner(x, c::Tuple) = Base.evalpoly(x, c)
 
-# Specialized (13,13) Padé numerator for the immutable-matrix path. The coefficient
-# type is taken from `eltype(x)` at runtime (rather than hardcoded `Float64`) so that a
-# Float32 input yields a Float32 result instead of being silently promoted to Float64.
-# This is deliberately not `@generated`: deriving the type inside a generated body would
-# require constructing the element type (e.g. a ForwardDiff `Dual`), which is world-age
-# blocked, so ForwardDiff differentiation would fail.
-function exp_pade_p(x, ::Val{13}, ::Val{13})
-    T = float(eltype(x))
-    return _horner(
-        x,
-        (
-            UniformScaling(T(1 // 1)),
-            UniformScaling(T(1 // 2)),
-            UniformScaling(T(3 // 25)),
-            UniformScaling(T(11 // 600)),
-            UniformScaling(T(11 // 5520)),
-            UniformScaling(T(3 // 18400)),
-            UniformScaling(T(1 // 96600)),
-            UniformScaling(T(1 // 1932000)),
-            UniformScaling(T(1 // 48944000)),
-            UniformScaling(T(1 // 1585785600)),
-            UniformScaling(T(1 // 67395888000)),
-            UniformScaling(T(1 // 3953892096000)),
-            UniformScaling(T(1 // 355850288640000)),
-            UniformScaling(T(1 // 64764752532480000)),
-        )
-    )
-end
-
-function exp_pade_p(x::Number, ::Val{13}, ::Val{13})
-    T = float(typeof(x))
-    return @evalpoly(
-        x,
-        T(1 // 1), T(1 // 2), T(3 // 25), T(11 // 600), T(11 // 5520),
-        T(3 // 18400), T(1 // 96600), T(1 // 1932000), T(1 // 48944000),
-        T(1 // 1585785600), T(1 // 67395888000), T(1 // 3953892096000),
-        T(1 // 355850288640000), T(1 // 64764752532480000)
-    )
-end
-
 function exp_generic_mutable(x::AbstractMatrix{T}, s, ::Val{13}) where {T}
     y1 = similar(x, promote_type(T, Float64))
     y2 = similar(y1)
@@ -291,14 +251,31 @@ function exp_pade_p!(
     return y1
 end
 
-@generated function exp_pade_p(x, ::Val{k}, ::Val{m}) where {k, m}
-    factorial = Base.factorial ∘ big
-    p = map(Tuple(0:k)) do j
-        num = factorial(k + m - j) * factorial(k)
-        den = factorial(k + m) * factorial(k - j) * factorial(j)
-        (float ∘ eltype)(x)(num // den) * (x <: Number ? 1 : I)
+# The Padé coefficients are real constants, computed in the real value type of the input
+# (ForwardDiffExt maps `Dual{Tag, V}` to `V`).
+_coef_type(::Type{T}) where {T <: Real} = float(T)
+
+# Exact numerator coefficients of the (k, m) Padé approximant of `exp`.
+function _pade_rationals(::Val{k}, ::Val{m}) where {k, m}
+    return ntuple(Val(k + 1)) do i
+        j = i - 1
+        num = factorial(big(k + m - j)) * factorial(big(k))
+        den = factorial(big(k + m)) * factorial(big(k - j)) * factorial(big(j))
+        num // den
     end
-    return x <: Number ? :(@evalpoly(x, $(p...))) : :(_horner(x, ($(p...),)))
+end
+
+# Evaluated at compile time for constant arguments, in the caller's world rather than in
+# the defining world of a `@generated` function (#41).
+Base.@assume_effects :foldable function _pade_coeffs_foldable(T, k, m)
+    return map(T, _pade_rationals(k, m))
+end
+
+function exp_pade_p(x, k::Val, m::Val)
+    T = _coef_type(real(eltype(x)))
+    # Not folded for non-isbits types such as `BigFloat`, whose precision is set at runtime.
+    c = isbitstype(T) ? _pade_coeffs_foldable(T, k, m) : map(T, _pade_rationals(k, m))
+    return x isa Number ? Base.evalpoly(x, c) : _horner(x, map(UniformScaling, c))
 end
 
 exp_pade_q(x, k, m) = exp_pade_p(-x, m, k)

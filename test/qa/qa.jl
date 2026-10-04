@@ -4,8 +4,10 @@ using ExplicitImports
 
 # ExplicitImports only sees a package extension once its trigger weakdep is
 # loaded (`Base.get_extension` returns `nothing` otherwise), so loading
-# StaticArrays here is what puts ExponentialUtilitiesStaticArraysExt under QA.
+# StaticArrays and ForwardDiff here is what puts ExponentialUtilitiesStaticArraysExt and
+# ForwardDiffExt under QA.
 using StaticArrays
+using ForwardDiff
 
 # ExplicitImports silently skips an extension that fails to load, so assert the
 # extension modules actually exist rather than trusting a green run_qa.
@@ -13,6 +15,7 @@ using StaticArrays
     @test Base.get_extension(
         ExponentialUtilities, :ExponentialUtilitiesStaticArraysExt
     ) !== nothing
+    @test Base.get_extension(ExponentialUtilities, :ForwardDiffExt) !== nothing
 end
 
 run_qa(
@@ -26,10 +29,11 @@ run_qa(
         # an integer-valued `SMatrix`. It is documented -- its own docstring
         # demonstrates `import StaticArrays.arithmetic_closure` -- but StaticArrays
         # has not declared it `public`, and there is no public equivalent.
-        # `_mul` is the package-internal product hook the StaticArrays extension
-        # overrides.
+        # `_mul`, `_square` and `_horner` are the package-internal product hooks the
+        # StaticArrays extension overrides; `_coef_type` is the Padé coefficient type hook
+        # ForwardDiffExt overrides.
         all_qualified_accesses_are_public = (;
-            ignore = (:arithmetic_closure, :promote_op, :_mul, :_square, :_horner),
+            ignore = (:arithmetic_closure, :promote_op, :_mul, :_square, :_horner, :_coef_type),
         ),
         # ArrayInterface.parameterless_type is not declared public but is the
         # standard way to adapt a host array to the GPU array type of `w`.
@@ -44,6 +48,14 @@ run_explicit_imports(
         all_qualified_accesses_are_public = (;
             ignore = (:arithmetic_closure, :_mul, :_square, :_horner),
         ),
+    ),
+)
+run_explicit_imports(
+    Base.get_extension(ExponentialUtilities, :ForwardDiffExt), ExplicitImports;
+    ei_kwargs = (;
+        all_qualified_accesses_are_public = (; ignore = (:_coef_type,)),
+        # `ForwardDiff.Dual` is ForwardDiff's documented number type but is not exported.
+        all_explicit_imports_are_public = (; ignore = (:Dual,)),
     ),
 )
 
