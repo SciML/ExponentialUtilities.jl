@@ -946,6 +946,8 @@ end
 end
 
 @testset "Alternative Lanczos expv Interface" begin
+    # Fixed seed so this input exercises the absolute bound.
+    Random.seed!(903)
     n = 300
     m = 30
 
@@ -955,7 +957,9 @@ end
 
     atol = 1.0e-10
     rtol = 1.0e-10
-    w = expv(-im, dt * A, b, m = m, tol = atol, rtol = rtol, mode = :error_estimate)
+    # Assertion below is absolute-only; request the same from the solver so the
+    # stopping rule is atol (not atol + rtol*norm(b)).
+    w = expv(-im, dt * A, b, m = m, tol = atol, rtol = 0.0, mode = :error_estimate)
 
     function fullexp(A, v)
         # a distinct name: assigning to `w` here would capture and overwrite
