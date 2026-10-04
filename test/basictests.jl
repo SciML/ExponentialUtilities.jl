@@ -299,8 +299,7 @@ end
 @testset "Issue 41" begin
     @test ForwardDiff.derivative(exp_generic, 0.1) ≈ exp_generic(0.1) atol = 1.0e-15
 
-    # Padé orders other than 13 used to go through a `@generated` function whose generator
-    # constructed the element type, which hit a world-age error for `Dual`s.
+    # Padé orders other than 13, and `Dual{BigFloat}`.
     f8(x) = exponential!(x, ExpMethodGeneric(8))
     @test ForwardDiff.derivative(f8, 0.1) ≈ exp(0.1)
     A = @SMatrix [0.1 0.2 0.0; 0.3 0.4 0.1; 0.0 0.2 -0.3]
@@ -308,8 +307,8 @@ end
     fbig(x) = exponential!(x, ExpMethodGeneric(BigFloat))
     @test ForwardDiff.derivative(fbig, big(0.1)) ≈ exp(big(0.1)) rtol = 1.0e-65
 
-    # The tests above only hit the world-age error if ForwardDiff is loaded after this
-    # package, so also check directly that no generated functions remain.
+    # A world-age error in a generator only shows if ForwardDiff is loaded after this
+    # package, so check directly that the Padé functions are not generated.
     for f in (ExponentialUtilities.exp_pade_p, ExponentialUtilities._horner)
         @test !any(Base.hasgenerator, methods(f))
     end
@@ -329,12 +328,20 @@ alloc_exponential(x, method) = @allocated exponential!(x, method)
         @test ExponentialUtilities._pade_rationals(Val(k), Val(k)) ==
             ntuple(j -> binomial(big(k), j - 1) // prod(big(2k - j + 2):big(2k)), k + 1)
     end
-    # The (13, 13) coefficients equal the literals that were hardcoded before.
-    @test ExponentialUtilities._pade_coeffs_foldable(Float64, Val(13), Val(13)) === (
+    # The (13, 13) Float64 coefficients, independently of the global `BigFloat` state.
+    c13 = (
         1.0, 1 / 2, 3 / 25, 11 / 600, 11 / 5520, 3 / 18400, 1 / 96600, 1 / 1932000,
         1 / 48944000, 1 / 1585785600, 1 / 67395888000, 1 / 3953892096000,
         1 / 355850288640000, 1 / 64764752532480000,
     )
+    for (prec, mode) in ((precision(BigFloat), RoundNearest), (8, RoundNearest), (256, RoundUp))
+        c = setprecision(BigFloat, prec) do
+            setrounding(BigFloat, mode) do
+                ExponentialUtilities._pade_coeffs_foldable(Float64, Val(13), Val(13))
+            end
+        end
+        @test c === c13
+    end
 
     # For isbits coefficient types the coefficients are folded at compile time, so no
     # `BigInt` arithmetic is left at runtime.

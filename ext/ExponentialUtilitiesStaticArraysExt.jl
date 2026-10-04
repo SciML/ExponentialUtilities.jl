@@ -123,12 +123,13 @@ end
 # ForwardDiff `Dual{T, Float32, 16}`, corrupting a partials lane of some entries. Plain
 # float matrices are unaffected and keep StaticArrays' kernel; other element types get a
 # fully unrolled `muladd` chain per entry, which is correct but 1.7x to 4x slower.
-# Only CI runs on Julia 1.12 failed, so earlier versions keep the hook defaults.
-# Remove this block (and the hooks in src/exp_generic.jl) once the minimum supported Julia
-# includes the LLVM backport of llvm/llvm-project@5d7cf504; see AGENTS.md.
-@static if VERSION >= v"1.12.0-"
+# Julia 1.10 (LLVM 15) and 1.11 (LLVM 16) are unaffected, and Julia 1.13 (LLVM 20) contains
+# the fix llvm/llvm-project@5d7cf504. Remove this block (and the hooks in
+# src/exp_generic.jl) once Julia 1.12 is no longer supported; see AGENTS.md.
+@static if v"1.12.0-" <= VERSION < v"1.13.0-"
     const IEEEFloat = Union{Float16, Float32, Float64}
 
+    # The generator only inspects `M`, `K`, `N` and `T <: IEEEFloat`, so it is world-age safe.
     @generated function ExponentialUtilities._mul(
             a::SMatrix{M, K, T}, b::SMatrix{K, N, T}
         ) where {M, K, N, T}

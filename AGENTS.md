@@ -24,14 +24,16 @@ vectorizer miscompile of StaticArrays' `mul_loop` that corrupts ForwardDiff part
 - Cost: the unrolled kernel is 1.7x (4×4 `Dual{Float32,16}`) to 4x (6×6 `Dual{Float64,36}`)
   slower than StaticArrays' `*`; end to end the 4×4 Float64 Jacobian is about 1.4x slower and
   the 6×6 about 2x. Plain-float matrices are unaffected and keep StaticArrays' kernel.
-- Scope: the overrides are wrapped in `@static if VERSION >= v"1.12.0-"`, since only Julia 1.12
-  CI runs failed; add an upper bound once a fixed release is confirmed with the reproducer below.
-- Remove when: the package's minimum supported Julia (`[compat] julia` in Project.toml) is a
-  release that contains the backport, i.e. the issue above is closed for 1.12.x or 1.12 is no
-  longer supported. To remove, delete the `@static if` block in the extension, inline the
-  hook defaults (`*`, `^`, `Base.evalpoly`) at their call sites in src/exp_generic.jl, and
-  drop `:_mul`, `:_square`, `:_horner` from the ExplicitImports ignore lists in test/qa/qa.jl.
+- Scope: the overrides are wrapped in `@static if v"1.12.0-" <= VERSION < v"1.13.0-"`. Julia
+  1.10 (LLVM 15) and 1.11 (LLVM 16) are unaffected, and 1.13 (LLVM 20) contains the fix. The
+  `Core 1.12` group in test/test_groups.toml is the only CI lane that runs the overrides.
+- Remove when: the package's minimum supported Julia (`[compat] julia` in Project.toml) is
+  1.13, or a 1.12.x release that contains the backport. To remove, delete the `@static if`
+  block in the extension and the `Core 1.12` test group, inline the hook defaults (`*`, `^`,
+  `Base.evalpoly`) at their call sites in src/exp_generic.jl, and drop `:_mul`, `:_square`,
+  `:_horner` from the ExplicitImports ignore lists in test/qa/qa.jl.
 - To verify a Julia version is fixed without AVX-512 hardware, run the package-free reproducer
-  under Intel SDE Sapphire Rapids emulation, or natively with dense random partials:
+  under Intel SDE Sapphire Rapids emulation, or natively on x86 with dense random partials:
   a 4×4 `Dual{Nothing,Float32,16}` `SMatrix` product must match a Float64 reference to ~1e-7.
   `JULIA_LLVM_ARGS="-vectorize-slp=false"` making a failure disappear confirms it is this bug.
+  The reproducer does not fail on Apple silicon (aarch64), not even on Julia 1.12.

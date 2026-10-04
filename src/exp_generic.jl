@@ -253,7 +253,7 @@ end
 
 # The Padé coefficients are real constants, computed in the real value type of the input
 # (ForwardDiffExt maps `Dual{Tag, V}` to `V`).
-_coef_type(::Type{T}) where {T <: Real} = float(T)
+_coef_type(::Type{T}) where {T} = float(T)
 
 # Exact numerator coefficients of the (k, m) Padé approximant of `exp`.
 function _pade_rationals(::Val{k}, ::Val{m}) where {k, m}
@@ -265,10 +265,14 @@ function _pade_rationals(::Val{k}, ::Val{m}) where {k, m}
     end
 end
 
-# Evaluated at compile time for constant arguments, in the caller's world rather than in
-# the defining world of a `@generated` function (#41).
-Base.@assume_effects :foldable function _pade_coeffs_foldable(T, k, m)
-    return map(T, _pade_rationals(k, m))
+# Evaluated at compile time for constant arguments, in the caller's world. The conversion
+# divides in `BigFloat`, with fixed precision (64 guard bits) and rounding mode.
+Base.@assume_effects :foldable function _pade_coeffs_foldable(::Type{T}, k, m) where {T}
+    return setprecision(BigFloat, precision(T) + 64) do
+        setrounding(BigFloat, RoundNearest) do
+            map(T, _pade_rationals(k, m))
+        end
+    end
 end
 
 function exp_pade_p(x, k::Val, m::Val)
