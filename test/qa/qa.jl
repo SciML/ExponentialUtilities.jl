@@ -37,8 +37,10 @@ run_qa(
         ),
         # ArrayInterface.parameterless_type is not declared public but is the
         # standard way to adapt a host array to the GPU array type of `w`.
+        # `ForwardDiff.Dual` is ForwardDiff's documented number type but is not
+        # declared public; ForwardDiffExt imports it.
         all_explicit_imports_are_public = (;
-            ignore = (:diagview, :parameterless_type),
+            ignore = (:diagview, :parameterless_type, :Dual),
         ),
     ),
 )
@@ -54,7 +56,6 @@ run_explicit_imports(
     Base.get_extension(ExponentialUtilities, :ForwardDiffExt), ExplicitImports;
     ei_kwargs = (;
         all_qualified_accesses_are_public = (; ignore = (:_coef_type,)),
-        # `ForwardDiff.Dual` is ForwardDiff's documented number type but is not exported.
         all_explicit_imports_are_public = (; ignore = (:Dual,)),
     ),
 )
