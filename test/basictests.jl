@@ -309,6 +309,7 @@ end
 
     # A world-age error in a generator only shows if ForwardDiff is loaded after this
     # package, so check directly that the Padé functions are not generated.
+    # (`_pade_rationals` is, but its generator only uses the integer orders.)
     for f in (ExponentialUtilities.exp_pade_p, ExponentialUtilities._horner)
         @test !any(Base.hasgenerator, methods(f))
     end

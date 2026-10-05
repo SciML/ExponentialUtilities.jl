@@ -255,14 +255,16 @@ end
 # (ForwardDiffExt maps `Dual{Tag, V}` to `V`).
 _coef_type(::Type{T}) where {T} = float(T)
 
-# Exact numerator coefficients of the (k, m) Padé approximant of `exp`.
-function _pade_rationals(::Val{k}, ::Val{m}) where {k, m}
-    return ntuple(Val(k + 1)) do i
+# Exact numerator coefficients of the (k, m) Padé approximant of `exp`, computed once per
+# (k, m). The generator only uses the integers k and m.
+@generated function _pade_rationals(::Val{k}, ::Val{m}) where {k, m}
+    r = ntuple(k + 1) do i
         j = i - 1
         num = factorial(big(k + m - j)) * factorial(big(k))
         den = factorial(big(k + m)) * factorial(big(k - j)) * factorial(big(j))
         num // den
     end
+    return QuoteNode(r)
 end
 
 # Evaluated at compile time for constant arguments, in the caller's world. The conversion
@@ -277,7 +279,7 @@ end
 
 function exp_pade_p(x, k::Val, m::Val)
     T = _coef_type(real(eltype(x)))
-    # Not folded for non-isbits types such as `BigFloat`, whose precision is set at runtime.
+    # Non-isbits types such as `BigFloat` convert at runtime, so their precision is respected.
     c = isbitstype(T) ? _pade_coeffs_foldable(T, k, m) : map(T, _pade_rationals(k, m))
     return x isa Number ? Base.evalpoly(x, c) : _horner(x, map(UniformScaling, c))
 end
