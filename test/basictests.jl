@@ -264,7 +264,9 @@ end
 
     # ComplexF32 must stay ComplexF32
     Ac = rand(SMatrix{2, 2, ComplexF32})
-    @test exponential!(Ac, ExpMethodGeneric()) isa SMatrix{2, 2, ComplexF32}
+    Ec = exponential!(Ac, ExpMethodGeneric())
+    @test Ec isa SMatrix{2, 2, ComplexF32}
+    @test Ec ≈ exp(Matrix(Ac))
 
     # Scalar path likewise preserves precision
     @test exponential!(0.5f0, ExpMethodGeneric()) isa Float32
@@ -296,6 +298,60 @@ end
 
 @testset "Issue 41" begin
     @test ForwardDiff.derivative(exp_generic, 0.1) ≈ exp_generic(0.1) atol = 1.0e-15
+
+    # Padé orders other than 13, and `Dual{BigFloat}`.
+    f8(x) = exponential!(x, ExpMethodGeneric(8))
+    @test ForwardDiff.derivative(f8, 0.1) ≈ exp(0.1)
+    A = @SMatrix [0.1 0.2 0.0; 0.3 0.4 0.1; 0.0 0.2 -0.3]
+    @test ForwardDiff.jacobian(f8, A) ≈ ForwardDiff.jacobian(exp_generic, Matrix(A))
+    fbig(x) = exponential!(x, ExpMethodGeneric(BigFloat))
+    @test ForwardDiff.derivative(fbig, big(0.1)) ≈ exp(big(0.1)) rtol = 1.0e-65
+
+    # A world-age error in a generator only shows if ForwardDiff is loaded after this
+    # package, so check directly that the Padé functions are not generated.
+    # (`_pade_rationals` is, but its generator only uses the integer orders.)
+    for f in (ExponentialUtilities.exp_pade_p, ExponentialUtilities._horner)
+        @test !any(Base.hasgenerator, methods(f))
+    end
+end
+
+alloc_exponential(x, method) = @allocated exponential!(x, method)
+@testset "Padé coefficients" begin
+    # Coefficients are computed in the real value type, stripping `Complex` and `Dual`s.
+    D = ForwardDiff.Dual{Nothing, Float32, 2}
+    @test ExponentialUtilities._coef_type(real(ComplexF32)) === Float32
+    @test ExponentialUtilities._coef_type(D) === Float32
+    @test ExponentialUtilities._coef_type(ForwardDiff.Dual{Nothing, D, 1}) === Float32
+    @test ExponentialUtilities._coef_type(real(Complex{D})) === Float32
+    @test ExponentialUtilities._coef_type(Int) === Float64
+
+    for k in (5, 8, 20, 40)
+        @test ExponentialUtilities._pade_rationals(Val(k), Val(k)) ==
+            ntuple(j -> binomial(big(k), j - 1) // prod(big(2k - j + 2):big(2k)), k + 1)
+    end
+    # The (13, 13) Float64 coefficients, independently of the global `BigFloat` state.
+    c13 = (
+        1.0, 1 / 2, 3 / 25, 11 / 600, 11 / 5520, 3 / 18400, 1 / 96600, 1 / 1932000,
+        1 / 48944000, 1 / 1585785600, 1 / 67395888000, 1 / 3953892096000,
+        1 / 355850288640000, 1 / 64764752532480000,
+    )
+    for (prec, mode) in ((precision(BigFloat), RoundNearest), (8, RoundNearest), (256, RoundUp))
+        c = setprecision(BigFloat, prec) do
+            setrounding(BigFloat, mode) do
+                ExponentialUtilities._pade_coeffs_foldable(Float64, Val(13), Val(13))
+            end
+        end
+        @test c === c13
+    end
+
+    # For isbits coefficient types the coefficients are folded at compile time, so no
+    # `BigInt` arithmetic is left at runtime.
+    xs = (0.3, 0.3f0, ForwardDiff.Dual(0.3, 1.0), @SMatrix([0.1 0.2; 0.3 0.4]))
+    for x in xs, k in (8, 13)
+        method = ExpMethodGeneric(k)
+        alloc_exponential(x, method)
+        @test alloc_exponential(x, method) == 0
+    end
 end
 
 @testset "Issue 42" begin

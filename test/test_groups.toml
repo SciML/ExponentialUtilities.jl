@@ -21,6 +21,12 @@ versions = ["1"]
 os = ["ubuntu-latest"]
 arch = "x86"
 
+# Runs the StaticArrays extension's Julia 1.12 miscompile workaround (see AGENTS.md).
+["Core 1.12"]
+group = "Core"
+versions = ["1.12"]
+os = ["ubuntu-latest"]
+
 [QA]
 versions = ["lts", "1"]
 
