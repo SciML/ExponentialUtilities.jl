@@ -699,6 +699,25 @@ end
     t = 0.1
     Q = phiv(t, A, ones(n), 10)
     @test Q[:, 2] ≈ (t * A) \ (exp(t * A) - I) * ones(n)
+
+    # Test reorthogonalisation with large, stiff, non-normal matrix
+    Random.seed!(0)
+    n = 20
+    m = 5
+    A = zeros(2n,2n)
+    @views(A[1:n,n+1:2n]) .= 1e10 .* randn(n, n)
+    @views(A[n+1:2n,n+1:2n]) .= randn(n, n)
+    @views(A[1:n,1:n]) .= randn(n, n)
+    b = randn(2n)
+    Ks = arnoldi(A, b; m = m,reorth=false)
+    V1 = getV(Ks)[:,1:Ks.m]
+    Ks = arnoldi(A, b; m = m,reorth=true)
+    V2 = getV(Ks)[:,1:Ks.m]
+    # first vectors are equal 
+    @test V1[:,1] ≈ V2[:,1]
+    # non-reorth Arnoldi leads to poor orthogonalisation while reorth keeps this to near machine precision
+    @test norm(V1' * V1 - I) > 100eps(Float64) && norm(V2' * V2 - I) < 100eps(Float64)
+       
 end
 
 @testset "PhivCache reuse (issue: cache reallocated every call)" begin
