@@ -1,29 +1,48 @@
 using SciMLTesting, ExponentialUtilities, JET, Test, LinearAlgebra
 using AllocCheck: check_allocs
+using ExplicitImports
+
+# ExplicitImports only sees a package extension once its trigger weakdep is
+# loaded (`Base.get_extension` returns `nothing` otherwise), so loading
+# StaticArrays here is what puts ExponentialUtilitiesStaticArraysExt under QA.
+using StaticArrays
+
+# ExplicitImports silently skips an extension that fails to load, so assert the
+# extension modules actually exist rather than trusting a green run_qa.
+@testset "Extensions loaded" begin
+    @test Base.get_extension(
+        ExponentialUtilities, :ExponentialUtilitiesStaticArraysExt
+    ) !== nothing
+end
 
 run_qa(
     ExponentialUtilities;
     ei_kwargs = (;
-        # Non-public LinearAlgebra/BLAS/LAPACK names used by the non-allocating
-        # LAPACK balancing wrapper `gebal_noalloc!` (which keeps the CPU matrix
-        # exponential allocation-free), plus `Base.promote_op` used to infer the
-        # exponential! workspace type at cache construction without allocating.
+        # `Base.promote_op` infers the exponential! workspace type at cache
+        # construction without allocating one.
+        # `arithmetic_closure` (owned by StaticArrays) is the only spelling of
+        # "type you get from doing arithmetic on this eltype", which the
+        # StaticArrays extension needs to pick the working eltype for `expv` on
+        # an integer-valued `SMatrix`. It is documented -- its own docstring
+        # demonstrates `import StaticArrays.arithmetic_closure` -- but StaticArrays
+        # has not declared it `public`, and there is no public equivalent.
+        # `_mul` is the package-internal product hook the StaticArrays extension
+        # overrides.
         all_qualified_accesses_are_public = (;
-            ignore = (
-                Symbol("@blasfunc"), :BlasInt, :chkfinite, :chklapackerror,
-                :chkstride1, :libblastrampoline, :promote_op,
-            ),
-        ),
-        # `chkstride1` (owned by LinearAlgebra) and `libblastrampoline` (owned by
-        # libblastrampoline_jll) are reached through the `LinearAlgebra.BLAS`
-        # re-exporter in the same balancing wrapper.
-        all_qualified_accesses_via_owners = (;
-            ignore = (:chkstride1, :libblastrampoline),
+            ignore = (:arithmetic_closure, :promote_op, :_mul, :_square, :_horner),
         ),
         # ArrayInterface.parameterless_type is not declared public but is the
         # standard way to adapt a host array to the GPU array type of `w`.
         all_explicit_imports_are_public = (;
-            ignore = (:parameterless_type,),
+            ignore = (:diagview, :parameterless_type),
+        ),
+    ),
+)
+run_explicit_imports(
+    Base.get_extension(ExponentialUtilities, :ExponentialUtilitiesStaticArraysExt), ExplicitImports;
+    ei_kwargs = (;
+        all_qualified_accesses_are_public = (;
+            ignore = (:arithmetic_closure, :_mul, :_square, :_horner),
         ),
     ),
 )

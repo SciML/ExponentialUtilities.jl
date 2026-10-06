@@ -2,9 +2,43 @@
 
 # Fallback
 """
-    cache = alloc_mem(A, method)
+    alloc_mem(A, method)
 
-Pre-allocates memory associated with matrix exponential function `method` and matrix `A`. To be used in combination with [`exponential!`](@ref).
+Allocate reusable workspace for [`exponential!`](@ref).
+
+`alloc_mem` is the public allocation hook for matrix-exponential methods. Method
+implementations may specialize it together with `exponential!(A, method, cache)`
+to separate workspace allocation from repeated evaluations. Treat the returned
+cache as opaque and pass it back only for inputs compatible with the prototype
+`A` and the same method configuration.
+
+# Arguments
+
+  - `A`: prototype input that determines the workspace's shape, element type,
+    storage type, and execution device.
+  - `method`: matrix-exponential method whose workspace should be allocated.
+
+# Returns
+
+A method-specific cache accepted as the third argument to `exponential!`, or
+`nothing` when `method` does not require reusable workspace.
+
+# Examples
+
+```jldoctest
+julia> using ExponentialUtilities, LinearAlgebra
+
+julia> A = [0.0 1.0; -1.0 0.0];
+
+julia> reference = exp(A);
+
+julia> method = ExpMethodHigham2005();
+
+julia> cache = ExponentialUtilities.alloc_mem(A, method);
+
+julia> exponential!(A, method, cache) ≈ reference
+true
+```
 """
 function alloc_mem(A, method)
     return nothing
@@ -37,6 +71,18 @@ Matrix-exponential method based on diagonalization with `eigen`.
 # Fields
 
   - `enforce_real::Bool`: whether real input receives a real-valued result.
+
+# Returns
+
+An `ExpMethodDiagonalization` algorithm object for use with
+[`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+exponential!(copy(A), ExpMethodDiagonalization())
+```
 """
 struct ExpMethodDiagonalization
     enforce_real::Bool
@@ -68,7 +114,7 @@ If no `method` is given, immutable matrices (e.g. StaticArrays' `SMatrix`) are
 computed out-of-place with [`ExpMethodGeneric`](@ref) and the result is returned
 without modifying `A`.
 
-Example
+# Examples
 
 ```julia-repl
 julia> A = randn(50, 50);
@@ -99,6 +145,17 @@ end
     ExpMethodNative()
 
 Matrix-exponential method that delegates to `Base.exp`.
+
+# Returns
+
+An `ExpMethodNative` algorithm object for use with [`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+exponential!(copy(A), ExpMethodNative())
+```
 """
 struct ExpMethodNative end
 function exponential!(A, method::ExpMethodNative, cache = nothing)

@@ -3,6 +3,29 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays, DoubleFloats
+using GenericSchur
+using JLArrays
+
+@testset "alloc_mem public API" begin
+    A = [1.0 0.0; 0.0 1.0]
+    @test ExponentialUtilities.alloc_mem(A, ExpMethodGeneric()) === nothing
+
+    @static if isdefined(Base.Docs, :hasdoc)
+        @test Base.Docs.hasdoc(ExponentialUtilities, :alloc_mem)
+    else
+        @test Base.Docs.doc(ExponentialUtilities, :alloc_mem) !== nothing
+    end
+
+    @static if isdefined(Base, :isexported)
+        @test !Base.isexported(ExponentialUtilities, :alloc_mem)
+    else
+        @test :alloc_mem ∉ names(ExponentialUtilities)
+    end
+
+    @static if VERSION >= v"1.11.0-DEV.469"
+        @test Base.ispublic(ExponentialUtilities, :alloc_mem)
+    end
+end
 
 @testset "exp!" begin
     n = 100
@@ -28,7 +51,7 @@ using ForwardDiff, StaticArrays, DoubleFloats
 
             # With preallocation
             mem = alloc_mem(A1, m)
-            E1 = exponential!(copy(A1), m)
+            E1 = exponential!(copy(A1), m, mem)
             @test E1 ≈ expA1
         end
     end
@@ -54,6 +77,90 @@ end
         expA = exp(A)
         A = exponential!(A, method)
         @test A ≈ expA
+    end
+end
+
+@testset "ExpMethodHigham2005 picks the kernel for the norm" begin
+    method = ExpMethodHigham2005(false)
+    rho = ExponentialUtilities.RHO_V
+    B = [0.5 0.25; -0.5 0.5]  # opnorm(r * B, 1) == r exactly
+    for d in 1:4
+        for r in (d == 1 ? 0.0 : rho[d - 1], prevfloat(rho[d]))
+            A = r * B
+            @test opnorm(A, 1) == r
+            cache, _ = alloc_mem(A, method)
+            @test exponential!(copy(A), method) ==
+                ExponentialUtilities.exp_gen!(cache, copy(A), Val(d))
+        end
+    end
+    # Degree 13 on 2^-s * A, squared s times, for nA in [rho[5] * 2^(s - 1), rho[5] * 2^s).
+    # A rotation generator keeps exp(A) bounded at these norms.
+    C = [0.0 1.0; -1.0 0.0]  # opnorm(r * C, 1) == r exactly
+    for s in 0:12
+        for r in (s == 0 ? rho[4] : ldexp(rho[5], s - 1), prevfloat(ldexp(rho[5], s)))
+            A = r * C
+            @test opnorm(A, 1) == r
+            @test ExponentialUtilities.pade13_squarings(r) == s
+            @test invoke(ExponentialUtilities.pade13_squarings, Tuple{Any}, r) == s
+            cache, _ = alloc_mem(A, method)
+            X = ExponentialUtilities.exp_gen!(cache, ldexp.(A, -s), Val(5))
+            for _ in 1:s
+                X = X * X
+            end
+            @test exponential!(copy(A), method) == X
+        end
+    end
+end
+
+@testset "ExpMethodHigham2005 accuracy at small norms" begin
+    rng = Xoshiro(0)
+    for r in (0.0, 0.01, 0.1, 0.5, 1.0, 3.0), _ in 1:5
+        A = randn(rng, 6, 6)
+        A *= r / opnorm(A, 1)
+        expA = exp(A)
+        @test exponential!(copy(A)) ≈ expA rtol = 5.0e-15
+        @test exponential!(Float32.(A)) ≈ expA rtol = 2.0e-6
+        @test exponential!(big.(A)) ≈ exponential!(big.(A), ExpMethodGeneric())
+    end
+end
+
+@testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
+    rng = Xoshiro(1)
+    method = ExpMethodHigham2005(true)
+    function kernel_choice(nA)
+        d = findfirst(r -> nA < r, ExponentialUtilities.RHO_V)
+        return d === nothing ?
+            (d = 5, s = ExponentialUtilities.pade13_squarings(nA)) : (d = d, s = 0)
+    end
+    discriminates = false
+    for _ in 1:10
+        D = Diagonal(exp10.(2 .* randn(rng, 6)))
+        A = D * (0.5 .* randn(rng, 6, 6)) / D
+        cache, _ = alloc_mem(A, method)
+        Ab, bal = GenericSchur.balance!(copy(A))
+        # Dense matrices never permute under balancing, and bal.D holds powers
+        # of two, so undoing the similarity is exact and `==` does not flake.
+        @test bal.ilo == 1 && bal.ihi == size(A, 1)
+        k = kernel_choice(opnorm(Ab, 1))
+        X = k.s > 0 ?
+            ExponentialUtilities.exp_pade13!(cache, Ab, k.s) :
+            ExponentialUtilities.exp_gen!(cache, Ab, Val(k.d))
+        @test exponential!(copy(A), method) == Diagonal(bal.D) * X / Diagonal(bal.D)
+        # measured normwise noise floor ~7e-15 on these draws, so 1e-13 keeps >10x margin
+        @test exponential!(copy(A), method) ≈ exp(A) rtol = 1.0e-13
+        discriminates |= kernel_choice(opnorm(A, 1)) != k
+    end
+    @test discriminates
+end
+
+@testset "ExpMethodHigham2005 at norms beyond 2^8 * 5.4" begin
+    @test exponential!(fill(-1.0e10, 1, 1)) == fill(0.0, 1, 1)
+    rng = Xoshiro(2)
+    for r in (2.0e3, 1.0e4, 1.0e5), _ in 1:3
+        A = randn(rng, 6, 6)
+        A = (A - A') / 2  # exp(A) is orthogonal, so it stays representable
+        A *= r / opnorm(A, 1)
+        @test exponential!(copy(A)) ≈ exp(A) rtol = 1.0e-10
     end
 end
 
@@ -108,8 +215,38 @@ end
         J = ForwardDiff.jacobian(exponential!, A)
         Jref = ForwardDiff.jacobian(exp_generic, Matrix(A))
         @test !any(isnan, J)
-        @test J ≈ Jref
+        # ForwardDiff widens this Jacobian, but the balancing and Padé arithmetic
+        # retain the static matrix's precision; use the primal type's bound.
+        @test J ≈ Jref rtol = sqrt(eps(T))
     end
+end
+
+@testset "Krylov products with ForwardDiff duals" begin
+    v = [0.3, 0.7, -0.2]
+    A = [0.1 0.2 0.0; 0.3 0.4 0.1; 0.0 0.2 -0.3]
+    E(u) = exp_generic(reshape(u, 3, 3))
+    Jref = ForwardDiff.jacobian(u -> E(u) * v, vec(A))
+    @test ForwardDiff.jacobian(u -> expv(1.0, reshape(u, 3, 3), v), vec(A)) ≈ Jref
+    # p * S keeps the Hessenberg exactly Hermitian, partials included, which reaches the eigen path
+    S = [-1.0 0.3 0.0; 0.3 -0.5 0.2; 0.0 0.2 -0.8]
+    dref = ForwardDiff.derivative(p -> exp_generic(p * S) * v, 0.7)
+    @test ForwardDiff.derivative(p -> expv(1.0, p * S, v), 0.7) ≈ dref
+    # `using DoubleFloats` above loads GenericLinearAlgebra's `eigen!` for duals, so the
+    # same derivative is checked in a process without it.
+    code = """
+    using ExponentialUtilities, ForwardDiff
+    S = [-1.0 0.3 0.0; 0.3 -0.5 0.2; 0.0 0.2 -0.8]
+    print(repr(ForwardDiff.derivative(p -> expv(1.0, p * S, [0.3, 0.7, -0.2]), 0.7)))
+    """
+    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) -e $code`
+    @test eval(Meta.parse(readchomp(cmd))) ≈ dref
+    Jref = ForwardDiff.jacobian(u -> reshape(u, 3, 3) \ ((E(u) - I) * v), vec(A))
+    @test ForwardDiff.jacobian(u -> phiv(1.0, reshape(u, 3, 3), v, 1)[:, 2], vec(A)) ≈ Jref
+    # the output takes the promoted type, so a complex t with a real b works too
+    @test phiv(0.1im, A, v, 1)[:, 1] ≈ exp(0.1im * A) * v
+    Ab, vb = big.(A), big.(v)
+    @test expv(big(1.0), Ab, vb) ≈ exp_generic(Ab) * vb
+    @test phiv(big(1.0), Ab, vb, 1)[:, 2] ≈ Ab \ ((exp_generic(Ab) - I) * vb)
 end
 
 @testset "ExpMethodGeneric preserves element type (immutable matrices)" begin
@@ -528,6 +665,20 @@ end
     Ksz = arnoldi(A, z)
     wz = expv(t, A, z; m = m)
     @test norm(wz) == 0.0
+    Ksz = KrylovSubspace{Float64}(n, m)
+    fill!(Ksz.V, NaN) # `arnoldi!` never fills V for a zero input
+    arnoldi!(Ksz, A, z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
+    fill!(Ksz.V, NaN)
+    arnoldi!(Ksz, randn(n, n), z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
+    # A zero Krylov vector, from a zero input or from starting at an equilibrium,
+    # takes the whole interval in one step.
+    @test iszero(phiv_timestep!(fill(NaN, n, 2), [t / 2, t], A, zeros(n, 3)))
+    @test iszero(expv_timestep(t, A, zeros(n)))
+    b0 = randn(n)
+    @test phiv_timestep(t, A, hcat(b0, -A * b0)) ≈ b0
+    @test phiv_timestep(t, zeros(n, n), hcat(b0, zeros(n, 2))) ≈ b0
 
     # Arnoldi vs Lanczos
     A = Hermitian(randn(n, n))
@@ -624,6 +775,18 @@ end
     @test (@allocated ge_hit()) == 0
 end
 
+@testset "kiops element types" begin
+    A = [-2.0 1.0; 0.5 -1.0]
+    b = [1.0, 0.5]
+    ref = exp(0.3 * A) * b
+    w32 = kiops(0.3f0, Float32.(A), Float32.(b))[1]
+    @test eltype(w32) == Float32
+    @test w32 ≈ ref rtol = 1.0e-5
+    Ac, bc = A + [0.2im 0.1; -0.1im 0.3im], b .+ [0.5im, -0.2im]
+    @test kiops(0.3, Ac, bc)[1] ≈ exp(0.3 * Ac) * bc
+    @test kiops(0.3, A, [1, 0])[1] ≈ exp(0.3 * A) * [1.0, 0.0]
+end
+
 @testset "Complex Value" begin
     n = 20
     m = 10
@@ -638,6 +801,56 @@ end
             @test exp(t * A) * b ≈ expv(t, A, b; m = m)
         end
     end
+    # An exactly Hermitian Hessenberg of complex eltype: a happy breakdown after one
+    # step, and a tridiagonal one whose off-diagonals are complex
+    b = ones(ComplexF64, 8)
+    Ks = KrylovSubspace{ComplexF64, ComplexF64}(8, 8)
+    arnoldi!(Ks, Diagonal(ones(ComplexF64, 8)), b)
+    @test expv!(similar(b), 1.0, Ks) ≈ exp(1.0) * b
+    Ks = KrylovSubspace{ComplexF64, ComplexF64}(8, 4)
+    Ks.beta = 2.0
+    Ks.V .= Matrix{ComplexF64}(I, 8, 5)
+    Ks.H .= 0
+    Tm = Matrix(Tridiagonal(ComplexF64[0.3 - 0.4im, 0.1im, 0.2], ComplexF64[1.0, -0.5, 0.25, 2.0], ComplexF64[0.3 + 0.4im, -0.1im, 0.2]))
+    Ks.H[1:4, :] .= Tm
+    for t in (0.3, 0.3 + 0.2im)
+        @test expv!(similar(b), t, Ks) ≈ 2.0 * Ks.V[:, 1:4] * exp(t * Tm)[:, 1]
+    end
+    Kg = KrylovSubspace{ComplexF64, ComplexF64, JLArray{ComplexF64, 2}}(8, 4)
+    Kg.beta = 2.0
+    Kg.V .= JLArray(Matrix{ComplexF64}(I, 8, 5))
+    Kg.H .= 0
+    Kg.H[1:4, :] .= Tm
+    for t in (0.3, 0.3 + 0.2im)
+        @test Array(expv!(JLArray(zeros(ComplexF64, 8)), t, Kg)) ≈
+            2.0 * Matrix{ComplexF64}(I, 8, 4) * exp(t * Tm)[:, 1]
+    end
+    # a complex cache over a real Hessenberg
+    Ar = Matrix(SymTridiagonal([-2.0, -1.0, -3.0, -0.5], [0.4, 0.3, 0.2]))
+    br = [1.0, 0.5, -0.2, 0.3]
+    Kr = arnoldi(Ar, br; m = 4)
+    for t in (0.3, 0.3 + 0.2im)
+        @test expv!(zeros(ComplexF64, 4), t, Kr; cache = ExpvCache{ComplexF64}(4)) ≈ exp(t * Ar) * br
+    end
+end
+
+@testset "kiops at several output times" begin
+    A = [-2.0 1.0; 0.5 -1.0]
+    b = [1.0, 0.5]
+    for ts in ([0.2, 0.5], [0.2 0.5])
+        w = kiops(ts, A, b)[1]
+        @test size(w) == (2, 2)
+        @test w[:, 1] ≈ exp(0.2 * A) * b
+        @test w[:, 2] ≈ exp(0.5 * A) * b
+    end
+    # enough Krylov substeps that output times are passed between restarts
+    n = 60
+    A = 50 * Matrix(SymTridiagonal(-2 * ones(n), ones(n - 1)))
+    b = collect(range(-1, 1; length = n))
+    ts = collect(range(0.5, 5.0; length = 10))
+    w, stats = kiops(ts, A, b; mmax = 12)
+    @test stats[1] > 1
+    @test all(w[:, i] ≈ exp(ts[i] * A) * b for i in eachindex(ts))
 end
 
 @testset "Adaptive Krylov" begin
@@ -657,6 +870,8 @@ end
     U = phiv_timestep([t / 2, t], A, B; adaptive = true, tol = tol)
     @test norm(U[:, 1] - uhalf_exact) / norm(uhalf_exact) < tol
     @test norm(U[:, 2] - u_exact) / norm(u_exact) < tol
+    # a sorted range needs no `sort!`, which it does not support
+    @test phiv_timestep!(similar(U), range(t / 2, t; length = 2), A, B; adaptive = true, tol = tol) == U
     # p = 0 special case (expv_timestep)
     u_exact = Phi[1] * B[:, 1]
     u = expv_timestep(t, A, B[:, 1]; adaptive = true, tol = tol, opnorm = opnorm)
@@ -731,6 +946,8 @@ end
 end
 
 @testset "Alternative Lanczos expv Interface" begin
+    # Fixed seed so this input exercises the absolute bound.
+    Random.seed!(903)
     n = 300
     m = 30
 
@@ -740,13 +957,17 @@ end
 
     atol = 1.0e-10
     rtol = 1.0e-10
-    w = expv(-im, dt * A, b, m = m, tol = atol, rtol = rtol, mode = :error_estimate)
+    # Assertion below is absolute-only; request the same from the solver so the
+    # stopping rule is atol (not atol + rtol*norm(b)).
+    w = expv(-im, dt * A, b, m = m, tol = atol, rtol = 0.0, mode = :error_estimate)
 
     function fullexp(A, v)
-        w = similar(v)
+        # a distinct name: assigning to `w` here would capture and overwrite
+        # the testset-local `w` above, making the comparison below vacuous
+        wfull = similar(v)
         eA = exp(A)
-        mul!(w, eA, v)
-        w
+        mul!(wfull, eA, v)
+        wfull
     end
 
     w′ = fullexp(-im * dt * A, b)
@@ -758,6 +979,93 @@ end
     z = zeros(ComplexF64, n)
     wz = expv(-im, dt * A, z, m = m, tol = atol, rtol = rtol, mode = :error_estimate)
     @test norm(wz) == 0
+end
+
+@testset "Preallocated symmetric tridiagonal eigensolver" begin
+    using ExponentialUtilities: StegrCache, expT!, symtridiag_eigen!
+
+    function tridiag_case(R, n)
+        α = randn(R, n)
+        β = randn(R, n)
+        return α, β, SymTridiagonal(α, β[1:(n - 1)])
+    end
+
+    # measured inside functions so the calls are statically dispatched; at
+    # testset scope the loop variables are boxed and the dispatch itself allocates
+    alloc_eigen(d, e, Z) = @allocated symtridiag_eigen!(d, e, Z)
+    alloc_expT(α, β, t, cache) = @allocated expT!(α, β, t, cache)
+
+    Random.seed!(5)
+    @testset "matches eigen ($R, n=$n)" for R in (Float64, Float32), n in (1, 2, 3, 7, 30)
+        α, β, T = tridiag_case(R, n)
+        d = copy(α)
+        e = copy(β)
+        Z = Matrix{R}(I, n, n)
+        symtridiag_eigen!(d, e, Z)
+        @test sort(d) ≈ eigvals(T)
+        @test Z' * Z ≈ I
+        @test Z * Diagonal(d) * Z' ≈ Matrix(T)
+        @test alloc_eigen(d, e, Z) == 0
+    end
+
+    @testset "degenerate matrices" begin
+        # already diagonal, and clusters of equal eigenvalues
+        for T in (
+                SymTridiagonal([1.0, 2.0, 3.0], [0.0, 0.0]),
+                SymTridiagonal(fill(2.0, 5), zeros(4)),
+                SymTridiagonal([1.0, 1.0, 1.0, 1.0], [1.0, 0.0, 1.0]),
+            )
+            n = size(T, 1)
+            d = copy(T.dv)
+            e = vcat(T.ev, 0.0)
+            Z = Matrix{Float64}(I, n, n)
+            symtridiag_eigen!(d, e, Z)
+            @test sort(d) ≈ eigvals(T)
+            @test Z * Diagonal(d) * Z' ≈ Matrix(T)
+        end
+    end
+
+    @testset "expT! ($T)" for T in (Float64, ComplexF64, Float32, ComplexF32)
+        R = real(T)
+        n = 30
+        cache = StegrCache(T, n)
+        t = T <: Complex ? -im * R(0.7) : R(0.7)
+        for j in (1, 2, 5, 13, n)
+            α, β, Tj = tridiag_case(R, j)
+            α0, β0 = copy(α), copy(β)
+            expT!(α, β, t, cache)
+            @test α == α0
+            @test β == β0
+            ref = exp(t * Matrix(Tj))[:, 1]
+            @test cache.v[1:j] ≈ ref rtol = 100 * eps(R) * j
+        end
+        α, β, _ = tridiag_case(R, n)
+        @test alloc_expT(α, β, t, cache) == 0
+    end
+end
+
+@testset "expv error-estimate mode preserves the input array type" begin
+    # JLArrays is the reference GPUArrays backend and disallows scalar indexing, so a
+    # host-backed Krylov basis makes these calls throw rather than silently work.
+    Random.seed!(11)
+    n = 120
+    A = Matrix(Hermitian(rand(n, n))) ./ 10
+    b = rand(ComplexF64, n)
+    kw = (m = 30, tol = 1.0e-10, rtol = 1.0e-10, mode = :error_estimate)
+    wref = expv(-im, A, b; kw...)
+
+    w = expv(-im, JLArray(A), JLArray(b); kw...)
+    @test w isa JLArray
+    @test Array(w) ≈ wref rtol = 1.0e-10
+
+    # the in-place entry point with an explicitly device-resident subspace
+    Ks = KrylovSubspace{ComplexF64, Float64, JLArray{ComplexF64, 2}}(n, 30)
+    wd = JLArray(similar(b))
+    expv!(
+        wd, -im, JLArray(A), JLArray(b), Ks, get_subspace_cache(Ks);
+        atol = 1.0e-10, rtol = 1.0e-10, ishermitian = true
+    )
+    @test Array(wd) ≈ wref rtol = 1.0e-10
 end
 
 module ExternalMatrixFreeOperator
@@ -929,8 +1237,8 @@ end
 @testset "ExpMethodHigham2005Base across BlasFloat types" begin
     # exponential!(_, ExpMethodHigham2005Base) is defined for every
     # `T <: BlasFloat`. The Padé coefficients are stored once as `Float64` tuples
-    # and converted to `T` in `_pade_evaluate!`, and `gebal_noalloc!` has a method
-    # per BLAS element type (d/s/z/c). Exercise all four types across every Padé
+    # and converted to `T` in `_pade_evaluate!`, and the balancing workspace is
+    # element-type specific. Exercise all four types across every Padé
     # norm range (the scale factor selects the branch) plus the scaling-squaring
     # path, checking against a high-precision reference.
     meth = ExpMethodHigham2005Base()

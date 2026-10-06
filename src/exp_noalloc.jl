@@ -14,6 +14,18 @@ algorithm and generated evaluation kernels.
 # Fields
 
   - `do_balancing::Bool`: whether to apply matrix balancing.
+
+# Returns
+
+An `ExpMethodHigham2005` algorithm object for use with [`exponential!`](@ref).
+
+# Examples
+
+```julia
+A = [0.0 1.0; -1.0 0.0]
+method = ExpMethodHigham2005(A)
+exponential!(copy(A), method)
+```
 """
 struct ExpMethodHigham2005
     do_balancing::Bool
@@ -51,20 +63,12 @@ function alloc_mem(A, ::ExpMethodHigham2005)
     return Higham2005Cache([similar(A) for i in 1:5], _pade_linsolve(A)), scale
 end
 
-# Import the generated code
+# Import the generated code: Padé approximants of degree 3, 5, 7, 9 and 13
 include("exp_generated/exp_1.jl")
 include("exp_generated/exp_2.jl")
 include("exp_generated/exp_3.jl")
 include("exp_generated/exp_4.jl")
 include("exp_generated/exp_5.jl")
-include("exp_generated/exp_6.jl")
-include("exp_generated/exp_7.jl")
-include("exp_generated/exp_8.jl")
-include("exp_generated/exp_9.jl")
-include("exp_generated/exp_10.jl")
-include("exp_generated/exp_11.jl")
-include("exp_generated/exp_12.jl")
-include("exp_generated/exp_13.jl")
 
 getmem(cache, k) = cache[k - 1] # Called from generated code
 getmem(cache::Higham2005Cache, k) = cache.slots[k - 1]
@@ -86,7 +90,56 @@ function ldiv_for_generated!(C, A, B, ::Nothing) # lu! fallback (GPU, BigFloat, 
     return C
 end
 
-const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4, 10.8, 21.6, 43.2, 86.4, 172.8, 345.6, 691.2)
+# Higham's θ_m for the Padé degrees m = 3, 5, 7, 9, 13 of kernels 1 to 5
+const RHO_V = (0.015, 0.25, 0.95, 2.1, 5.4)
+
+# The smallest s ≥ 0 with nA < RHO_V[5] * 2^s, read off the binary representation
+function pade13_squarings(nA::Union{Float16, Float32, Float64, BigFloat})
+    θ = RHO_V[5]
+    if isfinite(nA) && nA >= θ
+        return exponent(nA) - exponent(θ) + (significand(nA) >= significand(θ))
+    else
+        return 0
+    end
+end
+
+# Fallback for other number types, e.g. ForwardDiff duals. The rounded log2 can be off
+# by one at an interval edge, so an exact comparison with RHO_V[5] * 2^s settles it.
+function pade13_squarings(nA)
+    θ = RHO_V[5]
+    if isfinite(nA) && nA >= θ
+        s = ceil(Int, log2(nA / θ))
+        t = ldexp(θ, s)
+        if nA >= t
+            s += 1
+        elseif nA < t / 2
+            s -= 1
+        end
+        return s
+    else
+        return 0
+    end
+end
+
+# The degree-13 Padé approximant of 2^-s * A, squared s times, written to A
+function exp_pade13!(cache, A, s)
+    if s > 0
+        coeff = ldexp(one(real(eltype(A))), -s)
+        A .= coeff .* A
+    end
+    exp_gen!(cache, A, Val(5))
+    B = getmem(cache, 2)
+    npairs, rest = divrem(s, 2)
+    for _ in 1:npairs
+        mul!(B, A, A)
+        mul!(A, B, B)
+    end
+    if rest == 1
+        mul!(B, A, A)
+        copyto!(A, B)
+    end
+    return A
+end
 
 # Inplace add of a UniformScaling object (support julia 1.6.2)
 @inline function inplace_add!(A, B::UniformScaling) # Called from generated code
@@ -102,7 +155,6 @@ end
 function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, method))
     cache, _scale = _cache
     n = checksquare(A)
-    nA = opnorm(A, 1)
 
     # Maybe to balancing. `ilo`/`ihi`/`scale` are seeded with no-op defaults so they are
     # always defined before the symmetric undo block below; the two `do_balancing`
@@ -118,15 +170,22 @@ function exponential!(A, method::ExpMethodHigham2005, _cache = alloc_mem(A, meth
         ilo, ihi, scale = bal.ilo, bal.ihi, bal.D
         prow, pcol = bal.prow, bal.pcol
     end
+    nA = opnorm(A, 1)  # after balancing, since the kernel runs on the balanced matrix
 
-    # Make the call to the appropriate exp_gen! function
-    d = 13
-    for d in 1:12
-        if nA < RHO_V[d]
-            break
-        end
+    # RHO_V is tuned for double precision, so a type that resolves more digits keeps
+    # degree 13 with at least 8 squarings, which has the smallest truncation error.
+    # Otherwise use the first kernel d with nA < RHO_V[d], or degree 13 with as many
+    # squarings as the norm needs.
+    X = if precision(float(real(eltype(A)))) > precision(Float64)
+        exp_pade13!(cache, A, max(8, pade13_squarings(nA)))
+    else
+        @nif(
+            5,
+            d -> nA < RHO_V[d],
+            d -> exp_gen!(cache, A, Val(d)),
+            d -> exp_pade13!(cache, A, pade13_squarings(nA)),
+        )
     end
-    X = exp_gen!(cache, A, Val(d))
 
     # Undo the balancing
     if method.do_balancing

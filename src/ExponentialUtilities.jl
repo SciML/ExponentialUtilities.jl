@@ -1,6 +1,7 @@
 module ExponentialUtilities
+import Base.Cartesian: @nif
 import LinearAlgebra
-import LinearAlgebra: BLAS, Diagonal, Hermitian, I, SingularException,
+import LinearAlgebra: Diagonal, Hermitian, I, SingularException,
     SymTridiagonal, UniformScaling, axpy!, diagind, diagview, dot, eigen!,
     ishermitian, ldiv!, lmul!, lu!, mul!, norm, opnorm, rdiv!, rmul!
 import SparseArrays
@@ -14,6 +15,7 @@ import PrecompileTools: @compile_workload, @setup_workload
 import GenericSchur
 import GPUArraysCore
 import Adapt
+import SciMLPublic: @public
 
 const BlasFloat = Union{Float32, Float64, ComplexF32, ComplexF64}
 
@@ -67,5 +69,7 @@ export phi, phi!, KrylovSubspace, arnoldi, arnoldi!, lanczos!, ExpvCache, PhivCa
 export ExpMethodHigham2005,
     ExpMethodHigham2005Base, ExpMethodGeneric, ExpMethodNative,
     ExpMethodDiagonalization
+
+@public alloc_mem
 
 end

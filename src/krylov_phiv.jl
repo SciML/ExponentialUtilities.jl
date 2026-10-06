@@ -2,6 +2,10 @@
 
 ############################
 # Cache for expv
+mutable struct _ExponentialWorkspace{W}
+    value::W
+end
+
 """
     ExpvCache{T}(maxiter::Int)
 
@@ -17,9 +21,15 @@ larger subspace than the one it was allocated for.
   - `T`: element type of the Krylov Hessenberg workspace.
   - `maxiter`: largest Krylov dimension expected for repeated calls.
 
-# Example
+# Returns
+
+An `ExpvCache` sized for Krylov dimensions through `maxiter`.
+
+# Examples
 
 ```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
 cache = ExpvCache{Float64}(30)
 expv!(similar(b), 0.1, arnoldi(A, b); cache)
 ```
@@ -28,6 +38,9 @@ expv!(similar(b), 0.1, arnoldi(A, b); cache)
 
   - `mem::Vector{T}`: flat storage of length `maxiter^2` reshaped on demand into
     the `m`×`m` working copy of the Hessenberg matrix.
+  - `expcache`: typed, size-keyed reduced matrix-exponential workspaces.
+  - `expcol::Vector{T}`: contiguous storage for the first column of the reduced
+    matrix exponential.
 """
 mutable struct ExpvCache{T, W}
     mem::Vector{T}
@@ -39,7 +52,7 @@ mutable struct ExpvCache{T, W}
     # type -- only the instances (one per size) differ. `W === Nothing` when `T`
     # has no `alloc_mem` preallocation (e.g. BigFloat), and exponential! is then
     # called without a workspace.
-    expcache::Vector{Tuple{Int, W}}
+    expcache::Vector{Tuple{Int, _ExponentialWorkspace{W}}}
     # First column of exp(H), copied out so the final `mul!` consumes a
     # contiguous vector rather than a column view of the reshaped `mem` buffer
     # (that view does not elide and would allocate a SubArray each call).
@@ -48,7 +61,9 @@ end
 function ExpvCache{T}(maxiter::Int) where {T}
     W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
     return ExpvCache{T, W}(
-        Vector{T}(undef, maxiter^2), Tuple{Int, W}[], Vector{T}(undef, maxiter)
+        Vector{T}(undef, maxiter^2),
+        Tuple{Int, _ExponentialWorkspace{W}}[],
+        Vector{T}(undef, maxiter)
     )
 end
 function Base.resize!(C::ExpvCache{T}, maxiter::Int) where {T}
@@ -89,6 +104,14 @@ Compute the matrix-exponential-vector product with a Krylov approximation.
 
 The vector approximating ``\\exp(t A)b``.
 
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+expv(0.1, A, b; m = 2)
+```
+
 A Krylov subspace is constructed using `arnoldi` and `exp!` is called
 on the Hessenberg matrix. Consult `arnoldi` for the values of the
 keyword arguments. An alternative algorithm, where an error estimate
@@ -128,7 +151,7 @@ function _expv_ee(
     n = size(A, 1)
     T = promote_type(typeof(t), eltype(A), eltype(b))
     U = ishermitian ? real(T) : T
-    Ks = KrylovSubspace{T, U}(n, m)
+    Ks = _krylov_subspace(b, T, U, n, m)
     w = similar(b, promote_type(Tt, eltype(A), eltype(b)))
     return expv!(
         w, t, A, b, Ks, get_subspace_cache(Ks); atol = tol, rtol = rtol,
@@ -163,6 +186,16 @@ output vector.
 # Returns
 
 The mutated `w`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+Ks = arnoldi(A, b; m = 2)
+w = similar(b)
+expv!(w, 0.1, Ks)
+```
 """
 function expv!(
         w::AbstractVector{Tw}, t::Real, Ks::KrylovSubspace{T, U};
@@ -189,10 +222,10 @@ function expv!(
     end
     copyto!(Hcopy, @view(H[1:m, :]))
     Vm = @view(V[:, 1:m])
-    if ishermitian(Hcopy)
+    if U <: BlasFloat && ishermitian(Hcopy)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(Hcopy))
-        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        F = eigen!(U <: Real ? SymTridiagonal(real(Hcopy)) : Hermitian(Hcopy))
+        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* conj.(@view(F.vectors[1, :])))
         return lmul!(beta, mul!(w, Vm, expHe)) # exp(A) ≈ norm(b) * V * exp(H)e
     else
         lmul!(t, Hcopy)
@@ -234,10 +267,10 @@ function expv!(
         return w
     end
     copyto!(cache, @view(H[1:m, :]))
-    if ishermitian(cache)
+    if U <: BlasFloat && ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(real(cache)))
-        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
+        expHe = F.vectors * (exp.(t * F.values) .* conj.(@view(F.vectors[1, :])))
     else
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
@@ -269,9 +302,9 @@ function ExponentialUtilities.expv!(
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(cache))
+        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
         # Use lmul! to avoid allocation (modifies F.values in place)
-        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(lmul!(t, F.values)) .* conj.(@view(F.vectors[1, :])))
     else
         lmul!(t, cache)
         expH = exponential!(cache, expmethod)
@@ -304,9 +337,9 @@ function ExponentialUtilities.expv!(
     copyto!(cache, @view(H[1:m, :]))
     if ishermitian(cache)
         # Optimize the case for symtridiagonal H
-        F = eigen!(SymTridiagonal(cache))
+        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
         # Must allocate here: F.values is Real, t is Complex
-        expHe = F.vectors * (exp.(t * F.values) .* @view(F.vectors[1, :]))
+        expHe = F.vectors * (exp.(t * F.values) .* conj.(@view(F.vectors[1, :])))
     else
         expH = exponential!(t * cache, expmethod)
         expHe = @view(expH[:, 1])
@@ -342,9 +375,16 @@ allocated reshaped copies instead).
   - `maxiter`: largest Krylov dimension expected for repeated calls.
   - `p`: highest phi-function order expected for repeated calls.
 
-# Example
+# Returns
+
+A `PhivCache` sized for Krylov dimensions through `maxiter` and phi orders
+through `p`.
+
+# Examples
 
 ```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
 cache = PhivCache(similar(b, length(b), 3), 30, 2)
 phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
 ```
@@ -354,14 +394,16 @@ phiv!(similar(b, length(b), 3), 0.1, arnoldi(A, b), 2; cache)
   - `mem::Vector{T}`: flat storage that is carved (by `get_caches`) into the
     subspace vector, a Hessenberg working copy, and the two augmented matrices
     used by the phi-function recurrence.
-  - `expcache::Vector{Tuple{Int, W}}`: `exponential!` workspaces (see
+  - `expcache`: `exponential!` workspaces (see
     `alloc_mem`) keyed by extended-matrix size, reused across calls. `W` is a
     single concrete workspace type; see [`ExpvCache`](@ref) for why one type
     covers all sizes.
+  - `coeffs::Vector{T}`: coefficient scratch used by timestep evaluations.
+  - `ts1::Vector{Float64}`: one-element time buffer used by scalar-time wrappers.
 """
 mutable struct PhivCache{useview, T, W}
     mem::Vector{T}
-    expcache::Vector{Tuple{Int, W}}
+    expcache::Vector{Tuple{Int, _ExponentialWorkspace{W}}}
     # Reusable t^l/l! coefficient scratch for phiv_timestep! (which threads this
     # cache in). Kept here so phiv_timestep! need not allocate it per call; plain
     # phiv! does not touch it. `coeffs[1]` stays one(T); the rest are overwritten.
@@ -378,7 +420,10 @@ function PhivCache(w, maxiter::Int, p::Int)
     W = Base.promote_op(alloc_mem, Matrix{T}, typeof(ExpMethodHigham2005Base()))
     useview = !(w isa GPUArraysCore.AbstractGPUArray)
     return PhivCache{useview, T, W}(
-        mem, Tuple{Int, W}[], ones(T, max(p, 1)), Vector{Float64}(undef, 1)
+        mem,
+        Tuple{Int, _ExponentialWorkspace{W}}[],
+        ones(T, max(p, 1)),
+        Vector{Float64}(undef, 1)
     )
 end
 
@@ -406,8 +451,8 @@ function get_expcache!(
     W === Nothing && return nothing  # nothing::Nothing === W, so return stays concrete
     n = size(A, 1)
     entries = C.expcache
-    for (nc, work) in entries
-        nc == n && return work
+    for (nc, workref) in entries
+        nc == n && return workref
     end
     work = alloc_mem(A, expmethod)::W
     # Bound the store so memory stays in check, but evict only the oldest entry
@@ -419,8 +464,9 @@ function get_expcache!(
     # the recently seen sizes warm makes the adaptive path allocation-free at
     # steady state once its size set has been visited.
     length(entries) >= 64 && popfirst!(entries)
-    push!(entries, (n, work))
-    return work
+    workref = _ExponentialWorkspace{W}(work)
+    push!(entries, (n, workref))
+    return workref
 end
 # Non-default methods are not cached; the caller allocates via two-arg exponential!.
 get_expcache!(::Union{ExpvCache, PhivCache}, A, expmethod) = nothing
@@ -428,6 +474,7 @@ get_expcache!(::Union{ExpvCache, PhivCache}, A, expmethod) = nothing
 # Call exponential! with the reusable workspace when one is available; the
 # two-argument form allocates its own.
 _exponential!(A, method, ::Nothing) = exponential!(A, method)
+_exponential!(A, method, work::_ExponentialWorkspace) = exponential!(A, method, work.value)
 _exponential!(A, method, work) = exponential!(A, method, work)
 function Base.resize!(C::PhivCache, maxiter::Int, p::Int)
     numelems = maxiter + maxiter^2 + (maxiter + p)^2 + maxiter * (p + 1)
@@ -485,6 +532,14 @@ Compute matrix-phi-vector products with a Krylov approximation. `k >= 1`.
 An `n` by `k + 1` matrix whose columns are ``\\varphi_j(tA)b`` for
 `j = 0:k`, or that matrix paired with an error estimate when `errest=true`.
 
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+phiv(0.1, A, b, 2; m = 2)
+```
+
 The phi functions are defined as
 
 ```math
@@ -510,7 +565,7 @@ function phiv(
         kwargs_arnoldi...
     )
     Ks = arnoldi(A, b; kwargs_arnoldi...)
-    w = Matrix{eltype(b)}(undef, length(b), k + 1)
+    w = Matrix{promote_type(typeof(t), eltype(A), eltype(b))}(undef, length(b), k + 1)
     return phiv!(w, t, Ks, k; cache = cache, correct = correct, errest = errest)
 end
 function phiv(t, Ks::KrylovSubspace{T, U}, k; kwargs...) where {T, U}
@@ -538,6 +593,16 @@ the output matrix.
 # Returns
 
 The mutated `w`, or `(w, estimate)` when `errest=true`.
+
+# Examples
+
+```julia
+A = [-2.0 1.0; 0.0 -1.0]
+b = [1.0, 0.0]
+Ks = arnoldi(A, b; m = 2)
+w = similar(b, length(b), 3)
+phiv!(w, 0.1, Ks, 2)
+```
 """
 function phiv!(
         w::AbstractMatrix, t::Number, Ks::KrylovSubspace, k::Integer;
@@ -559,6 +624,11 @@ function _phiv!(
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert size(w, 1) == size(V, 1) "Dimension mismatch"
     @assert size(w, 2) == k + 1 "Dimension mismatch"
+    if iszero(beta)
+        # As in `expv!`: V and H are never filled for a zero input, and the result is zero.
+        w .= false
+        return w, abs(beta * zero(U) * t * zero(eltype(w)))
+    end
     if isnothing(cache)
         cache = PhivCache(w, m, k)
     elseif !isa(cache, PhivCache)

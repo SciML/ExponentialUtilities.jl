@@ -2,7 +2,7 @@ module ExponentialUtilitiesStaticArraysExt
 
 export default_tolerance, theta, THETA32, THETA64
 
-using StaticArrays
+using StaticArrays: StaticArrays, SMatrix, SVector
 import Base: @propagate_inbounds
 import LinearAlgebra: tr, I, opnorm, norm
 import ExponentialUtilities
@@ -73,22 +73,19 @@ const THETA64 = Tuple(calc_thetas(M_MAX, Float64))
 @propagate_inbounds theta(x::Number, m::Integer) = theta(typeof(x), m)
 
 # runtime parameter search
-@propagate_inbounds @inline function calculate_s(α::T, m::I)::I where {
-        T <: Number, I <: Integer,
-    }
-    return ceil(I, α / theta(T, m))
+# Use Int64 for scaling parameters: on 32-bit Julia, `Int === Int32` and
+# `m * ceil(α/θ)` routinely overflows Int32 (InexactError in parameter_search).
+@propagate_inbounds @inline function calculate_s(α::T, m::Integer)::Int64 where {T <: Number}
+    return ceil(Int64, α / theta(T, m))
 end
-@propagate_inbounds @inline function parameter_search(nA::Number, m::I)::I where {
-        I <:
-        Integer,
-    }
-    return m * calculate_s(nA, m)
+@propagate_inbounds @inline function parameter_search(nA::Number, m::Integer)::Int64
+    return Int64(m) * calculate_s(nA, m)
 end
 @propagate_inbounds @inline function parameters(
         A::SMatrix{
             N, N, T,
         }
-    )::Tuple{Int, Int} where {N, T}
+    )::Tuple{Int64, Int64} where {N, T}
     1 ≤ N ≤ 50 || throw(
         DomainError(
             N,
@@ -96,29 +93,70 @@ end
         )
     )
     nA = opnorm(A, 1)
-    iszero(nA) && return (0, 1)
+    iszero(nA) && return (Int64(0), Int64(1))
     @inbounds if nA ≤ 4theta(T, M_MAX) * P_MAX * (P_MAX + 3) / (M_MAX * 1)
-        mo = argmin(Base.Fix1(parameter_search, nA), 1:M_MAX)
+        mo = argmin(Base.Fix1(parameter_search, nA), Int64(1):Int64(M_MAX))
         s = calculate_s(nA, mo)
         return (mo, s)
     else
         Aᵐ = A * A
         pη = √(opnorm(Aᵐ, 1))
-        (Cmo::Int, mo::Int) = (typemax(Int), 1)
+        (Cmo::Int64, mo::Int64) = (typemax(Int64), Int64(1))
         for p in 2:P_MAX
             Aᵐ *= A
             η = opnorm(Aᵐ, 1)^inv(p + 1)
             α = max(pη, η)
             pη = η
             (
-                Cmp::Int,
-                mp::Int,
-            ) = findmin(Base.Fix1(parameter_search, α), (p * (p - 1) - 1):M_MAX)
+                Cmp::Int64,
+                mp::Int64,
+            ) = findmin(Base.Fix1(parameter_search, α), Int64(p * (p - 1) - 1):Int64(M_MAX))
             (Cmo, mo) = min((Cmp, mp), (Cmo, mo))
         end
-        s = max(Cmo ÷ mo, 1)
+        s = max(Cmo ÷ mo, Int64(1))
         return (mo, s)
     end
+end
+
+const IEEEFloat = Union{Float16, Float32, Float64}
+
+# TEMPORARY WORKAROUND for https://github.com/JuliaLang/julia/issues/62368: Julia 1.12
+# (LLVM 18) miscompiles StaticArrays' `mul_loop` kernel at -O2 for element types such as
+# ForwardDiff `Dual{T, Float32, 16}`, corrupting a partials lane of some entries. Plain
+# float matrices are unaffected and keep StaticArrays' kernel; other element types get a
+# fully unrolled `muladd` chain per entry, which is correct but 1.7x to 4x slower.
+# Remove these three methods (and the hooks in src/exp_generic.jl) once the minimum
+# supported Julia includes the LLVM backport of llvm/llvm-project@5d7cf504; see AGENTS.md.
+@generated function ExponentialUtilities._mul(
+        a::SMatrix{M, K, T}, b::SMatrix{K, N, T}
+    ) where {M, K, N, T}
+    (K == 0 || T <: IEEEFloat) && return :(a * b)
+    exprs = [
+        foldl(
+            (acc, j) -> :(muladd(a[$(k1 + (j - 1) * M)], b[$(j + (k2 - 1) * K)], $acc)), 2:K;
+            init = :(a[$k1] * b[$(1 + (k2 - 1) * K)])
+        )
+            for k1 in 1:M, k2 in 1:N
+    ]
+    return :(@inbounds SMatrix{$M, $N}(tuple($(exprs...))))
+end
+
+function ExponentialUtilities._square(x::SMatrix{M, M, T}, s) where {M, T}
+    T <: IEEEFloat && return x^(2^s)
+    for _ in 1:s
+        x = ExponentialUtilities._mul(x, x)
+    end
+    return x
+end
+
+@generated function ExponentialUtilities._horner(x::SMatrix{M, M, T}, c::Tuple) where {M, T}
+    T <: IEEEFloat && return :(Base.evalpoly(x, c))
+    n = length(c.parameters)
+    ex = :(c[$n])
+    for i in (n - 1):-1:1
+        ex = :(ExponentialUtilities._mul(x, $ex) + c[$i])
+    end
+    return ex
 end
 
 # exponential matrix-vector product for SArray types
