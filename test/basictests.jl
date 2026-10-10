@@ -3,6 +3,7 @@ using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
 using ForwardDiff, StaticArrays, DoubleFloats
+using GenericSchur
 using JLArrays
 
 @testset "alloc_mem public API" begin
@@ -79,6 +80,90 @@ end
     end
 end
 
+@testset "ExpMethodHigham2005 picks the kernel for the norm" begin
+    method = ExpMethodHigham2005(false)
+    rho = ExponentialUtilities.RHO_V
+    B = [0.5 0.25; -0.5 0.5]  # opnorm(r * B, 1) == r exactly
+    for d in 1:4
+        for r in (d == 1 ? 0.0 : rho[d - 1], prevfloat(rho[d]))
+            A = r * B
+            @test opnorm(A, 1) == r
+            cache, _ = alloc_mem(A, method)
+            @test exponential!(copy(A), method) ==
+                ExponentialUtilities.exp_gen!(cache, copy(A), Val(d))
+        end
+    end
+    # Degree 13 on 2^-s * A, squared s times, for nA in [rho[5] * 2^(s - 1), rho[5] * 2^s).
+    # A rotation generator keeps exp(A) bounded at these norms.
+    C = [0.0 1.0; -1.0 0.0]  # opnorm(r * C, 1) == r exactly
+    for s in 0:12
+        for r in (s == 0 ? rho[4] : ldexp(rho[5], s - 1), prevfloat(ldexp(rho[5], s)))
+            A = r * C
+            @test opnorm(A, 1) == r
+            @test ExponentialUtilities.pade13_squarings(r) == s
+            @test invoke(ExponentialUtilities.pade13_squarings, Tuple{Any}, r) == s
+            cache, _ = alloc_mem(A, method)
+            X = ExponentialUtilities.exp_gen!(cache, ldexp.(A, -s), Val(5))
+            for _ in 1:s
+                X = X * X
+            end
+            @test exponential!(copy(A), method) == X
+        end
+    end
+end
+
+@testset "ExpMethodHigham2005 accuracy at small norms" begin
+    rng = Xoshiro(0)
+    for r in (0.0, 0.01, 0.1, 0.5, 1.0, 3.0), _ in 1:5
+        A = randn(rng, 6, 6)
+        A *= r / opnorm(A, 1)
+        expA = exp(A)
+        @test exponential!(copy(A)) ≈ expA rtol = 5.0e-15
+        @test exponential!(Float32.(A)) ≈ expA rtol = 2.0e-6
+        @test exponential!(big.(A)) ≈ exponential!(big.(A), ExpMethodGeneric())
+    end
+end
+
+@testset "ExpMethodHigham2005 picks the kernel for the balanced matrix" begin
+    rng = Xoshiro(1)
+    method = ExpMethodHigham2005(true)
+    function kernel_choice(nA)
+        d = findfirst(r -> nA < r, ExponentialUtilities.RHO_V)
+        return d === nothing ?
+            (d = 5, s = ExponentialUtilities.pade13_squarings(nA)) : (d = d, s = 0)
+    end
+    discriminates = false
+    for _ in 1:10
+        D = Diagonal(exp10.(2 .* randn(rng, 6)))
+        A = D * (0.5 .* randn(rng, 6, 6)) / D
+        cache, _ = alloc_mem(A, method)
+        Ab, bal = GenericSchur.balance!(copy(A))
+        # Dense matrices never permute under balancing, and bal.D holds powers
+        # of two, so undoing the similarity is exact and `==` does not flake.
+        @test bal.ilo == 1 && bal.ihi == size(A, 1)
+        k = kernel_choice(opnorm(Ab, 1))
+        X = k.s > 0 ?
+            ExponentialUtilities.exp_pade13!(cache, Ab, k.s) :
+            ExponentialUtilities.exp_gen!(cache, Ab, Val(k.d))
+        @test exponential!(copy(A), method) == Diagonal(bal.D) * X / Diagonal(bal.D)
+        # measured normwise noise floor ~7e-15 on these draws, so 1e-13 keeps >10x margin
+        @test exponential!(copy(A), method) ≈ exp(A) rtol = 1.0e-13
+        discriminates |= kernel_choice(opnorm(A, 1)) != k
+    end
+    @test discriminates
+end
+
+@testset "ExpMethodHigham2005 at norms beyond 2^8 * 5.4" begin
+    @test exponential!(fill(-1.0e10, 1, 1)) == fill(0.0, 1, 1)
+    rng = Xoshiro(2)
+    for r in (2.0e3, 1.0e4, 1.0e5), _ in 1:3
+        A = randn(rng, 6, 6)
+        A = (A - A') / 2  # exp(A) is orthogonal, so it stays representable
+        A *= r / opnorm(A, 1)
+        @test exponential!(copy(A)) ≈ exp(A) rtol = 1.0e-10
+    end
+end
+
 #
 #@testset "Exp" begin
 #    n = 100
@@ -143,6 +228,34 @@ end
         # retain the static matrix's precision; use the primal type's bound.
         @test J ≈ Jref rtol = sqrt(eps(T))
     end
+end
+
+@testset "Krylov products with ForwardDiff duals" begin
+    v = [0.3, 0.7, -0.2]
+    A = [0.1 0.2 0.0; 0.3 0.4 0.1; 0.0 0.2 -0.3]
+    E(u) = exp_generic(reshape(u, 3, 3))
+    Jref = ForwardDiff.jacobian(u -> E(u) * v, vec(A))
+    @test ForwardDiff.jacobian(u -> expv(1.0, reshape(u, 3, 3), v), vec(A)) ≈ Jref
+    # p * S keeps the Hessenberg exactly Hermitian, partials included, which reaches the eigen path
+    S = [-1.0 0.3 0.0; 0.3 -0.5 0.2; 0.0 0.2 -0.8]
+    dref = ForwardDiff.derivative(p -> exp_generic(p * S) * v, 0.7)
+    @test ForwardDiff.derivative(p -> expv(1.0, p * S, v), 0.7) ≈ dref
+    # `using DoubleFloats` above loads GenericLinearAlgebra's `eigen!` for duals, so the
+    # same derivative is checked in a process without it.
+    code = """
+    using ExponentialUtilities, ForwardDiff
+    S = [-1.0 0.3 0.0; 0.3 -0.5 0.2; 0.0 0.2 -0.8]
+    print(repr(ForwardDiff.derivative(p -> expv(1.0, p * S, [0.3, 0.7, -0.2]), 0.7)))
+    """
+    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) -e $code`
+    @test eval(Meta.parse(readchomp(cmd))) ≈ dref
+    Jref = ForwardDiff.jacobian(u -> reshape(u, 3, 3) \ ((E(u) - I) * v), vec(A))
+    @test ForwardDiff.jacobian(u -> phiv(1.0, reshape(u, 3, 3), v, 1)[:, 2], vec(A)) ≈ Jref
+    # the output takes the promoted type, so a complex t with a real b works too
+    @test phiv(0.1im, A, v, 1)[:, 1] ≈ exp(0.1im * A) * v
+    Ab, vb = big.(A), big.(v)
+    @test expv(big(1.0), Ab, vb) ≈ exp_generic(Ab) * vb
+    @test phiv(big(1.0), Ab, vb, 1)[:, 2] ≈ Ab \ ((exp_generic(Ab) - I) * vb)
 end
 
 @testset "ExpMethodGeneric preserves element type (immutable matrices)" begin
@@ -561,6 +674,20 @@ end
     Ksz = arnoldi(A, z)
     wz = expv(t, A, z; m = m)
     @test norm(wz) == 0.0
+    Ksz = KrylovSubspace{Float64}(n, m)
+    fill!(Ksz.V, NaN) # `arnoldi!` never fills V for a zero input
+    arnoldi!(Ksz, A, z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
+    fill!(Ksz.V, NaN)
+    arnoldi!(Ksz, randn(n, n), z; m = m)
+    @test iszero(phiv!(zeros(n, 3), t, Ksz, 2))
+    # A zero Krylov vector, from a zero input or from starting at an equilibrium,
+    # takes the whole interval in one step.
+    @test iszero(phiv_timestep!(fill(NaN, n, 2), [t / 2, t], A, zeros(n, 3)))
+    @test iszero(expv_timestep(t, A, zeros(n)))
+    b0 = randn(n)
+    @test phiv_timestep(t, A, hcat(b0, -A * b0)) ≈ b0
+    @test phiv_timestep(t, zeros(n, n), hcat(b0, zeros(n, 2))) ≈ b0
 
     # Arnoldi vs Lanczos
     A = Hermitian(randn(n, n))
@@ -828,6 +955,8 @@ end
 end
 
 @testset "Alternative Lanczos expv Interface" begin
+    # Fixed seed so this input exercises the absolute bound.
+    Random.seed!(903)
     n = 300
     m = 30
 
@@ -837,7 +966,9 @@ end
 
     atol = 1.0e-10
     rtol = 1.0e-10
-    w = expv(-im, dt * A, b, m = m, tol = atol, rtol = rtol, mode = :error_estimate)
+    # Assertion below is absolute-only; request the same from the solver so the
+    # stopping rule is atol (not atol + rtol*norm(b)).
+    w = expv(-im, dt * A, b, m = m, tol = atol, rtol = 0.0, mode = :error_estimate)
 
     function fullexp(A, v)
         # a distinct name: assigning to `w` here would capture and overwrite

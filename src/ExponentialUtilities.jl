@@ -1,4 +1,5 @@
 module ExponentialUtilities
+import Base.Cartesian: @nif
 import LinearAlgebra
 import LinearAlgebra: Diagonal, Hermitian, I, SingularException,
     SymTridiagonal, UniformScaling, axpy!, diagind, diagview, dot, eigen!,

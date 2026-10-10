@@ -36,7 +36,7 @@
     end
 
     precomp_ms = [
-        #ExpMethodHigham2005(),
+        ExpMethodHigham2005(),
         ExpMethodHigham2005Base(),
         #ExpMethodGeneric(),
         #ExpMethodNative(),
