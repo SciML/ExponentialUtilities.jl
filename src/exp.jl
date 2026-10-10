@@ -57,6 +57,14 @@ function exponential!(A::GPUArraysCore.AbstractGPUArray)
     return exponential!(A, ExpMethodHigham2005(false))
 end;
 
+"""
+    exponential(A, [method, [cache]])
+
+Non-mutating counterpart of [`exponential!`](@ref): computes the matrix exponential of a
+copy of `A`, so `A` is left unchanged. The optional arguments are passed to `exponential!`.
+"""
+exponential(A, args...) = exponential!(copy(A), args...)
+
 ## The diagonalization based
 """
     ExpMethodDiagonalization(enforce_real = true)
