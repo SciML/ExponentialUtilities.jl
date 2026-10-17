@@ -2,7 +2,7 @@ using Test, LinearAlgebra, Random, SparseArrays, ExponentialUtilities
 using ExponentialUtilities: getH, getV, exponential!, ExpMethodNative,
     ExpMethodDiagonalization, ExpMethodHigham2005, ExpMethodGeneric,
     ExpMethodHigham2005Base, alloc_mem
-using ForwardDiff, StaticArrays, DoubleFloats
+using ForwardDiff, StaticArrays, DoubleFloats, FixedSizeArrays
 using GenericSchur
 using JLArrays
 
@@ -218,6 +218,21 @@ end
         # ForwardDiff widens this Jacobian, but the balancing and Padé arithmetic
         # retain the static matrix's precision; use the primal type's bound.
         @test J ≈ Jref rtol = sqrt(eps(T))
+    end
+end
+
+# Immutable array type; duals take the lu! fallback (#306)
+@testset "ExpMethodHigham2005 on FixedSizeArrays" begin
+    Random.seed!(306)
+    A = 3 .* rand(4, 4) # needs squaring
+    E = exponential!(FixedSizeMatrix(A))
+    @test E isa FixedSizeMatrix{Float64}
+    @test E ≈ exp(A)
+
+    Jref = ForwardDiff.jacobian(exp_generic, A)
+    for method in (ExpMethodHigham2005(true), ExpMethodHigham2005(false), ExpMethodHigham2005Base())
+        J = ForwardDiff.jacobian(x -> exponential!(FixedSizeMatrix(x), method), A)
+        @test J ≈ Jref
     end
 end
 
