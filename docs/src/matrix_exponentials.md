@@ -2,6 +2,7 @@
 
 ```@docs
 exponential!
+exponential
 phi
 phi!
 PhiPadeCache

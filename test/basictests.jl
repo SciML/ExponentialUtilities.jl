@@ -180,6 +180,15 @@ end
 #
 #
 exp_generic(A) = exponential!(copy(A), ExpMethodGeneric())
+@testset "exponential leaves its input unchanged" begin
+    A = [0.1 0.4 -0.2; 0.3 -0.5 0.1; 0.0 0.2 0.3]
+    A0 = copy(A)
+    @test exponential(A) ≈ exp(A0)
+    @test exponential(A, ExpMethodGeneric()) ≈ exp(A0)
+    @test exponential(A, ExpMethodHigham2005(), alloc_mem(A, ExpMethodHigham2005())) ≈ exp(A0)
+    @test A == A0
+    @test exponential(SMatrix{3, 3}(A)) ≈ exp(A0)
+end
 @testset "exp_generic" begin
     for n in [5, 10, 30, 50, 100, 500]
         M = rand(n, n)
