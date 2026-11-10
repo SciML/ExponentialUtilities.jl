@@ -57,9 +57,26 @@ function phi(
 end
 
 """
-    phiv_dense(A,v,k[;cache]) -> [phi_0(A)v phi_1(A)v ... phi_k(A)v]
+    phiv_dense(A, v, k; kwargs...) -> Matrix
 
-Compute the matrix-phi-vector products for small, dense `A`. `k`` >= 1.
+Compute the matrix-phi-vector products for small, dense `A` by forming the
+augmented matrix of Sidje's formula and exponentiating it. `k >= 1`.
+
+# Arguments
+
+  - `A`: small square matrix, typically a Krylov Hessenberg matrix.
+  - `v`: input vector of length `size(A, 1)`.
+  - `k`: highest phi-function order.
+
+# Keywords
+
+Forwarded to [`ExponentialUtilities.phiv_dense!`](@ref): `cache`,
+`expmethod`, and `expcache`.
+
+# Returns
+
+A newly allocated matrix whose column `j + 1` is ``\\varphi_j(A)v`` for
+`j = 0:k`.
 
 The phi functions are defined as
 
@@ -77,9 +94,32 @@ function phiv_dense(A, v, k; kwargs...)
     return phiv_dense!(w, A, v, k; kwargs...)
 end
 """
-    phiv_dense!(w,A,v,k[;cache]) -> w
+    phiv_dense!(w, A, v, k; cache = nothing, expmethod = ExpMethodHigham2005Base(),
+                expcache = nothing) -> w
 
-Non-allocating version of `phiv_dense`.
+In-place form of [`ExponentialUtilities.phiv_dense`](@ref): write
+``\\varphi_j(A)v`` into column `j + 1` of `w` for `j = 0:k` without
+allocating the output.
+
+# Arguments
+
+  - `w`: output matrix with `size(w, 1) == length(v)` and `size(w, 2) == k + 1`,
+    overwritten in place.
+  - `A`: small square matrix with `size(A, 1) == length(v)`.
+  - `v`: input vector.
+  - `k`: highest phi-function order, `k >= 1`.
+
+# Keywords
+
+  - `cache`: optional `(length(v) + k)` by `(length(v) + k)` matrix used as
+    the augmented-matrix workspace; allocated when `nothing`.
+  - `expmethod`: matrix-exponential method applied to the augmented matrix.
+  - `expcache`: optional reusable workspace for `expmethod`, as produced for
+    [`exponential!`](@ref).
+
+# Returns
+
+The mutated `w`.
 """
 function phiv_dense!(
         w::AbstractMatrix{T}, A::AbstractMatrix{T},

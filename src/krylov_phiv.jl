@@ -443,6 +443,19 @@ the fallback returning `nothing`, so the caller uses the two-argument
 `exponential!`. `nothing` is likewise returned for element types with no
 `alloc_mem` preallocation (`W === Nothing`, e.g. `BigFloat`). Dispatching on the
 method type keeps the return concretely typed (`W` or `Nothing`, never a union).
+
+# Arguments
+
+  - `C`: an [`ExpvCache`](@ref) or [`PhivCache`](@ref) holding the workspace
+    store; mutated when a new size is first requested.
+  - `A`: prototype matrix; only `size(A, 1)` and the element/storage type
+    determine the workspace.
+  - `expmethod`: reduced matrix-exponential method.
+
+# Returns
+
+The cached workspace wrapper for `size(A, 1)`, or `nothing` for non-default
+methods and for element types without an `alloc_mem` preallocation.
 """
 function get_expcache!(
         C::Union{ExpvCache{T, W}, PhivCache{<:Any, T, W}}, A,
