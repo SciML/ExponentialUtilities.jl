@@ -1,8 +1,7 @@
 module Stegr
-using LinearAlgebra
 using LinearAlgebra.BLAS: @blasfunc
 using LinearAlgebra: BlasInt
-using libblastrampoline_jll
+import libblastrampoline_jll
 
 import LinearAlgebra.LAPACK: stegr!
 
