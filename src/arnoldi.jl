@@ -235,7 +235,17 @@ end
 """
     firststep!(Ks, V, H, b) -> nothing
 
-Compute the first step of Arnoldi or Lanczos iteration.
+Initialize an Arnoldi or Lanczos iteration: zero `H`, set `Ks.beta` to
+`norm(b)`, and store the normalized starting vector `b / norm(b)` in the first
+column of `V`. A zero `b` leaves the first column untouched, with
+`Ks.beta == 0` signalling the caller to stop.
+
+# Arguments
+
+  - `Ks`: Krylov storage whose `beta` field is set.
+  - `V`: basis storage; its first column is overwritten.
+  - `H`: recurrence-coefficient storage, filled with zeros.
+  - `b`: starting vector.
 """
 function firststep!(Ks::KrylovSubspace, V, H, b)
     return @inbounds begin
@@ -262,7 +272,20 @@ end
 """
     firststep!(Ks, V, H, b, b_aug, t, mu, l) -> nothing
 
-Compute the first step of Arnoldi or Lanczos iteration of augmented system.
+Initialize an Arnoldi or Lanczos iteration for an augmented system: fill
+`b_aug` with the scaled powers `t^i / i! * mu`, zero `H`, and store the
+normalized concatenation of column `l` of `b` with `b_aug` in the first column
+of `V`. `Ks.beta` is set to the norm of that concatenated vector.
+
+# Arguments
+
+  - `Ks`: Krylov storage whose `beta` field is set.
+  - `V`: basis storage; its first column is overwritten.
+  - `H`: recurrence-coefficient storage, filled with zeros.
+  - `b`: matrix whose column `l` is the physical starting vector.
+  - `b_aug`: augmented-part storage, overwritten in place.
+  - `t`, `mu`: time and scale defining the augmented entries.
+  - `l`: index of the column of `b` to use.
 """
 function firststep!(Ks::KrylovSubspace, V, H, b, b_aug, t, mu, l)
     return @inbounds begin
@@ -292,9 +315,27 @@ end
 # Arnoldi
 ##############################
 """
-    arnoldi_step!(j, iop, n, A, V, H)
+    arnoldi_step!(j, iop, A, V, H, n = -1, p = -1) -> β
 
-Take the `j` 'th step of the Lanczos iteration.
+Take step `j` of the Arnoldi iteration: apply `A` to column `j` of `V`,
+orthogonalize the result against the previous `iop` basis vectors (all of them
+when `iop >= j`), store the coefficients in column `j` of `H`, and normalize
+the remainder into column `j + 1` of `V`.
+
+# Arguments
+
+  - `j`: 1-based index of the basis vector being extended.
+  - `iop`: incomplete-orthogonalization length.
+  - `A`: matrix, matrix-free operator, or augmented-operator tuple.
+  - `V`: basis storage; column `j + 1` is overwritten.
+  - `H`: Hessenberg storage; column `j` is overwritten.
+  - `n`, `p`: physical dimension and augmented size, or `-1` when not
+    augmented.
+
+# Returns
+
+`β = H[j + 1, j]`, the norm of the unnormalized new basis vector. A value
+below the caller's tolerance signals a happy breakdown.
 """
 function arnoldi_step!(
         j::Integer, iop::Integer, A::AT,
@@ -391,9 +432,26 @@ end
 ##############################
 
 """
-    lanczos_step!(j, m, n, A, V, H)
+    lanczos_step!(j, A, V, u, v, n = -1, p = -1) -> β
 
-Take the `j`'th step of the Lanczos iteration.
+Take step `j` of the Lanczos iteration: apply the Hermitian operator `A` to
+column `j` of `V`, orthogonalize against columns `j` and `j - 1`, and
+normalize the remainder into column `j + 1` of `V`.
+
+# Arguments
+
+  - `j`: 1-based index of the basis vector being extended.
+  - `A`: Hermitian matrix, matrix-free operator, or augmented-operator tuple.
+  - `V`: basis storage; column `j + 1` is overwritten.
+  - `u`: diagonal recurrence coefficients; `u[j]` is overwritten.
+  - `v`: off-diagonal recurrence coefficients; `v[j]` is overwritten.
+  - `n`, `p`: physical dimension and augmented size, or `-1` when not
+    augmented.
+
+# Returns
+
+`β = v[j]`, the norm of the unnormalized new basis vector. A value below the
+caller's tolerance signals a happy breakdown.
 """
 function lanczos_step!(
         j::Integer, A,
@@ -413,17 +471,23 @@ function lanczos_step!(
 end
 
 """
-    coeff(::Type, α)
+    coeff(::Type{U}, α) -> U-compatible coefficient
 
-Helper functions that returns the real part if that is what is
-required (for Hermitian matrices), otherwise returns the value
-as-is.
+Return the recurrence coefficient `α` in the storage type `U`: `α` itself when
+`α` already has type `U`, and `real(α)` when `U <: Real` and `α` is complex,
+as required for the real recurrence coefficients of a Hermitian problem.
 """
 coeff(::Type{T}, α::T) where {T} = α
 coeff(::Type{U}, α::T) where {U <: Real, T <: Complex} = real(α)
 
 """
-    realview(::Type, V) -> real view of `V`
+    realview(::Type{R}, V) -> AbstractVector{R}
+
+Return a view of the real parts of `V` when `V` is a complex vector with real
+part type `R`, and `V` itself when `V` is already a vector of `R`. Writing
+through the complex case sets the real parts and leaves the imaginary parts
+untouched; callers use it on recurrence-coefficient storage that is real for a
+Hermitian problem but may be held in complex storage.
 """
 function realview(::Type{R}, V::AbstractVector{C}) where {R, C <: Complex}
     return @view(reinterpret(R, V)[1:2:end])
