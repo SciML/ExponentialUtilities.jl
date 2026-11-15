@@ -17,10 +17,12 @@ SciMLPublic = "431bcebd-1456-4ced-9d72-93c2757fff0b"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [weakdeps]
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [extensions]
 ExponentialUtilitiesStaticArraysExt = "StaticArrays"
+ForwardDiffExt = "ForwardDiff"
 
 [compat]
 Adapt = "4.3"
