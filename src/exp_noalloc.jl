@@ -84,9 +84,7 @@ end
 function ldiv_for_generated!(C, A, B, ::Nothing) # lu! fallback (GPU, BigFloat, ...)
     F = lu!(A)
     ldiv!(F, B) # Result stored in B
-    if (pointer_from_objref(C) != pointer_from_objref(B)) # Aliasing allowed
-        copyto!(C, B)
-    end
+    copyto!(C, B)
     return C
 end
 
