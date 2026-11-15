@@ -1,5 +1,3 @@
-using LinearAlgebra
-
 """
     kiops(tau_out, A, u; kwargs...) -> (w, stats)
 
