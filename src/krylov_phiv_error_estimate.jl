@@ -60,7 +60,7 @@ mutable struct StegrCache{T, R <: Real} <: HermitianSubspaceCache{T}
 end
 
 """
-    symtridiag_eigen!(d, e, Z)
+    symtridiag_eigen!(d, e, Z) -> (d, Z)
 
 Diagonalize the real symmetric tridiagonal matrix with diagonal `d` and
 off-diagonal `e` (`e[i]` couples rows `i` and `i + 1`; `e[end]` is scratch)
@@ -75,6 +75,19 @@ Accumulating the rotations costs `O(n^3)`, against `O(n^2)` for LAPACK's MRRR
 (`stegr!`). It is nonetheless the faster choice on the Lanczos tridiagonals this
 path produces, whose decaying off-diagonals deflate in few sweeps; on generic
 tridiagonals it falls behind LAPACK past `n` of roughly 130.
+
+# Arguments
+
+  - `d`: diagonal on entry, eigenvalues on return.
+  - `e`: off-diagonal workspace with `length(e) >= length(d)`; destroyed on
+    return.
+  - `Z`: matrix the rotations are accumulated into; pass the identity to
+    obtain the eigenvectors in its columns.
+
+# Returns
+
+The pair `(d, Z)`. Throws an error if an eigenvalue has not converged after
+`30 * length(d)` QL iterations.
 """
 function symtridiag_eigen!(
         d::AbstractVector{R}, e::AbstractVector{R}, Z::AbstractMatrix{R}
@@ -135,12 +148,25 @@ function symtridiag_eigen!(
 end
 
 """
-    expT!(α, β, t, cache)
+    expT!(α, β, t, cache) -> view into `cache.v`
 
-Calculate the subspace exponential `exp(t*T)` for a tridiagonal
-subspace matrix `T` with `α` on the diagonal and `β` on the
-super-/subdiagonal. `α` and `β` are copied into the cache first and are not
-modified.
+Apply the subspace exponential ``\\exp(tT)`` to the first unit vector, for the
+real symmetric tridiagonal subspace matrix `T` with `α` on the diagonal and
+`β` on the super-/subdiagonal, by diagonalizing `T` with
+[`ExponentialUtilities.symtridiag_eigen!`](@ref). `α` and `β` are copied into
+`cache` first and are not modified.
+
+# Arguments
+
+  - `α`: diagonal of `T`.
+  - `β`: off-diagonal of `T`, of length `length(α) - 1` or `length(α)`.
+  - `t`: scalar time or scale factor.
+  - `cache`: [`StegrCache`](@ref) workspace sized for at least `length(α)`.
+
+# Returns
+
+A view of `cache.v[1:length(α)]` holding ``\\exp(tT)e_1``. The view aliases
+the cache and is overwritten by the next call with the same cache.
 """
 function expT!(
         α::AbstractVector{R}, β::AbstractVector{R}, t::Number,

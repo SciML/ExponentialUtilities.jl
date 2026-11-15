@@ -1,3 +1,15 @@
+"""
+    ExponentialUtilities
+
+Utilities for matrix functions of exponential type: the matrix exponential
+([`exponential!`](@ref)), matrix phi functions ([`phi`](@ref),
+[`phi!`](@ref)), and Krylov approximations of exponential- and
+phi-function-vector products ([`expv`](@ref), [`phiv`](@ref),
+[`expv_timestep`](@ref), [`phiv_timestep`](@ref), [`kiops`](@ref)) built on
+Arnoldi and Lanczos iterations ([`arnoldi`](@ref), [`arnoldi!`](@ref),
+[`lanczos!`](@ref)). The Krylov entry points also accept matrix-free linear
+operators; see the Matrix-Free Operator Interface page in the manual.
+"""
 module ExponentialUtilities
 import Base.Cartesian: @nif
 import LinearAlgebra
@@ -37,7 +49,17 @@ function rcswap!(i::Integer, j::Integer, A::AbstractMatrix)
 end
 
 """
-    @diagview(A,d) -> view of the `d`th diagonal of `A`.
+    @diagview(A, d = 0)
+
+Return a view of the `d`-th diagonal of the square matrix `A` as a strided
+vector view, using the linear-indexing convention of the callers in this
+package: `d <= 0` selects a subdiagonal starting at row `1 + abs(d)`, and
+`d > 0` is offset by the matrix size. Writing through the view writes to `A`.
+
+# Arguments
+
+  - `A`: square matrix.
+  - `d`: integer diagonal offset, defaulting to the main diagonal (`0`).
 """
 macro diagview(A, d::Integer = 0)
     s = d <= 0 ? 1 + abs(d) : :(m + $d)

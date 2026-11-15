@@ -465,6 +465,20 @@ In-place evaluation of `phi_0(A), ..., phi_p(A)` for a strided
 `Float64`/`ComplexF64` matrix `A` (`p >= 1`), writing `phi_j(A)` into `out[j+1]`
 and using the reusable [`PhiPadeCache`](@ref) `cache` for all scratch storage.
 The `out` matrices double as the recovery buffers.
+
+# Arguments
+
+  - `out`: vector of `p + 1` preallocated matrices matching the size of `A`,
+    overwritten in place.
+  - `A`: strided `Float64` or `ComplexF64` square matrix.
+  - `p`: highest phi-function order.
+  - `cache`: reusable [`PhiPadeCache`](@ref) sized for `A` and `p`.
+
+# Returns
+
+The mutated `out`. On numerical failure the entries are filled with `NaN`,
+`cache.info[]` is set to a nonzero return code, and no error is thrown; on
+success `cache.info[] == 0`.
 """
 function _phi_almohy!(
         out::AbstractVector{<:AbstractMatrix}, A::AbstractMatrix, p::Integer,
@@ -618,6 +632,17 @@ Container-preserving evaluation of `phi_0(A), ..., phi_p(A)` (`p >= 1`): the
 returned matrices have the same type as `A` (e.g. an `SMatrix` input yields
 `SMatrix` results). Used for immutable/static matrices, where the in-place
 workspace path does not apply.
+
+# Arguments
+
+  - `A`: square matrix whose container type is preserved in every result.
+  - `p`: highest phi-function order.
+
+# Returns
+
+A vector `Rm` of length `p + 1` with `Rm[j + 1]` approximating `phi_j(A)`. A
+numerically singular Padé denominator yields `NaN` results instead of
+throwing, so an adaptive integrator can reject the step.
 """
 function _phi_almohy_generic(A::AbstractMatrix, p::Integer)
     m, s, tau = _select_parameters_phi(A, p)

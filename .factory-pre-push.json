@@ -1,0 +1,5 @@
+{
+  "formatters": {
+    ".jl": ["julia", "--project=@runic", "-m", "Runic", "--check", "{files}"]
+  }
+}
