@@ -4,6 +4,10 @@ ExponentialUtilities is a package of utility functions for matrix functions of e
 including functionality for the matrix exponential and phi-functions. The tools are used by the
 exponential integrators in OrdinaryDiffEq.
 
+```@docs
+ExponentialUtilities
+```
+
 ## Installation
 
 To install ExponentialUtilities.jl, use the Julia package manager:

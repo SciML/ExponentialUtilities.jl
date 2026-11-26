@@ -6,4 +6,5 @@ pages = [
     "expv.md",
     "arnoldi.md",
     "interfaces.md",
+    "internal.md",
 ]

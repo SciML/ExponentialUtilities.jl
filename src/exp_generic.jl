@@ -103,11 +103,18 @@ ExpMethodGeneric() = ExpMethodGeneric{Val(13)}()
 ExpMethodGeneric(k::Integer) = ExpMethodGeneric{Val{k}()}()
 
 """
-    pade_order_for_type(::Type{T}) where {T}
+    pade_order_for_type(::Type{T}) -> Int
 
-Compute the minimum Padé order k required for machine-precision accuracy
-for a given floating-point type T. The (k,k) Padé approximant for exp(x)
-has error bounded by (x/2)^(2k+1) / (2k+1)! for |x| ≤ 1.
+Return the smallest diagonal Padé order `k` whose `(k, k)` approximant to
+`exp(x)` reaches the precision of the floating-point type `T` for `|x| <= 1`,
+using the error bound `(x/2)^(2k+1) / (2k+1)!`. Types with at most 64 bits of
+precision return `13`, the order used by the Higham 2005 algorithm; higher
+precision types search upward from `13`, capped at `500`.
+
+# Arguments
+
+  - `T`: numeric element type whose precision determines the order. Complex
+    types use the precision of their real part.
 """
 function pade_order_for_type(::Type{T}) where {T}
     # Get precision in bits
