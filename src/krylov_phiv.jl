@@ -256,9 +256,9 @@ function expv!(
     m, beta, V, H = Ks.m, Ks.beta, getV(Ks), getH(Ks)
     @assert length(w) == size(V, 1) "Dimension mismatch"
     if isnothing(cache)
-        cache = Matrix{U}(undef, m, m)
+        Hcopy = Matrix{U}(undef, m, m)
     elseif isa(cache, ExpvCache)
-        cache = get_cache(cache, m)
+        Hcopy = get_cache(cache, m)
     else
         throw(ArgumentError("Cache must be an ExpvCache"))
     end
@@ -266,13 +266,23 @@ function expv!(
         w .= false
         return w
     end
-    copyto!(cache, @view(H[1:m, :]))
-    if U <: BlasFloat && ishermitian(cache)
+    copyto!(Hcopy, @view(H[1:m, :]))
+    if U <: BlasFloat && ishermitian(Hcopy)
         # Optimize the case for symtridiagonal H
-        F = eigen!(U <: Real ? SymTridiagonal(real(cache)) : Hermitian(cache))
+        F = eigen!(U <: Real ? SymTridiagonal(real(Hcopy)) : Hermitian(Hcopy))
         expHe = F.vectors * (exp.(t * F.values) .* conj.(@view(F.vectors[1, :])))
+    elseif cache isa ExpvCache && promote_type(typeof(t), eltype(Hcopy)) === eltype(Hcopy)
+        expwork = get_expcache!(cache, Hcopy, expmethod)
+        lmul!(t, Hcopy)
+        _exponential!(Hcopy, expmethod, expwork)
+        expcol = cache.expcol
+        length(expcol) < m && resize!(expcol, m)
+        @inbounds for i in 1:m
+            expcol[i] = Hcopy[i, 1]
+        end
+        expHe = @view(expcol[1:m])
     else
-        expH = exponential!(t * cache, expmethod)
+        expH = exponential!(t * Hcopy, expmethod)
         expHe = @view(expH[:, 1])
     end
     # `ArrayInterfaceCore.restructure` will convert the `expHe` to the target matrix type that can interact with `V`.

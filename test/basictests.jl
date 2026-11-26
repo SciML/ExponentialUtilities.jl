@@ -858,6 +858,53 @@ end
     end
 end
 
+@testset "Complex-time expv! cache reuse" begin
+    rng = MersenneTwister(314)
+    n, m = 40, 30
+    A = randn(rng, ComplexF64, n, n)
+    b = normalize(randn(rng, ComplexF64, n))
+    for hermitian in (false, true)
+        H = hermitian ? Matrix(Hermitian(A + A')) : A
+        Ks = KrylovSubspace{ComplexF64, hermitian ? Float64 : ComplexF64}(n, m)
+        arnoldi!(Ks, H, b; m, ishermitian = hermitian)
+        for cache in (nothing, ExpvCache{ComplexF64}(2)), t in (0.01im, 0.01 - 0.02im)
+            @test expv!(similar(b), t, Ks; cache) ≈ exp(t * H) * b
+        end
+        if hermitian
+            @test expv!(similar(b), -0.01im, Ks; cache = ExpvCache{Float64}(m)) ≈ exp(-0.01im * H) * b
+        end
+    end
+
+    Ar = real(A)
+    br = real(b)
+    Kr = arnoldi(Ar, br; m, ishermitian = false)
+    for cache in (ExpvCache{Float64}(m), ExpvCache{ComplexF64}(m)), t in (0.01im, 0.01 - 0.02im)
+        @test expv!(similar(b), t, Kr; cache) ≈ exp(t * Ar) * br
+    end
+
+    Ks = arnoldi(A, b; m, ishermitian = false)
+    cache = ExpvCache{ComplexF64}(m)
+    w = similar(b)
+    alloc_expv(w, t, Ks, cache) = @allocated expv!(w, t, Ks; cache)
+    for t in (0.01, -0.01im)
+        for _ in 1:3
+            alloc_expv(w, t, Ks, cache)
+        end
+    end
+    real_alloc = minimum(alloc_expv(w, 0.01, Ks, cache) for _ in 1:5)
+    complex_alloc = minimum(alloc_expv(w, -0.01im, Ks, cache) for _ in 1:5)
+    @test complex_alloc <= real_alloc + 4096
+    @test complex_alloc <= 8192
+    @test length(cache.expcache) == 1
+    workspace = only(cache.expcache)[2]
+    expv!(w, -0.02im, Ks; cache)
+    @test only(cache.expcache)[2] === workspace
+    @test_throws ArgumentError expv!(w, -0.01im, Ks; cache = zeros(m, m))
+
+    Kzero = arnoldi(A, zero(b); m, ishermitian = false)
+    @test iszero(expv!(fill!(w, NaN), -0.01im, Kzero; cache))
+end
+
 @testset "kiops at several output times" begin
     A = [-2.0 1.0; 0.5 -1.0]
     b = [1.0, 0.5]
